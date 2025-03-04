@@ -1,4 +1,4 @@
-// ChatPage.jsx
+// frontend/src/pages/ChatPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -6,10 +6,10 @@ import Navbar from '../components/common/Navbar';
 import ChatSidebar from '../components/chat/ChatSidebar';
 import ChatWindow from '../components/chat/ChatWindow';
 import api from '../services/api';
-import useSocketIO from '../hooks/usesocketio';
+import socketManager from '../services/socketmanager';
 
 const ChatPage = () => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { chatId } = useParams();
   const navigate = useNavigate();
   const [chats, setChats] = useState([]);
@@ -18,57 +18,35 @@ const ChatPage = () => {
   const [error, setError] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState({});
   const [typingUsers, setTypingUsers] = useState({});
-  const [isDebugMode] = useState(import.meta.env.DEV || window.location.search.includes('debug'));
-    // More robust socket URL generation
-    const socketUrl = (() => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const hostname = window.location.hostname || 'localhost';
-      const port = import.meta.env.VITE_SOCKET_PORT || '3000';
-      return `${protocol}//${hostname}:${port}`;
-    })();
-    
-    const { 
-      status: socketStatus, 
-      error: socketError, 
-      diagnoseError, // Added error diagnosis
-      on, 
-      emit,
-      joinRoom,
-      leaveRoom
-    } = useSocketIO(socketUrl, token, {
-      maxReconnectAttempts: 8,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      socketPath: '/socket.io/' // Explicit socket path
-    });
-  // Update error state when Socket.IO has an error
+  const [socketStatus, setSocketStatus] = useState('DISCONNECTED');
+  
+  // Subscribe to socket status changes
   useEffect(() => {
-    if (socketError) {
-      // [MODIFIED] Use advanced error diagnosis
-      const detailedError = diagnoseError(socketError);
-      setError(detailedError);
-      
-      // Optional: Log to error tracking service
-      logErrorToService(detailedError);
-    }
-  }, [socketError]);
+    const unsubscribe = socketManager.onStatusChange((status) => {
+      setSocketStatus(status);
+    });
+    
+    return unsubscribe;
+  }, []);
+
   // Join the active chat room
   useEffect(() => {
     if (activeChat && socketStatus === 'CONNECTED') {
       // Join the current chat room
-      joinRoom(activeChat._id);
+      socketManager.joinChat(activeChat._id);
       
       // Return cleanup function to leave the room when chat changes
       return () => {
-        leaveRoom(activeChat._id);
+        socketManager.leaveChat(activeChat._id);
       };
     }
-  }, [activeChat, socketStatus, joinRoom, leaveRoom]);
-  
-  // Register Socket.IO event handlers
+  }, [activeChat, socketStatus]);
+
+  // Register socket event handlers
   useEffect(() => {
     // New message handler
-    const newMessageUnregister = on('new_message', (message) => {
+    const messageUnsubscribe = socketManager.on('new_message', (message) => {
+      // Update chat list with new message
       setChats(prevChats => {
         const updatedChats = [...prevChats];
         const chatIndex = updatedChats.findIndex(chat => chat._id === message.chatRoom);
@@ -77,7 +55,8 @@ const ChatPage = () => {
           // Update last message of the chat
           updatedChats[chatIndex] = {
             ...updatedChats[chatIndex],
-            lastMessage: message
+            lastMessage: message,
+            lastActivity: new Date().toISOString()
           };
           
           // Move this chat to the top of the list
@@ -98,18 +77,25 @@ const ChatPage = () => {
       if (activeChat && activeChat._id === message.chatRoom) {
         setActiveChat(prevChat => ({
           ...prevChat,
-          lastMessage: message
+          lastMessage: message,
+          lastActivity: new Date().toISOString()
         }));
       }
     });
     
     // Typing indicator handler
-    const typingUnregister = on('typing', (data) => {
+    const typingUnsubscribe = socketManager.on('typing', (data) => {
       const { chatId, userId, isTyping } = data;
       
       setTypingUsers(prev => {
         if (isTyping) {
-          return { ...prev, [chatId]: { ...prev[chatId], [userId]: true } };
+          return { 
+            ...prev, 
+            [chatId]: { 
+              ...prev[chatId], 
+              [userId]: true 
+            } 
+          };
         } else {
           const updatedTyping = { ...prev };
           if (updatedTyping[chatId]) {
@@ -124,7 +110,7 @@ const ChatPage = () => {
     });
     
     // Presence update handler
-    const presenceUnregister = on('presence_update', (data) => {
+    const presenceUnsubscribe = socketManager.on('presence_update', (data) => {
       const { userId, status } = data;
       setOnlineUsers(prev => ({
         ...prev,
@@ -132,50 +118,30 @@ const ChatPage = () => {
       }));
     });
     
-    // Message read handler
-    const messageReadUnregister = on('message_read', (data) => {
-      const { messageId, chatId } = data;
-      
-      if (activeChat && activeChat._id === chatId) {
-        console.log(`Message ${messageId} marked as read`);
-      }
-    });
-    
     // Initial data handler
-    const initUnregister = on('init', (data) => {
-      console.log('Received initial data:', data);
-      
-      // Handle initial online users
+    const initUnsubscribe = socketManager.on('init', (data) => {
       if (data.onlineUsers) {
         setOnlineUsers(data.onlineUsers);
       }
     });
     
-    // Cleanup all handlers
     return () => {
-      newMessageUnregister();
-      typingUnregister();
-      presenceUnregister();
-      messageReadUnregister();
-      initUnregister();
+      messageUnsubscribe();
+      typingUnsubscribe();
+      presenceUnsubscribe();
+      initUnsubscribe();
     };
-  }, [on, activeChat]);
+  }, [activeChat]);
   
   // Send read receipt for a message
   const sendReadReceipt = useCallback((messageId, chatRoomId) => {
-    emit('read_message', {
-      messageId,
-      chatId: chatRoomId || (activeChat ? activeChat._id : null)
-    });
-  }, [emit, activeChat]);
+    socketManager.markMessageRead(messageId, chatRoomId || (activeChat ? activeChat._id : null));
+  }, [activeChat]);
   
   // Send typing indicator
   const sendTypingIndicator = useCallback((chatId, isTyping) => {
-    emit('typing', {
-      chatId,
-      isTyping
-    });
-  }, [emit]);
+    socketManager.sendTypingIndicator(chatId, isTyping);
+  }, []);
   
   // Load chat list
   useEffect(() => {
@@ -195,7 +161,7 @@ const ChatPage = () => {
             navigate(`/chat/${response[0]._id}`, { replace: true });
           }
         } else if (response.length > 0) {
-          // If no chatId in URL but we have chats, set active chat without navigation
+          // If no chatId in URL but we have chats, set active chat
           setActiveChat(response[0]);
         }
         
@@ -212,7 +178,7 @@ const ChatPage = () => {
     }
   }, [user, chatId, navigate]);
   
-  // Create a new chat
+  // Handle creating a new chat
   const createNewChat = async (participantId) => {
     try {
       setLoading(true);
@@ -229,115 +195,35 @@ const ChatPage = () => {
   };
   
   // Send a message
-  const sendMessage = async (chatId, content, messageType = 'text', attachments = null) => {
+  const sendMessage = async (chatId, content, messageType = 'text', attachment = null) => {
     try {
       let response;
       
-      // Validate inputs
-      if (!chatId) {
-        console.error('No chat ID provided');
-        throw new Error('Chat ID is required');
+      // Handle attachments if present
+      if (attachment) {
+        const formData = new FormData();
+        formData.append('content', content);
+        formData.append('messageType', messageType);
+        formData.append('media', attachment);
+        
+        response = await api.sendMessageWithAttachment(chatId, formData);
+      } else {
+        response = await api.sendMessage(chatId, { content, messageType });
       }
-      
-      // Send message via API first
-      const messageData = {
-        content,
-        messageType
-      };
-      
-      try {
-        // Handle attachments if present
-        if (attachments) {
-          // This would use a FormData approach for file uploads
-          const formData = new FormData();
-          formData.append('content', content);
-          formData.append('messageType', messageType);
-          
-          if (messageType === 'image' || messageType === 'video' || messageType === 'file') {
-            formData.append('media', attachments);
-          }
-          
-          response = await api.sendMessageWithAttachment(chatId, formData);
-        } else {
-          response = await api.sendMessage(chatId, messageData);
-        }
-      } catch (apiError) {
-        console.error('API Send Message Error:', apiError);
-        
-        // Log detailed error information
-        if (apiError.response) {
-          console.error('Server Response:', apiError.response.data);
-          console.error('Server Status:', apiError.response.status);
-          console.error('Server Headers:', apiError.response.headers);
-        }
-        
-        throw apiError;
-      }
-      
-      // Extra validation of response
-      if (!response) {
-        console.error('No response received from message send');
-        throw new Error('No response from server');
-      }
-      
-      // Ensure response has an _id (defensive programming)
-      if (!response._id) {
-        console.warn('Message response missing _id', response);
-        
-        // Generate a temporary ID
-        response._id = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      }
-      
-      // Emit the message via Socket.IO for real-time updates
-      emit('new_message', {
-        _id: response._id,
-        content,
-        chatId,
-        messageType
-      });
-      
-      // Update the chat with the new message
-      setChats(prevChats => {
-        const updatedChats = [...prevChats];
-        const chatIndex = updatedChats.findIndex(chat => chat._id === chatId);
-        
-        if (chatIndex !== -1) {
-          // Update last message
-          updatedChats[chatIndex] = {
-            ...updatedChats[chatIndex],
-            lastMessage: response
-          };
-          
-          // Move to top
-          const chatToMove = updatedChats[chatIndex];
-          updatedChats.splice(chatIndex, 1);
-          updatedChats.unshift(chatToMove);
-        }
-        
-        return updatedChats;
-      });
       
       return response;
     } catch (error) {
-      console.error('Comprehensive Send Message Error:', error);
-      
-      // More user-friendly error handling
-      const errorMessage = error.response?.data?.error 
-        || error.message 
-        || 'Failed to send message. Please try again.';
-      
-      // Optional: Show error to user
-      setError(errorMessage);
-      
+      console.error('Error sending message:', error);
+      setError('Failed to send message. Please try again.');
       throw error;
     }
   };
-  // Render UI
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800">Please log in to access chat</h1>
+        <div className="text-center p-8 bg-white shadow-md rounded-lg">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Please log in to access chat</h1>
           <button 
             onClick={() => navigate('/login')}
             className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded"
@@ -351,7 +237,7 @@ const ChatPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      <Navbar />
+      <Navbar user={user} />
       
       <div className="flex-grow flex overflow-hidden">
         <ChatSidebar 
@@ -396,40 +282,39 @@ const ChatPage = () => {
         )}
       </div>
       
-      {/* Error message */}
-      {error && (
-        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-md">
-          <p>{error}</p>
-          <button 
-            onClick={() => setError(null)}
-            className="absolute top-0 right-0 p-2"
-          >
-            &times;
-          </button>
-        </div>
-      )}
-      
-      {/* Socket status indicator */}
-      {socketStatus !== 'CONNECTED' && (
-        <div className="fixed top-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded shadow-md">
-          <p>
-            {socketStatus === 'CONNECTING' ? 'Connecting to chat service...' : 
-             socketStatus === 'DISCONNECTED' ? 'Disconnected from chat service. Reconnecting...' : 
-             'Connection error. Attempting to reconnect...'}
+      {/* Connection status indicator */}
+      {socketStatus === 'DISCONNECTED' && (
+        <div className="fixed bottom-4 left-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded shadow-md">
+          <p className="flex items-center">
+            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
+            </svg>
+            Connection lost. Reconnecting...
           </p>
         </div>
       )}
       
-      {/* Debugger (development only) */}
-      {isDebugMode && (
-        <div className="fixed bottom-4 left-4 bg-gray-800 text-white p-4 rounded shadow-md max-w-md">
-          <h3 className="font-bold mb-2">Socket.IO Debug</h3>
-          <p>Status: <span className={
-            socketStatus === 'CONNECTED' ? 'text-green-400' : 
-            socketStatus === 'CONNECTING' ? 'text-yellow-400' : 
-            'text-red-400'
-          }>{socketStatus}</span></p>
-          <p className="text-xs mt-2 text-gray-400">URL: {socketUrl}</p>
+      {/* Error message */}
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-md max-w-md">
+          <div className="flex">
+            <div className="py-1">
+              <svg className="h-6 w-6 mr-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold">Error</p>
+              <p className="text-sm">{error}</p>
+            </div>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-auto"
+              aria-label="Close error message"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
     </div>
