@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { UserPlus, X, Check, ChevronLeft, Clock, Briefcase, MapPin, Users, RefreshCw } from 'lucide-react';
-import api from '../../services/api';
-import Loader from '../../components/common/Loader';
+import api from '../services/api';
+import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 
 const ConnectionRequestPage = () => {
