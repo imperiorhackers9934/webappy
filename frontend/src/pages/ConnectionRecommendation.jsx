@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { UserPlus, X, Check, ChevronLeft, Clock, Briefcase, MapPin, Users, RefreshCw } from 'lucide-react';
 import api from '../services/api';
+<<<<<<< HEAD
 import Loader from '../../components/common/Loader';
+=======
+import Loader from '../components/common/Loader';
+>>>>>>> 114af890dfa960decc186e0042749ea3bacd52f0
 import EmptyState from '../components/common/EmptyState';
 
 const ConnectionRequestPage = () => {
