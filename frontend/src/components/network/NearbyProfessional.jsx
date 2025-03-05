@@ -1,251 +1,263 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import Loader from '../common/Loader';
+import UserCard from '../common/UserCard';
+import { MapPin, Sliders } from 'lucide-react';
 
-const NearbyProfessionals = ({ user }) => {
-  const [professionals, setProfessionals] = useState([]);
+const NearbyProfessionalsPage = () => {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [distance, setDistance] = useState(10); // Default 10km radius
-  const [currentLocation, setCurrentLocation] = useState(null);
+  const [nearbyUsers, setNearbyUsers] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [filters, setFilters] = useState({
+    distance: 10, // km
+    industries: '',
+    skills: '',
+    availableForMeeting: false,
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const navigate = useNavigate();
 
-  // Get user's current location
   useEffect(() => {
-    const getUserLocation = () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            setCurrentLocation({ latitude, longitude });
-          },
-          (error) => {
-            console.error('Error getting location:', error);
-            setError('Could not get your location. Please enable location services.');
-            setLoading(false);
-          }
-        );
-      } else {
-        setError('Geolocation is not supported by your browser');
-        setLoading(false);
-      }
-    };
-
+    // Get user's location when the component mounts
     getUserLocation();
   }, []);
 
-  // Fetch nearby professionals when location is available
-  useEffect(() => {
-    const fetchNearbyProfessionals = async () => {
-      if (!currentLocation) return;
-      
-      try {
-        setLoading(true);
-        
-        // Update user's location on the server
-        await api.updateLocation(currentLocation.latitude, currentLocation.longitude);
-        
-        // Fetch nearby professionals
-        const response = await api.getNearbyProfessionals(distance);
-        setProfessionals(response);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching nearby professionals:', error);
-        setError('Failed to load nearby professionals');
-        setLoading(false);
-      }
-    };
-
-    fetchNearbyProfessionals();
-  }, [currentLocation, distance]);
-
-  // Calculate positions for professionals inside the oval
-  const positionProfiles = () => {
-    const maxVisible = Math.min(professionals.length, 8); // Show max 8 profiles
-    const profiles = [];
-    
-    for (let i = 0; i < maxVisible; i++) {
-      const professional = professionals[i];
-      
-      // Use a golden ratio based spiral to position profiles
-      // This prevents overlapping and creates a nice distribution
-      const theta = i * 2.4; // Golden angle in radians
-      const radius = Math.min(16, 5 + 2.5 * Math.sqrt(i)); // Adjust radius based on index
-      
-      // Convert polar to cartesian coordinates (0,0 is center)
-      const x = radius * Math.cos(theta);
-      const y = radius * Math.sin(theta) * 0.6; // Multiply by 0.6 to account for oval shape
-      
-      // Convert to percentage (center is 50%, 50%)
-      const xPercent = 50 + x;
-      const yPercent = 50 + y;
-      
-      profiles.push({
-        ...professional,
-        position: { x: xPercent, y: yPercent }
-      });
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ latitude, longitude });
+          fetchNearbyUsers(latitude, longitude, filters.distance);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          setLoading(false);
+        }
+      );
+    } else {
+      console.error('Geolocation is not supported by this browser.');
+      setLoading(false);
     }
-    
-    return profiles;
+  };
+  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+    setLoading(true);
+    try {
+      const [nearbyResponse, connectionsResponse] = await Promise.all([
+        api.getNearbyProfessionals(distance),
+        api.getConnections('all')
+      ]);
+      
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set(connectionsResponse.map(conn => conn._id));
+      
+      // Filter out users who are in your connections
+      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
+      
+      setNearbyUsers(filteredUsers);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching nearby professionals:', error);
+      setLoading(false);
+    }
   };
 
-  // Send connection request
+  const handleFilterChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFilters(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleApplyFilters = () => {
+    if (userLocation) {
+      fetchNearbyUsers(
+        userLocation.latitude,
+        userLocation.longitude,
+        filters.distance
+      );
+    }
+  };
+
   const handleConnect = async (userId) => {
     try {
-      if (!userId) {
-        console.error('No user ID provided');
-        return;
-      }
-      
-      console.log('Sending connection request to user:', userId);
       await api.sendConnectionRequest(userId);
-      
-      // Update the list to show "Pending" for this user
-      setProfessionals(prev => 
-        prev.map(p => 
-          p._id === userId ? { ...p, connectionStatus: 'pending' } : p
+      // Update the user's status in the list
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, connectionStatus: 'pending' } 
+            : user
         )
       );
     } catch (error) {
       console.error('Error sending connection request:', error);
-      // Check the specific error message or status
-      if (error.response) {
-        console.error('Server response:', error.response.data);
-      }
     }
   };
 
-  if (loading && !professionals.length) {
-    return (
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Scanning for Professionals</h3>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
-        </div>
-      </div>
-    );
-  }
+  const handleFollow = async (userId) => {
+    try {
+      const response = await api.followUser(userId);
+      // Update the user's status in the list
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, isFollowing: response.following } 
+            : user
+        )
+      );
+    } catch (error) {
+      console.error('Error following user:', error);
+    }
+  };
 
-  if (error) {
-    return (
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Scanning for Professionals</h3>
-        </div>
-        <div className="p-4">
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-600">
-            {error}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleViewProfile = (userId) => {
+    navigate(`/profile/${userId}`);
+  };
 
-  const positionedProfiles = positionProfiles();
+  const industries = [
+    'Technology', 'Healthcare', 'Finance', 'Education', 
+    'Marketing', 'Sales', 'Design', 'Engineering', 
+    'Consulting', 'Legal', 'Real Estate', 'Hospitality'
+  ];
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900">Scanning for Professionals</h3>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Nearby Professionals</h1>
+        <div className="flex space-x-4">
+          <button 
+            onClick={() => navigate('/network/suggested')}
+            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+          >
+            View Suggested
+          </button>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"
+          >
+            <Sliders className="h-4 w-4 mr-2" />
+            Filters
+          </button>
+        </div>
       </div>
 
-      {professionals.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 px-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <p>No professionals found nearby.</p>
-          <p className="text-sm mt-1">Try increasing the search distance or check back later.</p>
-        </div>
-      ) : (
-        <div className="p-6 flex flex-col items-center">
-          {/* Main orange oval with profiles inside */}
-          <div className="relative w-64 h-40 mb-6">
-            {/* Orange oval background */}
-            <div className="absolute inset-0" style={{ 
-              background: '#FF7A45', 
-              borderRadius: '50%',
-              overflow: 'hidden'
-            }}>
-              {/* Inner white ring */}
-              <div className="absolute inset-4" style={{ 
-                border: '1px solid white', 
-                borderRadius: '50%',
-                opacity: 0.5
-              }}></div>
-            </div>
-            
-            {/* Profiles inside the oval */}
-            {positionedProfiles.map((professional) => (
-              <div 
-                key={professional._id}
-                className="absolute w-12 h-12 transform -translate-x-1/2 -translate-y-1/2"
-                style={{ 
-                  left: `${professional.position.x}%`, 
-                  top: `${professional.position.y}%`,
-                  zIndex: 10
-                }}
-              >
-                <Link to={`/profile/${professional._id}`}>
-                  <div className="h-12 w-12 rounded-full overflow-hidden bg-white border-2 border-white shadow">
-                    {professional.profilePicture ? (
-                      <img
-                        src={professional.profilePicture}
-                        alt={`${professional.firstName} ${professional.lastName}`}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-gray-300">
-                        <span className="text-xs font-semibold text-gray-600">
-                          {professional.firstName?.charAt(0)}
-                          {professional.lastName?.charAt(0)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </Link>
-                
-                {/* Connection status indicator below the profile */}
-                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
-                  {professional.connectionStatus === 'connected' ? (
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-600">✓</span>
-                  ) : professional.connectionStatus === 'pending' ? (
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">•••</span>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleConnect(professional._id);
-                      }}
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-600 hover:bg-green-200"
-                    >
-                      +
-                    </button>
-                  )}
-                </div>
+      {/* Location Status */}
+      <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex items-center">
+        <MapPin className="h-5 w-5 text-blue-600 mr-2" />
+        {userLocation ? (
+          <span className="text-gray-700">
+            Showing professionals near your current location
+          </span>
+        ) : (
+          <span className="text-yellow-600">
+            Unable to get your location. Please enable location services.
+          </span>
+        )}
+      </div>
+
+      {/* Filters */}
+      {showFilters && (
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Distance (km)</label>
+              <input
+                type="range"
+                name="distance"
+                min="1"
+                max="100"
+                value={filters.distance}
+                onChange={handleFilterChange}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>1 km</span>
+                <span>{filters.distance} km</span>
+                <span>100 km</span>
               </div>
-            ))}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+              <select
+                name="industries"
+                value={filters.industries}
+                onChange={handleFilterChange}
+                className="w-full border border-gray-300 rounded-md p-2"
+              >
+                <option value="">All Industries</option>
+                {industries.map((industry) => (
+                  <option key={industry} value={industry}>{industry}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
+              <input
+                type="text"
+                name="skills"
+                value={filters.skills}
+                onChange={handleFilterChange}
+                placeholder="e.g. React, Marketing, Design"
+                className="w-full border border-gray-300 rounded-md p-2"
+              />
+            </div>
           </div>
-          
-          {/* Status text */}
-          <div className="text-center mt-2 mb-2 text-gray-700">
-            Found {professionals.length} professional{professionals.length !== 1 ? 's' : ''} nearby
+          <div className="mt-4 flex items-center">
+            <input
+              type="checkbox"
+              name="availableForMeeting"
+              id="availableForMeeting"
+              checked={filters.availableForMeeting}
+              onChange={handleFilterChange}
+              className="mr-2"
+            />
+            <label htmlFor="availableForMeeting" className="text-sm text-gray-700">
+              Only show users available for in-person meetings
+            </label>
+          </div>
+          <div className="mt-4">
+            <button
+              onClick={handleApplyFilters}
+              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition"
+            >
+              Apply Filters
+            </button>
           </div>
         </div>
       )}
-      
-      <div className="px-4 py-3 bg-gray-50 text-sm border-t border-gray-200">
-        <Link 
-          to="/network/recommendations" 
-          className="text-blue-600 hover:text-blue-800 font-medium"
-        >
-          See all professionals
-        </Link>
-      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader />
+        </div>
+      ) : (
+        <>
+          {nearbyUsers.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-gray-600">No professionals found in your area.</p>
+              <p className="text-gray-600 mt-2">Try expanding your search distance or changing your filters.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {nearbyUsers.map(user => (
+                <UserCard
+                  key={user._id}
+                  user={user}
+                  distance={user.distance}
+                  onConnect={() => handleConnect(user._id)}
+                  onFollow={() => handleFollow(user._id)}
+                  onViewProfile={() => handleViewProfile(user._id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
 
-export default NearbyProfessionals;
+export default NearbyProfessionalsPage;

@@ -2,27 +2,32 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/common/Navbar';
-import Footer from '../components/common/Footer';
 import NearbyProfessionals from '../components/network/NearbyProfessional';
 import Posts from '../components/posts/Posts';
 import api from '../services/api';
 import StoryCard from '../components/posts/StoryCard';
 import CreatePost from '../components/posts/CreatePost';
+import { PlusCircle, Check, Calendar, X } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('overview');
   const [pendingRequests, setPendingRequests] = useState(0);
-  const [events, setEvents] = useState([]);
-  const [jobRecommendations, setJobRecommendations] = useState([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [connectionRequests, setConnectionRequests] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
   const [dashboardStats, setDashboardStats] = useState({
-    profileViews: 142,
+    profileViews: 0,
     connections: 0,
-    messagesSent: 28,
-    postsCreated: 7
+    streaks: 0,
+    projects: 0
   });
+  const [userStreaks, setUserStreaks] = useState([]);
+  const [userProjects, setUserProjects] = useState([]);
+  const [userAchievements, setUserAchievements] = useState([]);
+  const [recentPosts, setRecentPosts] = useState([]);
+  const [planner, setPlanner] = useState([]);
+  const [newTask, setNewTask] = useState('');
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -31,99 +36,131 @@ const Dashboard = () => {
     }
   }, [user, loading, navigate]);
 
-  // Fetch data (using the same fetching logic as before)
+  // Fetch all real data in parallel
   useEffect(() => {
-    const fetchPendingRequests = async () => {
+    const fetchAllData = async () => {
       if (!user) return;
+      setLoadingData(true);
+      
       try {
-        const response = await api.getConnectionRequests();
-        setPendingRequests(response.length);
+        // Fetch all data in parallel
+        const [
+          profileViewData,
+          connectionsData,
+          pendingRequestsData,
+          streaksData,
+          projectsData,
+          achievementsData,
+          postsData
+        ] = await Promise.all([
+          api.getProfileViewAnalytics(),
+          api.getConnections('all'),
+          api.getConnectionRequests(),
+          api.getUserStreaks(user._id, { limit: 5, active: true }),
+          api.getUserProjects(user._id, { limit: 5 }),
+          api.getUserAchievements(user._id, { limit: 3 }),
+          api.getPosts({ limit: 3 })
+        ]);
+        
+        // Update dashboard stats with real data
+        setDashboardStats({
+          profileViews: profileViewData.totalViews || 0,
+          connections: connectionsData.length || 0,
+          streaks: streaksData.items?.length || 0,
+          projects: projectsData.items?.length || 0
+        });
+        
+        // Update other state data
+        setPendingRequests(pendingRequestsData.length || 0);
+        setConnectionRequests(pendingRequestsData);
+        setUserStreaks(streaksData.items || []);
+        setUserProjects(projectsData.items || []);
+        setUserAchievements(achievementsData.items || []);
+        setRecentPosts(postsData.posts || []);
+        
+        // Load planner from local storage if exists
+        const savedPlanner = localStorage.getItem('userPlanner');
+        if (savedPlanner) {
+          setPlanner(JSON.parse(savedPlanner));
+        }
+        
+        setLoadingData(false);
       } catch (error) {
-        console.error('Error fetching pending requests:', error);
+        console.error('Error fetching dashboard data:', error);
+        setLoadingData(false);
       }
     };
 
-    fetchPendingRequests();
+    fetchAllData();
+  }, [user]);
+
+  const handleAcceptConnection = async (userId) => {
+    try {
+      await api.acceptConnection(userId);
+      // Update the pending requests list
+      setPendingRequests(prev => prev - 1);
+      // Remove the accepted request from the list
+      setConnectionRequests(prev => prev.filter(req => req._id !== userId));
+      // Update connections count
+      setDashboardStats(prev => ({
+        ...prev,
+        connections: prev.connections + 1
+      }));
+    } catch (error) {
+      console.error('Error accepting connection request:', error);
+    }
+  };
+
+  const handleDeclineConnection = async (userId) => {
+    try {
+      await api.declineConnection(userId);
+      // Update the pending requests list
+      setPendingRequests(prev => prev - 1);
+      // Remove the declined request from the list
+      setConnectionRequests(prev => prev.filter(req => req._id !== userId));
+    } catch (error) {
+      console.error('Error declining connection request:', error);
+    }
+  };
+
+  // Planner/To-Do list functions
+  const addTask = () => {
+    if (!newTask.trim()) return;
     
-    // Update connections count in stats
-    setDashboardStats(prev => ({
-      ...prev,
-      connections: user?.connectionCount || 0
-    }));
-  }, [user]);
-
-  useEffect(() => {
-    const fetchEvents = async () => {
-      if (!user) return;
-      try {
-        const mockEvents = [
-          {
-            _id: 'event1',
-            title: 'Networking Mixer',
-            date: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-            location: 'Virtual',
-            attendees: 45
-          },
-          {
-            _id: 'event2',
-            title: 'Tech Conference 2023',
-            date: new Date(Date.now() + 604800000).toISOString(), // 1 week later
-            location: 'Convention Center',
-            attendees: 320
-          }
-        ];
-        setEvents(mockEvents);
-      } catch (error) {
-        console.error('Error fetching events:', error);
-      }
+    const task = {
+      id: Date.now(),
+      text: newTask,
+      completed: false,
+      date: new Date().toISOString()
     };
+    
+    const updatedPlanner = [...planner, task];
+    setPlanner(updatedPlanner);
+    localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
+    setNewTask('');
+  };
 
-    fetchEvents();
-  }, [user]);
+  const toggleTaskCompletion = (taskId) => {
+    const updatedPlanner = planner.map(task => 
+      task.id === taskId ? { ...task, completed: !task.completed } : task
+    );
+    setPlanner(updatedPlanner);
+    localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
+  };
 
-  useEffect(() => {
-    const fetchJobRecommendations = async () => {
-      if (!user) return;
-      try {
-        const mockJobs = [
-          {
-            _id: 'job1',
-            title: 'Senior Developer',
-            company: 'Tech Solutions Inc.',
-            location: 'Remote',
-            salary: '$120k - $150k',
-            postedDate: new Date(Date.now() - 172800000).toISOString() // 2 days ago
-          },
-          {
-            _id: 'job2',
-            title: 'Product Manager',
-            company: 'Innovative Startup',
-            location: 'San Francisco, CA',
-            salary: '$110k - $140k',
-            postedDate: new Date(Date.now() - 259200000).toISOString() // 3 days ago
-          }
-        ];
-        setJobRecommendations(mockJobs);
-      } catch (error) {
-        console.error('Error fetching job recommendations:', error);
-      }
-    };
+  const deleteTask = (taskId) => {
+    const updatedPlanner = planner.filter(task => task.id !== taskId);
+    setPlanner(updatedPlanner);
+    localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
+  };
 
-    fetchJobRecommendations();
-  }, [user]);
-
-  const formatEventDate = (dateString) => {
+  const formatDate = (dateString) => {
     const date = new Date(dateString);
     const options = { weekday: 'short', month: 'short', day: 'numeric' };
     return date.toLocaleDateString(undefined, options);
   };
 
-  const handlePostCreated = () => {
-    alert('Post created successfully!');
-    setLoadingPosts(false);
-  };
-
-  if (loading) {
+  if (loading || loadingData) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
@@ -161,7 +198,7 @@ const Dashboard = () => {
                       {pendingRequests} connection requests
                     </span>
                     <span className="bg-green-100 text-green-800 px-3 py-1 rounded-md text-sm font-medium">
-                      {events.length} upcoming events
+                      {planner.filter(task => !task.completed).length} pending tasks
                     </span>
                   </div>
                 </div>
@@ -202,14 +239,14 @@ const Dashboard = () => {
                   Content
                 </button>
                 <button
-                  onClick={() => setActiveSection('opportunities')}
+                  onClick={() => setActiveSection('portfolio')}
                   className={`flex-1 text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
-                    activeSection === 'opportunities'
+                    activeSection === 'portfolio'
                       ? 'text-orange-600 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-orange-500'
                   }`}
                 >
-                  Opportunities
+                  Portfolio
                 </button>
               </div>
             </div>
@@ -232,7 +269,7 @@ const Dashboard = () => {
                         </svg>
                       </div>
                     </div>
-                    <p className="text-green-600 text-sm mt-2">↑ 12% from last week</p>
+                    <p className="text-green-600 text-sm mt-2">Career visibility</p>
                   </div>
                   
                   <div className="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
@@ -247,29 +284,29 @@ const Dashboard = () => {
                         </svg>
                       </div>
                     </div>
-                    <p className="text-green-600 text-sm mt-2">↑ 3 new this week</p>
+                    <p className="text-green-600 text-sm mt-2">Network growth</p>
                   </div>
                   
                   <div className="bg-white rounded-xl shadow p-5 border-l-4 border-green-500">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-gray-500 text-sm">Messages</p>
-                        <h3 className="text-3xl font-bold text-gray-800 mt-1">{dashboardStats.messagesSent}</h3>
+                        <p className="text-gray-500 text-sm">Streaks</p>
+                        <h3 className="text-3xl font-bold text-gray-800 mt-1">{dashboardStats.streaks}</h3>
                       </div>
                       <div className="bg-green-100 p-2 rounded-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                         </svg>
                       </div>
                     </div>
-                    <p className="text-green-600 text-sm mt-2">↑ 8 conversations active</p>
+                    <p className="text-green-600 text-sm mt-2">Active habits</p>
                   </div>
                   
                   <div className="bg-white rounded-xl shadow p-5 border-l-4 border-purple-500">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-gray-500 text-sm">Posts</p>
-                        <h3 className="text-3xl font-bold text-gray-800 mt-1">{dashboardStats.postsCreated}</h3>
+                        <p className="text-gray-500 text-sm">Projects</p>
+                        <h3 className="text-3xl font-bold text-gray-800 mt-1">{dashboardStats.projects}</h3>
                       </div>
                       <div className="bg-purple-100 p-2 rounded-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -277,7 +314,7 @@ const Dashboard = () => {
                         </svg>
                       </div>
                     </div>
-                    <p className="text-green-600 text-sm mt-2">↑ 4 engagement this week</p>
+                    <p className="text-green-600 text-sm mt-2">Portfolio highlights</p>
                   </div>
                 </div>
 
@@ -302,23 +339,23 @@ const Dashboard = () => {
                         </button>
                         
                         <button 
-                          onClick={() => navigate('/network')}
+                          onClick={() => navigate('/portfolio/projects/new')}
                           className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-4 transition-colors"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                           </svg>
-                          <span className="text-sm font-medium">Connect</span>
+                          <span className="text-sm font-medium">Add Project</span>
                         </button>
                         
                         <button 
-                          onClick={() => navigate('/messages')}
+                          onClick={() => navigate('/portfolio/streak/new')}
                           className="flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 text-green-700 rounded-lg p-4 transition-colors"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                           </svg>
-                          <span className="text-sm font-medium">Message</span>
+                          <span className="text-sm font-medium">Start Streak</span>
                         </button>
                       </div>
                     </div>
@@ -345,12 +382,95 @@ const Dashboard = () => {
                         </button>
                       </div>
                       <div className="p-6">
-                        {loadingPosts ? (
-                          <div className="flex justify-center py-10">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                        {recentPosts.length > 0 && (
+                          <>
+                            <h4 className="font-medium text-sm text-gray-700 mb-3">Latest Posts</h4>
+                            <div className="mb-6">
+                              {recentPosts.map(post => (
+                                <div key={post._id} className="mb-4 pb-4 border-b border-gray-100">
+                                  <div className="flex items-center mb-2">
+                                    <div className="h-10 w-10 rounded-lg overflow-hidden mr-3">
+                                      {post.author.profilePicture ? (
+                                        <img 
+                                          src={post.author.profilePicture} 
+                                          alt={`${post.author.firstName} ${post.author.lastName}`}
+                                          className="h-full w-full object-cover" 
+                                        />
+                                      ) : (
+                                        <div className="h-full w-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold">
+                                          {post.author.firstName.charAt(0)}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-sm">{post.author.firstName} {post.author.lastName}</p>
+                                      <p className="text-xs text-gray-500">{formatDate(post.createdAt)}</p>
+                                    </div>
+                                  </div>
+                                  <p className="text-sm text-gray-700">{post.content.length > 150 ? post.content.substring(0, 150) + '...' : post.content}</p>
+                                  {post.images && post.images.length > 0 && (
+                                    <div className="mt-2">
+                                      <div className="h-32 rounded-lg overflow-hidden">
+                                        <img 
+                                          src={post.images[0].url} 
+                                          alt="Post content"
+                                          className="h-full w-full object-cover" 
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="mt-3 flex items-center">
+                                    <Link to={`/posts/${post._id}`} className="text-sm text-orange-500 hover:text-orange-600 font-medium">
+                                      View Post
+                                    </Link>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        
+                        {userAchievements.length > 0 && (
+                          <>
+                            <h4 className="font-medium text-sm text-gray-700 mb-3">Recent Achievements</h4>
+                            <div>
+                              {userAchievements.map(achievement => (
+                                <div key={achievement._id} className="mb-4 pb-4 border-b border-gray-100 last:border-b-0">
+                                  <div className="flex">
+                                    <div className="flex-shrink-0 mr-3">
+                                      <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                        {achievement.image ? (
+                                          <img 
+                                            src={achievement.image} 
+                                            alt={achievement.title}
+                                            className="h-8 w-8 object-contain" 
+                                          />
+                                        ) : (
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h5 className="font-medium text-gray-800">{achievement.title}</h5>
+                                      <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
+                                      <p className="text-sm text-gray-600 mt-1">{achievement.description}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        
+                        {recentPosts.length === 0 && userAchievements.length === 0 && (
+                          <div className="text-center py-6">
+                            <p className="text-gray-500">No recent activity to show.</p>
+                            <Link to="/posts/create" className="mt-2 inline-block text-orange-500 hover:text-orange-600 font-medium">
+                              Create your first post →
+                            </Link>
                           </div>
-                        ) : (
-                          <Posts />
                         )}
                       </div>
                     </div>
@@ -364,9 +484,9 @@ const Dashboard = () => {
                         <div className="h-24 bg-gradient-to-r from-orange-400 to-orange-500"></div>
                         <div className="absolute top-14 left-6">
                           <div className="h-20 w-20 rounded-lg border-4 border-white bg-white flex items-center justify-center shadow-md">
-                            {user?.profileImage ? (
+                            {user?.profilePicture ? (
                               <img
-                                src={user.profileImage}
+                                src={user.profilePicture}
                                 alt="Profile"
                                 className="h-full w-full rounded-lg object-cover"
                               />
@@ -416,37 +536,108 @@ const Dashboard = () => {
                       </div>
                     </div>
                     
-                    {/* Upcoming Events Card */}
+                    {/* My Planner / To-Do List */}
                     <div className="bg-white rounded-xl shadow-md overflow-hidden">
                       <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-800">Upcoming Events</h3>
-                        <Link to="/events" className="text-orange-500 hover:text-orange-600 text-sm">View All</Link>
+                        <h3 className="font-semibold text-gray-800">My Planner</h3>
+                        <div className="text-orange-500 hover:text-orange-600 text-sm cursor-pointer">
+                          <Calendar className="h-5 w-5" />
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        {/* Add new task */}
+                        <div className="flex mb-4">
+                          <input
+                            type="text"
+                            value={newTask}
+                            onChange={(e) => setNewTask(e.target.value)}
+                            placeholder="Add a new task..."
+                            className="flex-1 border border-gray-300 rounded-l-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            onKeyPress={(e) => e.key === 'Enter' && addTask()}
+                          />
+                          <button
+                            onClick={addTask}
+                            className="bg-orange-500 text-white rounded-r-md px-4 py-2 text-sm hover:bg-orange-600 transition"
+                          >
+                            <PlusCircle className="h-5 w-5" />
+                          </button>
+                        </div>
+
+                        {/* Task list */}
+                        <div className="space-y-2 max-h-72 overflow-y-auto">
+                          {planner.length === 0 ? (
+                            <div className="text-center py-6">
+                              <p className="text-gray-500">No tasks yet. Add your first task above.</p>
+                            </div>
+                          ) : (
+                            planner.map(task => (
+                              <div 
+                                key={task.id} 
+                                className={`flex items-center justify-between p-3 border rounded-md ${
+                                  task.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+                                }`}
+                              >
+                                <div className="flex items-center flex-1">
+                                  <button
+                                    onClick={() => toggleTaskCompletion(task.id)}
+                                    className={`flex-shrink-0 h-5 w-5 rounded-full border ${
+                                      task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                                    } mr-3 flex items-center justify-center`}
+                                  >
+                                    {task.completed && <Check className="h-3 w-3 text-white" />}
+                                  </button>
+                                  <div className="flex-1">
+                                    <p className={`text-sm ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                      {task.text}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Added {formatDate(task.date)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => deleteTask(task.id)}
+                                  className="ml-2 text-gray-400 hover:text-red-500"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Active Streaks */}
+                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                      <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                        <h3 className="font-semibold text-gray-800">Active Streaks</h3>
+                        <Link to="/portfolio/streaks" className="text-orange-500 hover:text-orange-600 text-sm">View All</Link>
                       </div>
                       <div className="p-6 space-y-4">
-                        {events.length > 0 ? (
-                          events.map(event => (
-                            <div key={event._id} className="flex">
+                        {userStreaks.length > 0 ? (
+                          userStreaks.map(streak => (
+                            <div key={streak._id} className="flex">
                               <div className="mr-4 flex-shrink-0">
-                                <div className="h-14 w-14 rounded-lg bg-orange-100 flex flex-col items-center justify-center">
-                                  <span className="text-orange-600 text-xs font-semibold">
-                                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}
+                                <div className="h-14 w-14 rounded-lg bg-green-100 flex flex-col items-center justify-center">
+                                  <span className="text-green-600 text-xs font-semibold">
+                                    Day
                                   </span>
-                                  <span className="text-orange-600 text-lg font-bold">
-                                    {new Date(event.date).getDate()}
+                                  <span className="text-green-600 text-lg font-bold">
+                                    {streak.currentStreak || 0}
                                   </span>
                                 </div>
                               </div>
                               <div>
-                                <h4 className="text-sm font-semibold text-gray-900">{event.title}</h4>
-                                <div className="mt-1 flex items-center text-xs text-gray-500">
-                                  <span>{formatEventDate(event.date)}</span>
-                                  <span className="mx-1">•</span>
-                                  <span>{event.location}</span>
-                                </div>
+                                <h4 className="text-sm font-semibold text-gray-900">{streak.title}</h4>
+                                <p className="text-xs text-gray-500 mt-1">{streak.activity}</p>
                                 <div className="mt-2">
-                                  <span className="inline-block bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">
-                                    {event.attendees} attending
-                                  </span>
+                                  <Link 
+                                    to={`/portfolio/streaks/${streak._id}`}
+                                    className="inline-block bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full"
+                                  >
+                                    Check In
+                                  </Link>
                                 </div>
                               </div>
                             </div>
@@ -454,63 +645,15 @@ const Dashboard = () => {
                         ) : (
                           <div className="text-center py-6">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                             </svg>
-                            <p className="text-sm text-gray-500">No upcoming events</p>
-                            <button className="mt-2 text-orange-500 hover:text-orange-600 text-sm font-medium">
-                              Create an Event
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Job Recommendations */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                      <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-800">Recommended Jobs</h3>
-                        <Link to="/jobs" className="text-orange-500 hover:text-orange-600 text-sm">View All</Link>
-                      </div>
-                      <div className="p-6 space-y-4">
-                        {jobRecommendations.length > 0 ? (
-                          jobRecommendations.map(job => (
-                            <div key={job._id} className="p-4 hover:bg-gray-50 rounded-lg border border-gray-100">
-                              <div className="flex justify-between">
-                                <h4 className="text-sm font-medium text-gray-900">{job.title}</h4>
-                                <button className="text-gray-400 hover:text-gray-500">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                                  </svg>
-                                </button>
-                              </div>
-                              <p className="mt-1 text-xs font-medium text-gray-700">{job.company}</p>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                <span className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
-                                  {job.location}
-                                </span>
-                                <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                  {job.salary}
-                                </span>
-                              </div>
-                              <div className="mt-3 flex justify-between items-center">
-                                <button className="text-orange-500 hover:text-orange-600 text-sm font-medium">
-                                  Apply Now
-                                </button>
-                                <span className="text-xs text-gray-500">
-                                  Posted {new Date(job.postedDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                </span>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-center py-6">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <p className="text-sm text-gray-500">No job recommendations</p>
-                            <button className="mt-2 text-orange-500 hover:text-orange-600 text-sm font-medium">
-                              Update your skills
-                            </button>
+                            <p className="text-sm text-gray-500">No active streaks</p>
+                            <Link 
+                              to="/portfolio/streak/new" 
+                              className="mt-2 text-orange-500 hover:text-orange-600 text-sm font-medium"
+                            >
+                              Start a Streak →
+                            </Link>
                           </div>
                         )}
                       </div>
@@ -533,38 +676,41 @@ const Dashboard = () => {
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Connection Requests</h3>
                     {pendingRequests > 0 ? (
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
-                              J
+                        {connectionRequests.map(request => (
+                          <div key={request._id} className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
+                                {request.profilePicture ? (
+                                  <img 
+                                    src={request.profilePicture} 
+                                    alt={`${request.firstName} ${request.lastName}`} 
+                                    className="h-12 w-12 rounded-lg object-cover"
+                                  />
+                                ) : (
+                                  request.firstName.charAt(0)
+                                )}
+                              </div>
+                              <div>
+                                <h4 className="font-medium">{request.firstName} {request.lastName}</h4>
+                                <p className="text-sm text-gray-500">{request.headline || 'Professional'}</p>
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="font-medium">John Smith</h4>
-                              <p className="text-sm text-gray-500">Software Engineer at TechCorp</p>
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => handleAcceptConnection(request._id)}
+                                className="bg-orange-500 text-white px-3 py-1 rounded-md text-sm"
+                              >
+                                Accept
+                              </button>
+                              <button 
+                                onClick={() => handleDeclineConnection(request._id)}
+                                className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-sm"
+                              >
+                                Ignore
+                              </button>
                             </div>
                           </div>
-                          <div className="flex space-x-2">
-                            <button className="bg-orange-500 text-white px-3 py-1 rounded-md text-sm">Accept</button>
-                            <button className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-sm">Ignore</button>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl mr-3">
-                              S
-                            </div>
-                            <div>
-                              <h4 className="font-medium">Sarah Johnson</h4>
-                              <p className="text-sm text-gray-500">Product Manager at StartupXYZ</p>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <button className="bg-orange-500 text-white px-3 py-1 rounded-md text-sm">Accept</button>
-                            <button className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-sm">Ignore</button>
-                          </div>
-                        </div>
-                        
+                        ))}
                         <Link to="/network" className="block w-full text-center text-orange-500 font-medium mt-4">
                           View All Requests →
                         </Link>
@@ -591,99 +737,108 @@ const Dashboard = () => {
               <div> <CreatePost/></div>
             )}
 
-            {activeSection === 'opportunities' && (
+            {activeSection === 'portfolio' && (
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">Opportunities</h2>
-                  <p className="text-gray-500">Discover jobs, events and more</p>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Your Portfolio</h2>
+                  <p className="text-gray-500">Manage your projects, streaks, and achievements</p>
                 </div>
                 
-                {/* Opportunities grid */}
+                {/* Portfolio dashboard */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Jobs Section */}
+                  {/* Projects Section */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Recommended Jobs</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Recent Projects</h3>
                     
-                    {jobRecommendations.length > 0 ? (
+                    {userProjects.length > 0 ? (
                       <div className="space-y-4">
-                        {jobRecommendations.map(job => (
-                          <div key={job._id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
-                            <h4 className="font-medium text-gray-900">{job.title}</h4>
-                            <p className="text-sm text-gray-600 mt-1">{job.company}</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
-                                {job.location}
-                              </span>
-                              <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                {job.salary}
-                              </span>
-                            </div>
+                        {userProjects.map(project => (
+                          <div key={project._id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
+                            <h4 className="font-medium text-gray-900">{project.title}</h4>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {project.description?.length > 100 
+                                ? project.description.substring(0, 100) + '...' 
+                                : project.description}
+                            </p>
                             <div className="mt-3 flex justify-between items-center">
-                              <button className="text-orange-500 hover:text-orange-600 text-sm font-medium">
+                              <Link 
+                                to={`/portfolio/projects/${project._id}`}
+                                className="text-orange-500 hover:text-orange-600 text-sm font-medium"
+                              >
                                 View Details
-                              </button>
+                              </Link>
                               <span className="text-xs text-gray-500">
-                                Posted {new Date(job.postedDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                {formatDate(project.createdAt)}
                               </span>
                             </div>
                           </div>
                         ))}
-                        <Link to="/jobs" className="block text-center text-orange-500 font-medium pt-2">
-                          View All Jobs →
+                        <Link to="/portfolio/projects" className="block text-center text-orange-500 font-medium pt-2">
+                          View All Projects →
                         </Link>
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <p className="text-sm text-gray-500">No job recommendations available</p>
+                        <p className="text-sm text-gray-500">No projects yet</p>
+                        <Link 
+                          to="/portfolio/projects/new" 
+                          className="mt-2 inline-block text-orange-500 hover:text-orange-600 text-sm font-medium"
+                        >
+                          Create Your First Project →
+                        </Link>
                       </div>
                     )}
                   </div>
                   
-                  {/* Events Section */}
+                  {/* Achievements Section */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Upcoming Events</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Achievements</h3>
                     
-                    {events.length > 0 ? (
+                    {userAchievements.length > 0 ? (
                       <div className="space-y-4">
-                        {events.map(event => (
-                          <div key={event._id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
+                        {userAchievements.map(achievement => (
+                          <div key={achievement._id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
                             <div className="flex">
                               <div className="mr-4 flex-shrink-0">
-                                <div className="h-14 w-14 rounded-lg bg-orange-100 flex flex-col items-center justify-center">
-                                  <span className="text-orange-600 text-xs font-semibold">
-                                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}
-                                  </span>
-                                  <span className="text-orange-600 text-lg font-bold">
-                                    {new Date(event.date).getDate()}
-                                  </span>
+                                <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                                  {achievement.image ? (
+                                    <img 
+                                      src={achievement.image} 
+                                      alt={achievement.title}
+                                      className="h-8 w-8 object-contain" 
+                                    />
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                    </svg>
+                                  )}
                                 </div>
                               </div>
                               <div>
-                                <h4 className="font-medium text-gray-900">{event.title}</h4>
-                                <div className="mt-1 flex items-center text-xs text-gray-500">
-                                  <span>{formatEventDate(event.date)}</span>
-                                  <span className="mx-1">•</span>
-                                  <span>{event.location}</span>
-                                </div>
-                                <div className="mt-2">
-                                  <button className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1 rounded-md">
-                                    RSVP
-                                  </button>
-                                  <span className="ml-2 text-xs text-gray-500">
-                                    {event.attendees} attending
-                                  </span>
-                                </div>
+                                <h4 className="font-medium text-gray-900">{achievement.title}</h4>
+                                <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  {achievement.description?.length > 100 
+                                    ? achievement.description.substring(0, 100) + '...' 
+                                    : achievement.description}
+                                </p>
                               </div>
                             </div>
                           </div>
                         ))}
-                        <Link to="/events" className="block text-center text-orange-500 font-medium pt-2">
-                          View All Events →
+                        <Link to="/portfolio/achievements" className="block text-center text-orange-500 font-medium pt-2">
+                          View All Achievements →
                         </Link>
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <p className="text-sm text-gray-500">No upcoming events</p>
+                        <p className="text-sm text-gray-500">No achievements yet</p>
+                        <Link 
+                          to="/portfolio/achievements/new" 
+                          className="mt-2 inline-block text-orange-500 hover:text-orange-600 text-sm font-medium"
+                        >
+                          Add Your First Achievement →
+                        </Link>
                       </div>
                     )}
                   </div>
