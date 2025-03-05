@@ -2,7 +2,7 @@ import axios from 'axios';
 import socketManager from './socketmanager';
 
 // Determine API base URL from environment or default
-const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000"
+const baseURL = import.meta.env.VITE_API_URL || "https://myapp-uc9m.onrender.com"
 const logApiCall = (method, url, data = null, error = null) => {
   if (error) {
     console.log(`🔴 API ERROR [${method}] ${url}:`, error);
