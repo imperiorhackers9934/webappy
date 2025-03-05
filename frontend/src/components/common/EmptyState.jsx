@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import EmptyState from './EmptyState';
 
-const EmptyStateExamples = () => {
+const EmptyState = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Empty State Examples</h1>
@@ -185,4 +185,4 @@ const EmptyStateExamples = () => {
   );
 };
 
-export default EmptyStateExamples;
+export default EmptyState;
