@@ -1,80 +1,130 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, Check, X } from 'lucide-react';
+import { ChevronLeft, Check, X, RefreshCw, UserPlus } from 'lucide-react';
 import api from '../services/api';
 
 const ConnectionRequestPage = () => {
-  const [connectionRequests, setConnectionRequests] = useState([]);
+  const [incomingRequests, setIncomingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [processingIds, setProcessingIds] = useState(new Set());
+
+  // Function to fetch incoming connection requests
+  const fetchIncomingRequests = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      console.log('Fetching incoming connection requests...');
+      const response = await api.getConnectionRequests();
+      console.log('Connection requests response:', response);
+      
+      // Check for different response structures
+      const requests = response.requests || response.connectionRequests || response.data || [];
+      console.log('Parsed requests:', requests);
+      
+      setIncomingRequests(Array.isArray(requests) ? requests : []);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching incoming connection requests:', err);
+      setLoading(false);
+      setError('Failed to load incoming connection requests');
+      
+      // For development only - remove in production
+      const mockData = [
+        {
+          _id: 'req1',
+          sender: {
+            _id: 'user1',
+            firstName: 'Jane',
+            lastName: 'Smith',
+            headline: 'Senior Developer at Tech Co',
+            company: 'Tech Co',
+            profilePicture: 'https://randomuser.me/api/portraits/women/44.jpg',
+            mutualConnections: 3
+          },
+          createdAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+          _id: 'req2',
+          sender: {
+            _id: 'user2',
+            firstName: 'Michael',
+            lastName: 'Johnson',
+            headline: 'Product Manager',
+            company: 'Innovation Inc',
+            profilePicture: 'https://randomuser.me/api/portraits/men/32.jpg',
+            mutualConnections: 5
+          },
+          message: 'We worked together on the marketing project. Would love to connect!',
+          createdAt: new Date(Date.now() - 86400000).toISOString()
+        },
+        {
+          _id: 'req3',
+          sender: {
+            _id: 'user3',
+            firstName: 'Sarah',
+            lastName: 'Williams',
+            headline: 'UX Designer',
+            company: 'Design Studio',
+            profilePicture: 'https://randomuser.me/api/portraits/women/68.jpg',
+            mutualConnections: 2
+          },
+          message: 'I saw your portfolio and was really impressed with your work.',
+          createdAt: new Date(Date.now() - 172800000).toISOString()
+        }
+      ];
+      setIncomingRequests(mockData);
+    }
+  };
 
   useEffect(() => {
-    const fetchConnectionRequests = async () => {
-      try {
-        setLoading(true);
-        const response = await api.getConnectionRequests();
-        console.log('Response:', response);
-        setConnectionRequests(response.requests || []);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching connection requests:', err);
-        setLoading(false);
-        setError('Failed to load connection requests');
-        
-        // Load mock data when API fails
-        const mockData = [
-          {
-            _id: 'req1',
-            sender: {
-              _id: 'user1',
-              firstName: 'Jane',
-              lastName: 'Smith',
-              headline: 'Senior Developer at Tech Co',
-              company: 'Tech Co',
-              profilePicture: 'https://randomuser.me/api/portraits/women/44.jpg'
-            },
-            createdAt: new Date(Date.now() - 3600000).toISOString()
-          },
-          {
-            _id: 'req2',
-            sender: {
-              _id: 'user2',
-              firstName: 'Michael',
-              lastName: 'Johnson',
-              headline: 'Product Manager',
-              company: 'Innovation Inc',
-              profilePicture: 'https://randomuser.me/api/portraits/men/32.jpg'
-            },
-            message: 'We worked together on the marketing project. Would love to connect!',
-            createdAt: new Date(Date.now() - 86400000).toISOString()
-          }
-        ];
-        setConnectionRequests(mockData);
-      }
-    };
-    
-    fetchConnectionRequests();
+    fetchIncomingRequests();
   }, []);
 
   const handleAccept = async (userId) => {
     try {
+      setProcessingIds(prev => new Set([...prev, userId]));
+      console.log('Accepting connection request from:', userId);
       await api.acceptConnection(userId);
-      setConnectionRequests(prev => prev.filter(req => req.sender._id !== userId));
+      setIncomingRequests(prev => prev.filter(req => req.sender._id !== userId));
+      setProcessingIds(prev => {
+        const updated = new Set([...prev]);
+        updated.delete(userId);
+        return updated;
+      });
     } catch (err) {
       console.error('Error accepting connection:', err);
-      // Remove from UI anyway for demo purposes
-      setConnectionRequests(prev => prev.filter(req => req.sender._id !== userId));
+      // For demo/dev purposes - remove in production
+      setIncomingRequests(prev => prev.filter(req => req.sender._id !== userId));
+      setProcessingIds(prev => {
+        const updated = new Set([...prev]);
+        updated.delete(userId);
+        return updated;
+      });
     }
   };
 
   const handleDecline = async (userId) => {
     try {
+      setProcessingIds(prev => new Set([...prev, userId]));
+      console.log('Declining connection request from:', userId);
       await api.declineConnection(userId);
-      setConnectionRequests(prev => prev.filter(req => req.sender._id !== userId));
+      setIncomingRequests(prev => prev.filter(req => req.sender._id !== userId));
+      setProcessingIds(prev => {
+        const updated = new Set([...prev]);
+        updated.delete(userId);
+        return updated;
+      });
     } catch (err) {
       console.error('Error declining connection:', err);
-      // Remove from UI anyway for demo purposes
-      setConnectionRequests(prev => prev.filter(req => req.sender._id !== userId));
+      // For demo/dev purposes - remove in production
+      setIncomingRequests(prev => prev.filter(req => req.sender._id !== userId));
+      setProcessingIds(prev => {
+        const updated = new Set([...prev]);
+        updated.delete(userId);
+        return updated;
+      });
     }
   };
 
@@ -93,8 +143,26 @@ const ConnectionRequestPage = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-4 text-white">
-          <h1 className="text-xl font-bold">Connection Requests</h1>
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-4 text-white flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold flex items-center">
+              <UserPlus className="mr-2" size={20} />
+              Incoming Connection Requests
+            </h1>
+            {!loading && (
+              <p className="text-sm text-blue-100 mt-1">
+                {incomingRequests.length} {incomingRequests.length === 1 ? 'request' : 'requests'} pending
+              </p>
+            )}
+          </div>
+          <button 
+            onClick={fetchIncomingRequests} 
+            disabled={loading}
+            className="p-2 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition"
+            title="Refresh requests"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
       </div>
       
@@ -102,19 +170,20 @@ const ConnectionRequestPage = () => {
         <div className="bg-white rounded-lg shadow p-8 text-center">
           <p>Loading connection requests...</p>
         </div>
-      ) : error && connectionRequests.length === 0 ? (
+      ) : error && incomingRequests.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center">
           <p className="text-red-600 mb-2">{error}</p>
           <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            onClick={fetchIncomingRequests} 
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center mx-auto"
           >
+            <RefreshCw size={16} className="mr-2" />
             Try Again
           </button>
         </div>
-      ) : connectionRequests.length === 0 ? (
+      ) : incomingRequests.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="mb-2">You don't have any connection requests at the moment.</p>
+          <p className="mb-2">You don't have any pending connection requests at the moment.</p>
           <Link 
             to="/discover" 
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 inline-block"
@@ -124,7 +193,7 @@ const ConnectionRequestPage = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {connectionRequests.map((request) => (
+          {incomingRequests.map((request) => (
             <div key={request._id} className="bg-white rounded-lg shadow overflow-hidden">
               <div className="p-4">
                 <div className="flex items-start">
@@ -135,13 +204,20 @@ const ConnectionRequestPage = () => {
                   />
                   <div>
                     <h3 className="font-semibold">
-                      {request.sender.firstName} {request.sender.lastName}
+                      <Link to={`/profile/${request.sender._id}`} className="hover:text-blue-600">
+                        {request.sender.firstName} {request.sender.lastName}
+                      </Link>
                     </h3>
                     {request.sender.headline && (
                       <p className="text-sm text-gray-600">{request.sender.headline}</p>
                     )}
                     {request.sender.company && (
                       <p className="text-sm text-gray-600">{request.sender.company}</p>
+                    )}
+                    {request.sender.mutualConnections > 0 && (
+                      <p className="text-xs text-gray-500">
+                        {request.sender.mutualConnections} mutual connection{request.sender.mutualConnections !== 1 ? 's' : ''}
+                      </p>
                     )}
                     <p className="text-xs text-gray-500 mt-1">
                       Sent {formatDate(request.createdAt)}
@@ -158,14 +234,16 @@ const ConnectionRequestPage = () => {
                 <div className="mt-4 flex space-x-2">
                   <button
                     onClick={() => handleAccept(request.sender._id)}
-                    className="flex-1 flex justify-center items-center px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    disabled={processingIds.has(request.sender._id)}
+                    className="flex-1 flex justify-center items-center px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check size={16} className="mr-1" />
                     Accept
                   </button>
                   <button
                     onClick={() => handleDecline(request.sender._id)}
-                    className="flex-1 flex justify-center items-center px-3 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                    disabled={processingIds.has(request.sender._id)}
+                    className="flex-1 flex justify-center items-center px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <X size={16} className="mr-1" />
                     Decline
