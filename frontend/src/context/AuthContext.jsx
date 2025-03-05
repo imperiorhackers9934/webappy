@@ -1,9 +1,6 @@
-
-// frontend/src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import socketManager from '../services/socketmanager';
 
 const AuthContext = createContext(null);
 
@@ -12,16 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const [isNewSignup, setIsNewSignup] = useState(false);
-  const [socketStatus, setSocketStatus] = useState('DISCONNECTED');
   const navigate = useNavigate();
-
-  // Subscribe to socket status changes
-  useEffect(() => {
-    const unsubscribe = socketManager.onStatusChange(status => {
-      setSocketStatus(status);
-    });
-    return unsubscribe;
-  }, []);
 
   // Load user info when token changes
   useEffect(() => {
@@ -32,12 +20,8 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           localStorage.setItem('token', token);
           
-          // Connect to socket if needed
-          if (socketStatus === 'DISCONNECTED') {
-            socketManager.connect(token);
-          }
-          
           // Reset new signup flag after loading user
+          // This ensures it doesn't persist across sessions
           setIsNewSignup(false);
         } catch (error) {
           console.error('Failed to load user info:', error);
@@ -51,7 +35,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     loadUserInfo();
-  }, [token, socketStatus]);
+  }, [token]);
 
   const login = async (credentials) => {
     try {
@@ -81,80 +65,56 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    // Disconnect socket
-    socketManager.disconnect();
-    
-    // Clear authentication state
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
     setIsNewSignup(false);
-    
-    // Redirect to login page
     navigate('/login');
   };
 
-  const updateUser = async (userData) => {
-    try {
-      const updatedUserData = await api.updateProfile(userData);
-      
-      // Update local user state with new data
-      setUser(prev => ({
-        ...prev,
-        ...updatedUserData
-      }));
-      
-      // When user updates profile, reset new signup flag
-      if (isNewSignup) {
-        setIsNewSignup(false);
-      }
-      
-      return updatedUserData;
-    } catch (error) {
-      console.error('Error updating user profile:', error);
-      throw error;
+  const updateUser = (userData) => {
+    setUser(prev => ({ ...prev, ...userData }));
+    
+    // When user updates profile, reset new signup flag
+    if (isNewSignup) {
+      setIsNewSignup(false);
     }
   };
 
   const handleAuthCallback = async (searchParams) => {
     console.log('Auth callback triggered', searchParams.toString());
     const token = searchParams.get('token');
+    console.log('Token from URL:', token);
     
-    if (!token) {
-      console.error('No token found in URL parameters');
-      navigate('/login?error=auth_failed');
-      return;
-    }
-    
-    try {
+    if (token) {
       // Store the token in localStorage
       localStorage.setItem('token', token);
       
       // Update the token state
       setToken(token);
       
-      // Connect socket with the new token
-      socketManager.connect(token);
-      
       // Check if this is a new user based on the flag from the backend
       const isNewUser = searchParams.get('isNewUser') === 'true';
+      console.log('Is new user from URL params:', isNewUser);
       
       // Set the new signup flag before any redirects
       setIsNewSignup(isNewUser);
       
-      // Small delay to ensure state update before navigation
+      // Important: Force a slight delay to ensure state update before navigation
       await new Promise(resolve => setTimeout(resolve, 100));
       
       if (isNewUser) {
         // Always redirect new users to profile setup
+        console.log('New user detected, redirecting to profile setup');
         navigate('/profile-setup');
       } else {
         // Get the redirect destination for existing users
         const redirect = searchParams.get('redirect') || '/dashboard';
+        console.log('Existing user, redirecting to:', redirect);
         navigate(redirect);
       }
-    } catch (error) {
-      console.error('Error processing auth callback:', error);
+    } else {
+      console.error('No token found in URL parameters');
       navigate('/login?error=auth_failed');
     }
   };
@@ -195,7 +155,7 @@ export const AuthProvider = ({ children }) => {
     socialLogin,
     handleAuthCallback,
     isNewSignup,
-    socketStatus
+    setIsNewSignup
   };
 
   return (

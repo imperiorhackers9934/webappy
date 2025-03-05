@@ -1,4 +1,3 @@
-// frontend/src/services/api.js
 import axios from 'axios';
 import socketManager from './socketmanager';
 
@@ -125,6 +124,92 @@ const profileService = {
     const response = await api.put('/api/location', { latitude, longitude });
     // Emit location update via Socket.IO
     socketManager.emit('update_location', { latitude, longitude });
+    return response.data;
+  }
+};
+
+// Post endpoints
+const postService = {
+  createPost: async (formData) => {
+    const response = await api.post('/api/posts', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  
+  getPosts: async (options = {}) => {
+    const { limit = 10, before, after } = options;
+    let url = '/api/posts';
+    
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit);
+    if (before) params.append('before', before);
+    if (after) params.append('after', after);
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    const response = await api.get(url);
+    return response.data;
+  },
+  
+  likePost: async (postId, reaction = 'like') => {
+    const response = await api.post(`/api/posts/${postId}/react`, { reaction });
+    return response.data;
+  },
+  
+  commentOnPost: async (postId, content) => {
+    const response = await api.post(`/api/posts/${postId}/comments`, { content });
+    return response.data;
+  },
+  
+  getPostComments: async (postId, limit = 10) => {
+    const response = await api.get(`/api/posts/${postId}/comments?limit=${limit}`);
+    return response.data;
+  },
+  
+  sharePost: async (postId, content = '') => {
+    const response = await api.post(`/api/posts/${postId}/share`, { content });
+    return response.data;
+  },
+  
+  deletePost: async (postId) => {
+    const response = await api.delete(`/api/posts/${postId}`);
+    return response.data;
+  }
+};
+
+// Story endpoints
+const storyService = {
+  createStory: async (formData) => {
+    const response = await api.post('/api/stories', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  
+  getStories: async () => {
+    const response = await api.get('/api/stories');
+    return response.data;
+  },
+  
+  viewStory: async (storyId) => {
+    const response = await api.post(`/api/stories/${storyId}/view`);
+    return response.data;
+  },
+  
+  reactToStory: async (storyId, reaction) => {
+    const response = await api.post(`/api/stories/${storyId}/react`, { reaction });
+    return response.data;
+  },
+  
+  replyToStory: async (storyId, message) => {
+    const response = await api.post(`/api/stories/${storyId}/reply`, { message });
     return response.data;
   }
 };
@@ -261,6 +346,8 @@ export default {
   socketManager,
   ...authService,
   ...profileService,
+  ...postService,
+  ...storyService,
   ...chatService,
   ...networkService
 };

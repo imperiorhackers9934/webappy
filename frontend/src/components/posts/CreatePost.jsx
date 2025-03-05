@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import api from '../services/api';
+import api from '../../services/api';
 
 const CreatePost = ({ onPostCreated, user }) => {
   const [content, setContent] = useState('');

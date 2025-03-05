@@ -8,8 +8,13 @@ import ProfileSetupPage from './pages/ProfileSetupPage';
 import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
 import NetworkPage from './pages/NetworkPage';
-// import ProfilePage from './page/ProfilePage';
+// import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+import SettingsPage from './pages/SettingsPage';
+import NearbyProfessionals from './components/network/NearbyProfessional';
+import CreateStoryPage from './pages/CreateStroyPage';
+import StoryViewPage from './pages/StoryViewPage';
+import CreatePost from './components/posts/CreatePost';
 
 const App = () => {
   return (
@@ -27,20 +32,22 @@ const App = () => {
           
           {/* Main App Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
-          {/* <Route path="/profile" element={<ProfilePage />} /> */}
-          {/* <Route path="/profile/:userId" element={<ProfilePage />} /> */}
+          {/* <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/:userId" element={<ProfilePage />} /> */}
+          <Route path="/settings" element={<SettingsPage />} />
           
           {/* Network Routes */}
           <Route path="/network" element={<NetworkPage />} />
           <Route path="/network/:section" element={<NetworkPage />} />
-          
+          <Route path="/network/nearby" element={<NearbyProfessionals />} />
           {/* Chat Routes */}
-       {/* Chat Routes */}
-<Route path="/chat">
-  <Route index element={<ChatPage />} />
-  <Route path=":chatId" element={<ChatPage />} />
-</Route>
-          
+          <Route path="/chat">
+            <Route index element={<ChatPage />} />
+            <Route path=":chatId" element={<ChatPage />} />
+          </Route>
+          <Route path="/posts/create" element={<CreatePost/>}/>
+          <Route path="/stories/create" element={<CreateStoryPage/>}/>
+          <Route path="/stories/view" element={<StoryViewPage/>}/>
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           
