@@ -63,7 +63,7 @@ const App = () => {
           <Route path="/stories/view" element={<StoryViewPage/>}/>
           <Route path="/portfolio" element={<PortfolioPage/>}/>
           <Route path="/portfolio/add-achievement" element={<AddAchievementForm/>}/>
-          <Route path="/portfolio/project/new" element={<ProjectCreationPage/>}/>
+          <Route path="/portfolio/projects/new" element={<ProjectCreationPage/>}/>
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
