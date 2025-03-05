@@ -24,6 +24,8 @@ import EditProfilePage from './pages/EditProfilePage';
 import NetworkExplorePage from './pages/NetworkExplorePage';
 import ProjectCreationPage from './components/portfolio/ProjectCreation';
 import ConnectionRequestPage from './pages/ConnectionRecommendation';
+import AchievementCreationPage from './components/portfolio/AchievementCreation';
+import StreakCreationPage from './components/portfolio/StreakCreation';
 
 const App = () => {
   return (
@@ -63,8 +65,9 @@ const App = () => {
           <Route path="/stories/create" element={<CreateStoryPage/>}/>
           <Route path="/stories/view" element={<StoryViewPage/>}/>
           <Route path="/portfolio" element={<PortfolioPage/>}/>
-          <Route path="/portfolio/add-achievement" element={<AddAchievementForm/>}/>
           <Route path="/portfolio/projects/new" element={<ProjectCreationPage/>}/>
+          <Route path="/portfolio/achievements/new" element={<AchievementCreationPage/>}/>
+          <Route path="/portfolio/streak/new" element={<StreakCreationPage/>}/>
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
           <Route path="/connections" element={<ConnectionRequestPage/>}/>
           {/* Redirect root to dashboard or login based on authentication */}

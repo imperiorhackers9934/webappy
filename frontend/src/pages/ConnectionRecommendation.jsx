@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { UserPlus, X, Check, ChevronLeft, Clock, Briefcase, MapPin, Users } from 'lucide-react';
+import { UserPlus, X, Check, ChevronLeft, Clock, Briefcase, MapPin, Users, RefreshCw } from 'lucide-react';
 import api from '../services/api';
-import Loader from '../components/common/Loader';
-import EmptyStateExamples from '../components/common/EmptyState';
+import Loader from '../../components/common/Loader';
+import EmptyState from '../components/common/EmptyState';
 
 const ConnectionRequestPage = () => {
   const [connectionRequests, setConnectionRequests] = useState([]);
@@ -11,19 +11,94 @@ const ConnectionRequestPage = () => {
   const [error, setError] = useState('');
   const [processingIds, setProcessingIds] = useState(new Set());
 
-  useEffect(() => {
-    const fetchConnectionRequests = async () => {
-      try {
-        setLoading(true);
-        const response = await api.getConnectionRequests();
-        setConnectionRequests(response.requests || []);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching connection requests:', err);
-        setError('Failed to load connection requests data');
-        setLoading(false);
+  const fetchConnectionRequests = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching connection requests...');
+      
+      // Check if method exists
+      if (typeof api.getConnectionRequests !== 'function') {
+        console.error('api.getConnectionRequests is not a function');
+        
+        // Fallback method if direct method doesn't exist
+        // Try to use the network service directly
+        if (api.networkService && typeof api.networkService.getConnectionRequests === 'function') {
+          console.log('Using networkService.getConnectionRequests instead');
+          const response = await api.networkService.getConnectionRequests();
+          handleResponse(response);
+          return;
+        }
+        
+        throw new Error('Connection requests API not available');
       }
-    };
+      
+      const response = await api.getConnectionRequests();
+      handleResponse(response);
+    } catch (err) {
+      console.error('Error fetching connection requests:', err);
+      setError('Failed to load connection requests data. ' + (err.message || ''));
+      setLoading(false);
+      
+      // Uncomment this for development/testing when API is not ready
+      // console.log('Loading mock data for development');
+      // setConnectionRequests(getMockConnectionRequests());
+      // setLoading(false);
+    }
+  };
+  
+  const handleResponse = (response) => {
+    console.log('Connection requests response:', response);
+    
+    // Check if we have the expected response structure
+    if (response && typeof response === 'object') {
+      // Handle different possible response structures
+      const requests = response.requests || response.connectionRequests || response.data || [];
+      console.log('Parsed requests:', requests);
+      setConnectionRequests(Array.isArray(requests) ? requests : []);
+    } else {
+      console.error('Unexpected response format:', response);
+      setConnectionRequests([]);
+    }
+    
+    setLoading(false);
+  };
+  
+  const getMockConnectionRequests = () => {
+    return [
+      {
+        _id: 'req1',
+        sender: {
+          _id: 'user1',
+          firstName: 'Jane',
+          lastName: 'Smith',
+          headline: 'Senior Developer at Tech Co',
+          company: 'Tech Co',
+          location: 'San Francisco, CA',
+          profilePicture: 'https://randomuser.me/api/portraits/women/44.jpg',
+          mutualConnections: 12
+        },
+        message: 'I saw your work on the React project and would love to connect!',
+        createdAt: new Date(Date.now() - 3600000).toISOString()
+      },
+      {
+        _id: 'req2',
+        sender: {
+          _id: 'user2',
+          firstName: 'Michael',
+          lastName: 'Johnson',
+          headline: 'Product Manager',
+          company: 'Innovation Inc',
+          location: 'Boston, MA',
+          profilePicture: 'https://randomuser.me/api/portraits/men/32.jpg',
+          mutualConnections: 5
+        },
+        message: null,
+        createdAt: new Date(Date.now() - 86400000).toISOString()
+      }
+    ];
+  };
+
+  useEffect(() => {
     fetchConnectionRequests();
   }, []);
 
@@ -77,15 +152,76 @@ const ConnectionRequestPage = () => {
 
   if (loading) return <Loader message="Loading connection requests..." />;
 
+  // For testing - uncomment to use mock data if API is not ready
+  // useEffect(() => {
+  //   const mockConnectionRequests = [
+  //     {
+  //       _id: 'req1',
+  //       sender: {
+  //         _id: 'user1',
+  //         firstName: 'Jane',
+  //         lastName: 'Smith',
+  //         headline: 'Senior Developer at Tech Co',
+  //         company: 'Tech Co',
+  //         location: 'San Francisco, CA',
+  //         profilePicture: 'https://randomuser.me/api/portraits/women/44.jpg',
+  //         mutualConnections: 12
+  //       },
+  //       message: 'I saw your work on the React project and would love to connect!',
+  //       createdAt: new Date(Date.now() - 3600000).toISOString()
+  //     },
+  //     {
+  //       _id: 'req2',
+  //       sender: {
+  //         _id: 'user2',
+  //         firstName: 'Michael',
+  //         lastName: 'Johnson',
+  //         headline: 'Product Manager',
+  //         company: 'Innovation Inc',
+  //         location: 'Boston, MA',
+  //         profilePicture: 'https://randomuser.me/api/portraits/men/32.jpg',
+  //         mutualConnections: 5
+  //       },
+  //       message: null,
+  //       createdAt: new Date(Date.now() - 86400000).toISOString()
+  //     }
+  //   ];
+  //   setConnectionRequests(mockConnectionRequests);
+  //   setLoading(false);
+  // }, []);
+
+  const handleRetry = () => {
+    setError('');
+    setLoading(true);
+    fetchConnectionRequests();
+  };
+
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-          <p className="text-red-700">{error}</p>
+        <div className="mb-6">
+          <Link to="/network" className="text-blue-600 hover:underline flex items-center">
+            <ChevronLeft size={16} className="mr-1" /> Back to Network
+          </Link>
         </div>
-        <Link to="/network" className="text-blue-600 hover:underline flex items-center">
-          <ChevronLeft size={16} className="mr-1" /> Back to Network
-        </Link>
+        
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="p-6">
+            <EmptyState
+              icon={<AlertCircle size={48} className="text-red-500" />}
+              title="Something Went Wrong"
+              description={error || "We couldn't load your connection requests. Please try again."}
+              action={
+                <button 
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                >
+                  <RefreshCw size={16} className="mr-2" /> Try Again
+                </button>
+              }
+            />
+          </div>
+        </div>
       </div>
     );
   }
