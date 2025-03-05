@@ -1,396 +1,394 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import Sidebar from '../common/Navbar';
 import api from '../../services/api';
 
-const CreatePost = ({ onPostCreated, user }) => {
+const CreatePost = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [content, setContent] = useState('');
-  const [postType, setPostType] = useState('text');
-  const [mediaFiles, setMediaFiles] = useState([]);
-  const [mediaPreview, setMediaPreview] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
-  const [showPollForm, setShowPollForm] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [visibility, setVisibility] = useState('public');
-  const fileInputRef = useRef(null);
+  const [mediaType, setMediaType] = useState(null); // 'photo', 'video', 'event'
+  const [mediaFile, setMediaFile] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [eventDetails, setEventDetails] = useState({
+    title: '',
+    date: '',
+    location: '',
+    description: ''
+  });
+  const [showEventForm, setShowEventForm] = useState(false);
+
+  // File input ref
+  const fileInputRef = React.useRef(null);
+
+  useEffect(() => {
+    // Redirect to login if not authenticated
+    if (!loading && !user) {
+      navigate('/login');
+    }
+  }, [user, loading, navigate]);
 
   const handleContentChange = (e) => {
     setContent(e.target.value);
   };
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    
-    if (files.length > 10) {
-      setError('You can upload maximum 10 files');
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setMediaFile(file);
+
+    // Create a preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setMediaPreview(previewUrl);
+  };
+
+  const triggerFileInput = (type) => {
+    setMediaType(type);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleEventClick = () => {
+    setMediaType('event');
+    setShowEventForm(true);
+  };
+
+  const handleEventInputChange = (e) => {
+    const { name, value } = e.target;
+    setEventDetails(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const removeMedia = () => {
+    setMediaType(null);
+    setMediaFile(null);
+    setMediaPreview(null);
+    setShowEventForm(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!content && !mediaFile && mediaType !== 'event') {
+      alert('Please add some content to your post');
       return;
     }
-    
-    setMediaFiles(files);
-    
-    // Create previews
-    const previews = files.map(file => ({
-      url: URL.createObjectURL(file),
-      type: file.type.startsWith('image/') ? 'image' : 'video',
-      name: file.name
-    }));
-    
-    setMediaPreview(previews);
-    
-    // Set post type based on file type
-    if (files.length > 0) {
-      setPostType(files[0].type.startsWith('image/') ? 'image' : 'video');
+
+    if (mediaType === 'event' && !eventDetails.title) {
+      alert('Please add a title for your event');
+      return;
     }
-  };
 
-  const handleRemoveFile = (index) => {
-    const newFiles = [...mediaFiles];
-    const newPreviews = [...mediaPreview];
-    
-    // Revoke the object URL to avoid memory leaks
-    URL.revokeObjectURL(newPreviews[index].url);
-    
-    newFiles.splice(index, 1);
-    newPreviews.splice(index, 1);
-    
-    setMediaFiles(newFiles);
-    setMediaPreview(newPreviews);
-    
-    // Reset post type if no files left
-    if (newFiles.length === 0) {
-      setPostType('text');
-    } else {
-      setPostType(newFiles[0].type.startsWith('image/') ? 'image' : 'video');
-    }
-  };
+    setIsSubmitting(true);
 
-  const handleAddPollOption = () => {
-    if (pollOptions.length < 5) {
-      setPollOptions([...pollOptions, '']);
-    }
-  };
-
-  const handleRemovePollOption = (index) => {
-    if (pollOptions.length > 2) {
-      const newOptions = [...pollOptions];
-      newOptions.splice(index, 1);
-      setPollOptions(newOptions);
-    }
-  };
-
-  const handlePollOptionChange = (index, value) => {
-    const newOptions = [...pollOptions];
-    newOptions[index] = value;
-    setPollOptions(newOptions);
-  };
-
-  const togglePollForm = () => {
-    setShowPollForm(!showPollForm);
-    if (!showPollForm) {
-      setPostType('poll');
-    } else {
-      setPostType('text');
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
     try {
-      setLoading(true);
-      setError('');
-      
-      // Validate form
-      if (!content && mediaFiles.length === 0 && !linkUrl && !showPollForm) {
-        setError('Please add some content, media, or link');
-        setLoading(false);
-        return;
-      }
-      
-      if (showPollForm) {
-        // Validate poll options
-        const validOptions = pollOptions.filter(opt => opt.trim() !== '');
-        if (validOptions.length < 2) {
-          setError('Please provide at least 2 poll options');
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Create FormData
+      // Build form data
       const formData = new FormData();
       formData.append('content', content);
-      formData.append('type', postType);
-      formData.append('visibility', visibility);
+      formData.append('type', mediaType || 'text');
       
-      // Add media files
-      if (mediaFiles.length > 0) {
-        mediaFiles.forEach(file => {
-          formData.append('media', file);
-        });
-        
-        // Add captions if any
-        const captions = {};
-        mediaFiles.forEach((file, index) => {
-          captions[index] = '';
-        });
-        formData.append('captions', JSON.stringify(captions));
+      if (mediaFile) {
+        formData.append('media', mediaFile);
       }
       
-      // Add poll data if applicable
-      if (showPollForm) {
-        const validOptions = pollOptions.filter(opt => opt.trim() !== '');
-        const pollData = {
-          question: content,
-          options: validOptions,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 1 week
-          allowMultipleVotes: false
-        };
-        formData.append('pollData', JSON.stringify(pollData));
+      if (mediaType === 'event') {
+        formData.append('eventDetails', JSON.stringify(eventDetails));
       }
+
+      // Submit to API
+      const response = await api.createPost(formData);
       
-      // Add link data if applicable
-      if (linkUrl) {
-        formData.append('linkUrl', linkUrl);
-      }
-      
-      // Extract hashtags from content
-      const hashtagRegex = /#(\w+)/g;
-      const hashtags = [];
-      let match;
-      while ((match = hashtagRegex.exec(content)) !== null) {
-        hashtags.push(match[1]);
-      }
-      
-      if (hashtags.length > 0) {
-        formData.append('tags', hashtags.join(','));
-      }
-      
-      // Submit post
-      const newPost = await api.createPost(formData);
-      
-      // Reset form
-      setContent('');
-      setMediaFiles([]);
-      setMediaPreview([]);
-      setPostType('text');
-      setShowPollForm(false);
-      setPollOptions(['', '']);
-      setLinkUrl('');
-      
-      // Notify parent component
-      if (onPostCreated) {
-        onPostCreated(newPost);
-      }
-      
-      setLoading(false);
+      // Redirect to feed/dashboard on success
+      navigate('/dashboard');
     } catch (error) {
       console.error('Error creating post:', error);
-      setError(error.response?.data?.error || 'Failed to create post');
-      setLoading(false);
+      alert('Failed to create post. Please try again.');
+      setIsSubmitting(false);
     }
   };
 
+  const handleCancel = () => {
+    navigate('/dashboard');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="flex items-start space-x-4">
-        {/* User avatar */}
-        {user?.profilePicture ? (
-          <img
-            src={user.profilePicture}
-            alt={`${user.firstName} ${user.lastName}`}
-            className="h-10 w-10 rounded-full object-cover"
-          />
-        ) : (
-          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-            <span className="text-sm font-semibold text-gray-600">
-              {user?.firstName?.charAt(0)}
-              {user?.lastName?.charAt(0)}
-            </span>
-          </div>
-        )}
-
-        {/* Post form */}
-        <div className="flex-1">
-          <form onSubmit={handleSubmit}>
-            {/* Error message */}
-            {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
-                {error}
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      {/* <Sidebar user={user} /> */}
+      
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto">
+        <div className="md:pl-0 pl-0 md:pt-0 pt-16"> {/* Adjusted for sidebar */}
+          <main className="max-w-3xl mx-auto p-4 md:p-6">
+            {/* Back Button */}
+            <div className="mb-4">
+              <button 
+                onClick={() => navigate(-1)}
+                className="flex items-center text-gray-600 hover:text-orange-500"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back
+              </button>
+            </div>
+            
+            {/* Create Post Card */}
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Create Post</h2>
+                <p className="text-gray-500">Share updates, photos, videos or events with your network</p>
               </div>
-            )}
-
-            {/* Content input */}
-            <textarea
-              value={content}
-              onChange={handleContentChange}
-              placeholder={showPollForm ? "Ask a question..." : "What's on your mind?"}
-              className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-            ></textarea>
-
-            {/* Link URL input */}
-            {postType === 'link' && (
-              <div className="mt-2">
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="Enter URL"
-                  className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
-
-            {/* Poll options */}
-            {showPollForm && (
-              <div className="mt-4 space-y-2">
-                <h3 className="font-medium text-gray-700">Poll Options</h3>
-                {pollOptions.map((option, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) => handlePollOptionChange(index, e.target.value)}
-                      placeholder={`Option ${index + 1}`}
-                      className="flex-1 border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {pollOptions.length > 2 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePollOption(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
-                
-                {pollOptions.length < 5 && (
-                  <button
-                    type="button"
-                    onClick={handleAddPollOption}
-                    className="text-blue-500 hover:text-blue-700 text-sm font-medium flex items-center"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                    </svg>
-                    Add Option
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Media preview */}
-            {mediaPreview.length > 0 && (
-              <div className="mt-4">
-                <h3 className="font-medium text-gray-700 mb-2">Media Preview</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {mediaPreview.map((media, index) => (
-                    <div key={index} className="relative">
-                      {media.type === 'image' ? (
+              
+              {/* Create post section */}
+              <div className="bg-orange-50 rounded-xl p-6 mb-6">
+                <div className="flex space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="h-12 w-12 rounded-lg overflow-hidden">
+                      {user?.profileImage ? (
                         <img
-                          src={media.url}
-                          alt={`Preview ${index}`}
-                          className="h-24 w-full object-cover rounded-lg border border-gray-300"
+                          src={user.profileImage}
+                          alt="Profile"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
-                        <video
-                          src={media.url}
-                          className="h-24 w-full object-cover rounded-lg border border-gray-300"
-                          controls
-                        ></video>
+                        <div className="h-full w-full flex items-center justify-center bg-orange-200 text-orange-600 font-bold">
+                          {user?.firstName?.charAt(0)}
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFile(index)}
-                        className="absolute top-1 right-1 bg-white rounded-full p-1 shadow"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </button>
                     </div>
-                  ))}
+                  </div>
+                  
+                  <div className="flex-grow">
+                    <textarea 
+                      className="w-full border border-gray-200 rounded-lg px-4 py-2 h-32 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      placeholder={`What's on your mind, ${user?.firstName}?`}
+                      value={content}
+                      onChange={handleContentChange}
+                    ></textarea>
+                    
+                    {/* Media Preview */}
+                    {mediaPreview && mediaType !== 'event' && (
+                      <div className="mt-3 relative">
+                        <div className="rounded-lg overflow-hidden border border-gray-200">
+                          {mediaType === 'photo' ? (
+                            <img src={mediaPreview} alt="Upload preview" className="max-h-64 w-auto mx-auto" />
+                          ) : mediaType === 'video' ? (
+                            <video src={mediaPreview} controls className="max-h-64 w-auto mx-auto"></video>
+                          ) : null}
+                        </div>
+                        <button 
+                          onClick={removeMedia}
+                          className="absolute top-2 right-2 bg-gray-800 bg-opacity-70 text-white rounded-full p-1"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Event Form */}
+                    {showEventForm && (
+                      <div className="mt-3 bg-white p-4 rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-center mb-3">
+                          <h4 className="font-medium text-gray-900">Event Details</h4>
+                          <button 
+                            onClick={removeMedia}
+                            className="text-gray-500 hover:text-gray-700"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label htmlFor="event-title" className="block text-sm font-medium text-gray-700 mb-1">
+                              Event Title*
+                            </label>
+                            <input
+                              type="text"
+                              id="event-title"
+                              name="title"
+                              value={eventDetails.title}
+                              onChange={handleEventInputChange}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="Enter event title"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="event-date" className="block text-sm font-medium text-gray-700 mb-1">
+                              Date and Time
+                            </label>
+                            <input
+                              type="datetime-local"
+                              id="event-date"
+                              name="date"
+                              value={eventDetails.date}
+                              onChange={handleEventInputChange}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 mb-1">
+                              Location
+                            </label>
+                            <input
+                              type="text"
+                              id="event-location"
+                              name="location"
+                              value={eventDetails.location}
+                              onChange={handleEventInputChange}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="Enter location"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="event-description" className="block text-sm font-medium text-gray-700 mb-1">
+                              Description
+                            </label>
+                            <textarea
+                              id="event-description"
+                              name="description"
+                              value={eventDetails.description}
+                              onChange={handleEventInputChange}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 h-20 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="Enter event description"
+                            ></textarea>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Hidden file input */}
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept={mediaType === 'photo' ? 'image/*' : mediaType === 'video' ? 'video/*' : ''}
+                      onChange={handleFileSelect}
+                    />
+                    
+                    <div className="flex mt-3 pt-3 border-t border-gray-200 justify-between">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => triggerFileInput('photo')}
+                          className={`flex items-center justify-center py-1 px-2 rounded ${
+                            mediaType === 'photo' 
+                              ? 'bg-orange-100 text-orange-600' 
+                              : 'text-orange-500 hover:text-orange-600'
+                          }`}
+                          disabled={mediaType && mediaType !== 'photo'}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Photo
+                        </button>
+                        <button 
+                          onClick={() => triggerFileInput('video')}
+                          className={`flex items-center justify-center py-1 px-2 rounded ${
+                            mediaType === 'video' 
+                              ? 'bg-orange-100 text-orange-600' 
+                              : 'text-orange-500 hover:text-orange-600'
+                          }`}
+                          disabled={mediaType && mediaType !== 'video'}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Video
+                        </button>
+                        <button 
+                          onClick={handleEventClick}
+                          className={`flex items-center justify-center py-1 px-2 rounded ${
+                            mediaType === 'event' 
+                              ? 'bg-orange-100 text-orange-600' 
+                              : 'text-orange-500 hover:text-orange-600'
+                          }`}
+                          disabled={mediaType && mediaType !== 'event'}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Event
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* Post actions */}
-            <div className="flex justify-between items-center mt-4">
-              <div className="flex space-x-4">
-                {/* Media upload button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current.click()}
-                  className="flex items-center text-gray-600 hover:text-gray-800"
+              
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3">
+                <button 
+                  onClick={handleCancel}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4a.5.5 0 01-.5-.5v-6.501l2-1.646 2.646 2.646a1 1 0 001.414 0L14 7.354V14.5a.5.5 0 01-.5.5zM4 4.5A.5.5 0 014.5 4h11a.5.5 0 01.5.5v2.691l-3.5-3.396a1 1 0 00-1.391-.013L6.12 8.695 4 6.859V4.5z" clipRule="evenodd" />
-                  </svg>
-                  Photo/Video
+                  Cancel
                 </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  multiple
-                  accept="image/*,video/*"
-                  className="hidden"
-                />
-
-                {/* Link button */}
-                <button
-                  type="button"
-                  onClick={() => setPostType(postType === 'link' ? 'text' : 'link')}
-                  className={`flex items-center ${postType === 'link' ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'}`}
+                <button 
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className={`px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md flex items-center ${
+                    isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
+                  }`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                  </svg>
-                  Link
-                </button>
-
-                {/* Poll button */}
-                <button
-                  type="button"
-                  onClick={togglePollForm}
-                  className={`flex items-center ${showPollForm ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
-                    <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
-                  </svg>
-                  Poll
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                {/* Visibility dropdown */}
-                <select
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value)}
-                  className="border border-gray-300 rounded-lg text-sm p-1"
-                >
-                  <option value="public">Public</option>
-                  <option value="connections">Connections</option>
-                  <option value="private">Private</option>
-                </select>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-4 py-2"
-                >
-                  {loading ? 'Posting...' : 'Post'}
+                  {isSubmitting && (
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  {isSubmitting ? 'Posting...' : 'Post'}
                 </button>
               </div>
             </div>
-          </form>
+            
+            {/* Post Guidelines */}
+            <div className="mt-6 bg-white rounded-xl shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Posting Guidelines</h3>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li className="flex items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Share professional content relevant to your industry
+                </li>
+                <li className="flex items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Use appropriate language and tone
+                </li>
+                <li className="flex items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Respect copyright and intellectual property
+                </li>
+                <li className="flex items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Tag relevant topics for better visibility
+                </li>
+              </ul>
+            </div>
+          </main>
         </div>
       </div>
     </div>

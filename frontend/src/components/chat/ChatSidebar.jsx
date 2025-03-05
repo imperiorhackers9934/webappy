@@ -8,39 +8,63 @@ const ChatSidebar = ({
   onChatSelect,
   onlineUsers,
   currentUser,
-  loading
+  loading,
+  connections
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredChats, setFilteredChats] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchingConnections, setIsSearchingConnections] = useState(false);
 
   // Filter chats when search term or chats change
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredChats(chats);
+      setSearchResults([]);
+      setIsSearchingConnections(false);
       return;
     }
 
-    const filtered = chats.filter(chat => {
-      // For direct chats, search in participant names
-      if (chat.type === 'direct') {
-        const participant = chat.participants.find(
-          p => p._id !== currentUser._id
-        );
-        
-        if (!participant) return false;
-        
-        const fullName = `${participant.firstName} ${participant.lastName}`.toLowerCase();
-        return fullName.includes(searchTerm.toLowerCase());
-      } 
-      // For group chats, search in chat name
-      else {
-        return chat.name.toLowerCase().includes(searchTerm.toLowerCase());
-      }
-    });
-    
-    setFilteredChats(filtered);
-  }, [searchTerm, chats, currentUser]);
+    // Check if we're searching all connections or just existing chats
+    if (searchTerm.startsWith('@') && searchTerm.length > 1) {
+      setIsSearchingConnections(true);
+      
+      // Filter connections
+      const connectionSearchTerm = searchTerm.substring(1).toLowerCase();
+      const filteredConnections = connections.filter(connection => {
+        const fullName = `${connection.firstName} ${connection.lastName}`.toLowerCase();
+        return fullName.includes(connectionSearchTerm);
+      });
+      
+      setSearchResults(filteredConnections);
+      setFilteredChats([]);
+    } else {
+      setIsSearchingConnections(false);
+      
+      // Filter existing chats
+      const filtered = chats.filter(chat => {
+        // For direct chats, search in participant names
+        if (chat.type === 'direct') {
+          const participant = chat.participants.find(
+            p => p._id !== currentUser._id
+          );
+          
+          if (!participant) return false;
+          
+          const fullName = `${participant.firstName} ${participant.lastName}`.toLowerCase();
+          return fullName.includes(searchTerm.toLowerCase());
+        } 
+        // For group chats, search in chat name
+        else {
+          return chat.name.toLowerCase().includes(searchTerm.toLowerCase());
+        }
+      });
+      
+      setFilteredChats(filtered);
+      setSearchResults([]);
+    }
+  }, [searchTerm, chats, currentUser, connections]);
 
   // Get other participant for direct chats
   const getParticipant = (chat) => {
@@ -77,6 +101,13 @@ const ChatSidebar = ({
     return text.substring(0, maxLength) + '...';
   };
 
+  // Handle starting a new conversation with a connection
+  const handleStartChat = (connection) => {
+    createNewChat(connection._id);
+    setSearchTerm('');
+    setShowNewChat(false);
+  };
+
   if (loading) {
     return (
       <div className="w-80 border-r border-gray-200 h-full bg-white p-4">
@@ -105,7 +136,7 @@ const ChatSidebar = ({
           <h2 className="text-lg font-bold text-gray-800">Messages</h2>
           <button
             onClick={() => setShowNewChat(true)}
-            className="text-blue-600 hover:text-blue-800"
+            className="text-orange-500 hover:text-orange-600"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -116,8 +147,8 @@ const ChatSidebar = ({
         <div className="relative">
           <input
             type="text"
-            placeholder="Search conversations"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="Search conversations or @connections"
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -127,6 +158,19 @@ const ChatSidebar = ({
             </svg>
           </div>
         </div>
+        
+        {searchTerm && (
+          <div className="mt-2">
+            <p className="text-xs text-gray-500">
+              {isSearchingConnections ? 
+                "Searching all connections..." : 
+                "Searching conversations..."}
+            </p>
+            <p className="text-xs text-gray-500">
+              Tip: Use @ to search all connections
+            </p>
+          </div>
+        )}
       </div>
       
       {showNewChat && (
@@ -141,10 +185,48 @@ const ChatSidebar = ({
           </div>
           
           <div>
-            <p className="text-gray-600 mb-2">Select a connection to message</p>
+            <p className="text-gray-600 mb-4">Select a connection to message</p>
+            
+            {connections.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto mb-4">
+                {connections.map(connection => (
+                  <div 
+                    key={connection._id}
+                    className="flex items-center p-2 hover:bg-orange-50 rounded-md cursor-pointer"
+                    onClick={() => handleStartChat(connection)}
+                  >
+                    {connection.profilePicture ? (
+                      <img
+                        src={connection.profilePicture}
+                        alt={`${connection.firstName} ${connection.lastName}`}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <span className="text-base font-medium text-orange-600">
+                          {connection.firstName.charAt(0)}
+                          {connection.lastName.charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">
+                        {connection.firstName} {connection.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {connection.headline || 'Connection'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center mb-4">No connections found</p>
+            )}
+            
             <Link 
               to="/network" 
-              className="block text-center w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+              className="block text-center w-full py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md"
             >
               Find Connections
             </Link>
@@ -153,81 +235,140 @@ const ChatSidebar = ({
       )}
       
       <div className="flex-1 overflow-y-auto">
-        {filteredChats.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">
-            {searchTerm ? 'No conversations found' : 'No conversations yet'}
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {filteredChats.map(chat => {
-              const participant = getParticipant(chat);
-              const isActive = activeChat && chat._id === activeChat._id;
-              const isOnline = participant && onlineUsers[participant._id];
-              
-              return (
-                <div
-                  key={chat._id}
-                  className={`p-3 flex items-center cursor-pointer hover:bg-gray-50 ${
-                    isActive ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => onChatSelect(chat)}
-                >
-                  <div className="relative">
-                    {chat.type === 'direct' ? (
-                      participant?.profilePicture ? (
-                        <img
-                          src={participant.profilePicture}
-                          alt={`${participant.firstName} ${participant.lastName}`}
-                          className="h-12 w-12 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-lg font-medium text-gray-600">
-                            {participant?.firstName?.charAt(0)}
-                            {participant?.lastName?.charAt(0)}
-                          </span>
-                        </div>
-                      )
-                    ) : (
-                      <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="text-lg font-medium text-blue-600">
-                          {chat.name?.charAt(0) || 'G'}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {isOnline && (
-                      <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></span>
-                    )}
-                  </div>
-                  
-                  <div className="ml-3 flex-1 overflow-hidden">
-                    <div className="flex justify-between">
-                      <p className="font-medium text-gray-900 truncate">
-                        {chat.type === 'direct'
-                          ? `${participant?.firstName} ${participant?.lastName}`
-                          : chat.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatTime(chat.lastActivity || chat.lastMessage?.createdAt)}
-                      </p>
+        {/* Search Results */}
+        {isSearchingConnections && searchResults.length > 0 && (
+          <div className="divide-y divide-gray-100">
+            <div className="p-3 bg-orange-50">
+              <h3 className="text-sm font-medium text-gray-700">Connection Results</h3>
+            </div>
+            {searchResults.map(connection => (
+              <div
+                key={connection._id}
+                className="p-3 flex items-center cursor-pointer hover:bg-gray-50"
+                onClick={() => handleStartChat(connection)}
+              >
+                <div className="relative">
+                  {connection.profilePicture ? (
+                    <img
+                      src={connection.profilePicture}
+                      alt={`${connection.firstName} ${connection.lastName}`}
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
+                      <span className="text-lg font-medium text-orange-600">
+                        {connection.firstName.charAt(0)}
+                        {connection.lastName.charAt(0)}
+                      </span>
                     </div>
-                    
-                    <p className={`text-sm truncate ${
-                      chat.lastMessage && !chat.lastMessage.read && chat.lastMessage.sender._id !== currentUser._id
-                        ? 'font-semibold text-gray-900'
-                        : 'text-gray-500'
-                    }`}>
-                      {chat.lastMessage ? truncateText(chat.lastMessage.content) : 'No messages yet'}
-                    </p>
-                  </div>
+                  )}
+                  
+                  {onlineUsers[connection._id] && (
+                    <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></span>
+                  )}
                 </div>
-              );
-            })}
+                
+                <div className="ml-3 flex-1 overflow-hidden">
+                  <p className="font-medium text-gray-900">
+                    {connection.firstName} {connection.lastName}
+                  </p>
+                  <p className="text-sm text-gray-500 truncate">
+                    {connection.headline || 'Connection'}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
+        )}
+        
+        {/* No results message */}
+        {isSearchingConnections && searchResults.length === 0 && searchTerm.length > 1 && (
+          <div className="p-4 text-center text-gray-500">
+            No connections found matching "{searchTerm.substring(1)}"
+          </div>
+        )}
+        
+        {/* Chat List */}
+        {!isSearchingConnections && (
+          <>
+            {filteredChats.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                {searchTerm ? 'No conversations found' : 'No conversations yet'}
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {filteredChats.map(chat => {
+                  const participant = getParticipant(chat);
+                  const isActive = activeChat && chat._id === activeChat._id;
+                  const isOnline = participant && onlineUsers[participant._id];
+                  
+                  return (
+                    <div
+                      key={chat._id}
+                      className={`p-3 flex items-center cursor-pointer hover:bg-gray-50 ${
+                        isActive ? 'bg-orange-50' : ''
+                      }`}
+                      onClick={() => onChatSelect(chat)}
+                    >
+                      <div className="relative">
+                        {chat.type === 'direct' ? (
+                          participant?.profilePicture ? (
+                            <img
+                              src={participant.profilePicture}
+                              alt={`${participant.firstName} ${participant.lastName}`}
+                              className="h-12 w-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
+                              <span className="text-lg font-medium text-orange-600">
+                                {participant?.firstName?.charAt(0)}
+                                {participant?.lastName?.charAt(0)}
+                              </span>
+                            </div>
+                          )
+                        ) : (
+                          <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                            <span className="text-lg font-medium text-blue-600">
+                              {chat.name?.charAt(0) || 'G'}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {isOnline && (
+                          <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></span>
+                        )}
+                      </div>
+                      
+                      <div className="ml-3 flex-1 overflow-hidden">
+                        <div className="flex justify-between">
+                          <p className="font-medium text-gray-900 truncate">
+                            {chat.type === 'direct'
+                              ? `${participant?.firstName} ${participant?.lastName}`
+                              : chat.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatTime(chat.lastActivity || chat.lastMessage?.createdAt)}
+                          </p>
+                        </div>
+                        
+                        <p className={`text-sm truncate ${
+                          chat.lastMessage && !chat.lastMessage.read && chat.lastMessage.sender._id !== currentUser._id
+                            ? 'font-semibold text-gray-900'
+                            : 'text-gray-500'
+                        }`}>
+                          {chat.lastMessage ? truncateText(chat.lastMessage.content) : 'No messages yet'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
+    
   );
 };
 

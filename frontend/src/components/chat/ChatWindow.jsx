@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MessageInput from './MessageInput';
 import MessageList from './MessageList';
+import MessageReactions from './MessageReactions';
+import CallInterface from './CallInterface';
 import api from '../../services/api';
 
 const ChatWindow = ({
@@ -18,6 +20,8 @@ const ChatWindow = ({
   const [error, setError] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [activeCall, setActiveCall] = useState(null);
   const messageEndRef = useRef(null);
   const lastMessageRef = useRef(null);
   const isInitialLoad = useRef(true);
@@ -100,9 +104,18 @@ const ChatWindow = ({
   };
 
   // Handle sending a new message
-  const handleSendMessage = async (content, messageType = 'text', attachment = null) => {
+  const handleSendMessage = async (content, messageType = 'text', attachment = null, replyToId = null, formData, config) => {
     try {
-      const newMessage = await sendMessage(chat._id, content, messageType, attachment);
+      let newMessage;
+      
+      // If we have form data (for attachments or replies), use it
+      if (formData) {
+        newMessage = await api.sendMessageWithAttachment(chat._id, formData, config);
+      } else if (replyToId) {
+        newMessage = await api.replyToMessage(chat._id, replyToId, content, messageType, attachment);
+      } else {
+        newMessage = await sendMessage(chat._id, content, messageType, attachment);
+      }
       
       // Update local messages list (if not already updated by Socket.IO)
       setMessages(prevMessages => {
@@ -114,10 +127,193 @@ const ChatWindow = ({
         return [...prevMessages, newMessage];
       });
       
+      // Clear reply state
+      setReplyingTo(null);
+      
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
       setError('Failed to send message. Please try again.');
+      return false;
+    }
+  };
+
+  // Handle reply to message
+  const handleReplyMessage = (message) => {
+    setReplyingTo(message);
+  };
+
+  // Cancel reply
+  const cancelReply = () => {
+    setReplyingTo(null);
+  };
+
+  // Handle delete message
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      await api.deleteMessage(chat._id, messageId);
+      
+      // Update local message list
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, deleted: true, content: 'This message was deleted' } 
+            : msg
+        )
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      setError('Failed to delete message. Please try again.');
+      return false;
+    }
+  };
+
+  // Handle message reaction
+  const handleReactToMessage = async (messageId, reaction) => {
+    try {
+      await api.reactToMessage(chat._id, messageId, reaction);
+      
+      // Update local message (typically would be handled by Socket.IO)
+      setMessages(prevMessages => 
+        prevMessages.map(msg => {
+          if (msg._id === messageId) {
+            // Remove existing reaction from this user if any
+            const updatedReactions = msg.reactions 
+              ? msg.reactions.filter(r => r.userId !== currentUser._id)
+              : [];
+            
+            // Add the new reaction
+            updatedReactions.push({
+              userId: currentUser._id,
+              type: reaction,
+              createdAt: new Date().toISOString()
+            });
+            
+            return {
+              ...msg,
+              reactions: updatedReactions
+            };
+          }
+          return msg;
+        })
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Error reacting to message:', error);
+      setError('Failed to react to message. Please try again.');
+      return false;
+    }
+  };
+
+  // Handle removing reaction
+  const handleRemoveReaction = async (messageId) => {
+    try {
+      await api.removeReaction(chat._id, messageId);
+      
+      // Update local message (typically would be handled by Socket.IO)
+      setMessages(prevMessages => 
+        prevMessages.map(msg => {
+          if (msg._id === messageId) {
+            return {
+              ...msg,
+              reactions: msg.reactions 
+                ? msg.reactions.filter(r => r.userId !== currentUser._id)
+                : []
+            };
+          }
+          return msg;
+        })
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Error removing reaction:', error);
+      setError('Failed to remove reaction. Please try again.');
+      return false;
+    }
+  };
+
+  // Start an audio call
+  const startAudioCall = async () => {
+    try {
+      const callData = await api.startAudioCall(chat._id);
+      
+      setActiveCall({
+        callId: callData.callId,
+        type: 'audio',
+        initiator: currentUser,
+        participant: participant,
+        status: 'connecting'
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error starting audio call:', error);
+      setError('Failed to start audio call. Please try again.');
+      return false;
+    }
+  };
+
+  // Start a video call
+  const startVideoCall = async () => {
+    try {
+      const callData = await api.startVideoCall(chat._id);
+      
+      setActiveCall({
+        callId: callData.callId,
+        type: 'video',
+        initiator: currentUser,
+        participant: participant,
+        status: 'connecting'
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error starting video call:', error);
+      setError('Failed to start video call. Please try again.');
+      return false;
+    }
+  };
+
+  // Accept a call
+  const acceptCall = async (callId) => {
+    try {
+      await api.acceptCall(callId);
+      return true;
+    } catch (error) {
+      console.error('Error accepting call:', error);
+      setError('Failed to accept call. Please try again.');
+      return false;
+    }
+  };
+
+  // Decline a call
+  const declineCall = async (callId) => {
+    try {
+      await api.declineCall(callId);
+      setActiveCall(null);
+      return true;
+    } catch (error) {
+      console.error('Error declining call:', error);
+      setError('Failed to decline call.');
+      return false;
+    }
+  };
+
+  // End a call
+  const endCall = async (callId) => {
+    try {
+      if (callId) {
+        await api.endCall(callId);
+      }
+      setActiveCall(null);
+      return true;
+    } catch (error) {
+      console.error('Error ending call:', error);
+      setError('Failed to end call.');
       return false;
     }
   };
@@ -200,26 +396,10 @@ const ChatWindow = ({
     return lastActive.toLocaleDateString();
   };
 
-  // Start a voice or video call
-  const startCall = async (callType) => {
-    try {
-      const response = await api.startCall(chat._id, callType);
-      
-      // In a real app, this would trigger the call UI
-      console.log(`Starting ${callType} call:`, response);
-      
-      // For this implementation, we'll just show an alert
-      alert(`${callType.charAt(0).toUpperCase() + callType.slice(1)} call started!`);
-    } catch (error) {
-      console.error(`Error starting ${callType} call:`, error);
-      setError(`Failed to start ${callType} call. Please try again.`);
-    }
-  };
-
   return (
     <div className="flex-grow flex flex-col h-full bg-white">
       {/* Chat Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white shadow-sm">
         <div className="flex items-center">
           <div className="relative">
             {participant?.profilePicture ? (
@@ -229,8 +409,8 @@ const ChatWindow = ({
                 className="h-10 w-10 rounded-full object-cover"
               />
             ) : (
-              <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                <span className="text-base font-medium text-gray-600">
+              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <span className="text-base font-medium text-orange-600">
                   {participant?.firstName?.charAt(0)}
                   {participant?.lastName?.charAt(0)}
                 </span>
@@ -270,8 +450,8 @@ const ChatWindow = ({
         
         <div className="flex space-x-3">
           <button 
-            onClick={() => startCall('audio')}
-            className="text-gray-500 hover:text-gray-700"
+            onClick={startAudioCall}
+            className="text-gray-500 hover:text-orange-500"
             title="Audio call"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -280,8 +460,8 @@ const ChatWindow = ({
           </button>
           
           <button 
-            onClick={() => startCall('video')}
-            className="text-gray-500 hover:text-gray-700"
+            onClick={startVideoCall}
+            className="text-gray-500 hover:text-orange-500"
             title="Video call"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -291,7 +471,7 @@ const ChatWindow = ({
           </button>
           
           <button
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-orange-500"
             title="More options"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -305,7 +485,7 @@ const ChatWindow = ({
       <div className="flex-grow overflow-y-auto bg-gray-50 px-4 py-2">
         {loading && messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
           </div>
         ) : error ? (
           <div className="h-full flex items-center justify-center">
@@ -313,7 +493,7 @@ const ChatWindow = ({
               <p className="text-red-500 mb-2">{error}</p>
               <button
                 onClick={() => window.location.reload()}
-                className="text-blue-500 hover:underline"
+                className="text-orange-500 hover:underline"
               >
                 Retry
               </button>
@@ -332,7 +512,7 @@ const ChatWindow = ({
               <div className="text-center py-2">
                 <button
                   onClick={loadMoreMessages}
-                  className="text-blue-500 hover:underline text-sm"
+                  className="text-orange-500 hover:underline text-sm"
                   disabled={loading}
                 >
                   {loading ? 'Loading...' : 'Load older messages'}
@@ -347,6 +527,10 @@ const ChatWindow = ({
               shouldShowDateSeparator={shouldShowDateSeparator}
               participant={participant}
               onMessageRead={sendReadReceipt}
+              onReply={handleReplyMessage}
+              onDelete={handleDeleteMessage}
+              onReact={handleReactToMessage}
+              onRemoveReaction={handleRemoveReaction}
             />
             
             <div ref={messageEndRef} />
@@ -356,20 +540,33 @@ const ChatWindow = ({
       
       {/* Typing Indicator */}
       {getTypingIndicatorText() && (
-        <div className="px-4 py-1 text-xs text-gray-500">
+        <div className="px-4 py-1 text-xs text-gray-500 bg-white border-t border-gray-100">
           {getTypingIndicatorText()}
         </div>
       )}
       
       {/* Message Input */}
-      <div className="border-t border-gray-200 p-3">
+      <div className="border-t border-gray-200 p-3 bg-white">
         <MessageInput 
           onSendMessage={handleSendMessage}
           onTyping={sendTypingIndicator}
           chatId={chat._id}
           disabled={socketStatus !== 'CONNECTED'}
+          replyingTo={replyingTo}
+          onCancelReply={cancelReply}
         />
       </div>
+      
+      {/* Active Call Interface */}
+      {activeCall && (
+        <CallInterface
+          callData={activeCall}
+          onAccept={acceptCall}
+          onDecline={declineCall}
+          onEnd={endCall}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   );
 };

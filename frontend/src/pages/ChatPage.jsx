@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/common/Navbar';
+import Sidebar from '../components/common/Navbar';
 import ChatSidebar from '../components/chat/ChatSidebar';
 import ChatWindow from '../components/chat/ChatWindow';
 import api from '../services/api';
@@ -19,6 +19,7 @@ const ChatPage = () => {
   const [onlineUsers, setOnlineUsers] = useState({});
   const [typingUsers, setTypingUsers] = useState({});
   const [socketStatus, setSocketStatus] = useState('DISCONNECTED');
+  const [connections, setConnections] = useState([]);
   
   // Subscribe to socket status changes
   useEffect(() => {
@@ -28,6 +29,22 @@ const ChatPage = () => {
     
     return unsubscribe;
   }, []);
+
+  // Fetch user connections
+  useEffect(() => {
+    const fetchConnections = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await api.getConnections();
+        setConnections(response);
+      } catch (error) {
+        console.error('Error fetching connections:', error);
+      }
+    };
+    
+    fetchConnections();
+  }, [user]);
 
   // Join the active chat room
   useEffect(() => {
@@ -226,7 +243,7 @@ const ChatPage = () => {
           <h1 className="text-2xl font-bold text-gray-800 mb-4">Please log in to access chat</h1>
           <button 
             onClick={() => navigate('/login')}
-            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded"
+            className="mt-4 bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded"
           >
             Go to Login
           </button>
@@ -236,10 +253,12 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      <Navbar user={user} />
+    <div className="min-h-screen bg-gray-100 flex">
+      {/* Left Sidebar (Navigation) */}
+      {/* <Sidebar user={user} /> */}
       
       <div className="flex-grow flex overflow-hidden">
+        {/* Chat Sidebar */}
         <ChatSidebar 
           chats={chats} 
           activeChat={activeChat} 
@@ -248,8 +267,10 @@ const ChatPage = () => {
           onlineUsers={onlineUsers}
           currentUser={user}
           loading={loading}
+          connections={connections}
         />
         
+        {/* Chat Window */}
         {activeChat ? (
           <ChatWindow 
             chat={activeChat}
@@ -264,7 +285,7 @@ const ChatPage = () => {
         ) : (
           <div className="flex-grow flex items-center justify-center bg-white">
             <div className="text-center p-6">
-              <div className="text-gray-400 mb-4">
+              <div className="text-orange-400 mb-4">
                 <svg className="mx-auto h-12 w-12" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
@@ -273,7 +294,7 @@ const ChatPage = () => {
               <p className="mt-2 text-gray-600">Send private messages to your connections</p>
               <button 
                 onClick={() => navigate('/network')}
-                className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded"
+                className="mt-4 bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded"
               >
                 Find Connections
               </button>

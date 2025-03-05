@@ -2,7 +2,7 @@ import axios from 'axios';
 import socketManager from './socketmanager';
 
 // Determine API base URL from environment or default
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000"
 
 // Create axios instance with default config
 const api = axios.create({
@@ -215,6 +215,8 @@ const storyService = {
 };
 
 // Chat endpoints
+// Updated chatService section for api.js with fixed media uploads and call support
+
 const chatService = {
   getChats: async () => {
     const response = await api.get('/api/chats');
@@ -261,23 +263,212 @@ const chatService = {
     return response.data;
   },
 
-  sendMessageWithAttachment: async (chatId, formData) => {
-    const response = await api.post(`/api/chats/${chatId}/messages`, formData, {
+  sendMessageWithAttachment: async (chatId, formData, config = {}) => {
+    // Make sure we're using the right content type for files
+    const customConfig = {
       headers: {
         'Content-Type': 'multipart/form-data'
+      },
+      ...config
+    };
+    
+    try {
+      const response = await api.post(`/api/chats/${chatId}/messages`, formData, customConfig);
+      
+      // Notify about new message with attachment via socket
+      socketManager.emit('new_message', {
+        ...response.data,
+        chatId
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error sending message with attachment:', error);
+      throw error;
+    }
+  },
+  
+  // Reply to a message
+  replyToMessage: async (chatId, messageId, content, messageType = 'text', attachment = null) => {
+    try {
+      const formData = new FormData();
+      formData.append('content', content);
+      formData.append('messageType', messageType);
+      formData.append('replyTo', messageId);
+      
+      if (attachment) {
+        formData.append('media', attachment);
       }
-    });
-    
-    // Notify about new message with attachment
-    socketManager.emit('new_message', {
-      ...response.data,
-      chatId
-    });
-    
-    return response.data;
+      
+      const response = await api.post(`/api/chats/${chatId}/messages`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      socketManager.emit('new_message', {
+        ...response.data,
+        chatId
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error replying to message:', error);
+      throw error;
+    }
+  },
+  
+  // Delete a message
+  deleteMessage: async (chatId, messageId) => {
+    try {
+      const response = await api.delete(`/api/chats/${chatId}/messages/${messageId}`);
+      
+      // Notify deletion via socket
+      socketManager.emit('message_deleted', {
+        chatId,
+        messageId
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      throw error;
+    }
+  },
+  
+  // React to a message
+  reactToMessage: async (chatId, messageId, reaction) => {
+    try {
+      const response = await api.post(`/api/chats/${chatId}/messages/${messageId}/react`, { reaction });
+      
+      // Notify reaction via socket
+      socketManager.emit('message_reaction', {
+        chatId,
+        messageId,
+        reaction,
+        userId: response.data.userId
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error reacting to message:', error);
+      throw error;
+    }
+  },
+  
+  // Remove reaction from a message
+  removeReaction: async (chatId, messageId) => {
+    try {
+      const response = await api.delete(`/api/chats/${chatId}/messages/${messageId}/react`);
+      
+      // Notify reaction removal via socket
+      socketManager.emit('reaction_removed', {
+        chatId,
+        messageId,
+        userId: response.data.userId
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error removing reaction:', error);
+      throw error;
+    }
+  },
+  
+  // Start an audio call
+  startAudioCall: async (chatId) => {
+    try {
+      const response = await api.post(`/api/calls/${chatId}/audio`);
+      
+      // Notify call via socket
+      socketManager.emit('call_started', {
+        chatId,
+        callId: response.data.callId,
+        type: 'audio',
+        initiator: response.data.initiator
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error starting audio call:', error);
+      throw error;
+    }
+  },
+  
+  // Start a video call
+  startVideoCall: async (chatId) => {
+    try {
+      const response = await api.post(`/api/calls/${chatId}/video`);
+      
+      // Notify call via socket
+      socketManager.emit('call_started', {
+        chatId,
+        callId: response.data.callId,
+        type: 'video',
+        initiator: response.data.initiator
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error starting video call:', error);
+      throw error;
+    }
+  },
+  
+  // Accept a call
+  acceptCall: async (callId) => {
+    try {
+      const response = await api.post(`/api/calls/${callId}/accept`);
+      
+      // Notify call acceptance via socket
+      socketManager.emit('call_accepted', {
+        callId,
+        acceptedBy: response.data.acceptedBy
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error accepting call:', error);
+      throw error;
+    }
+  },
+  
+  // Decline a call
+  declineCall: async (callId) => {
+    try {
+      const response = await api.post(`/api/calls/${callId}/decline`);
+      
+      // Notify call decline via socket
+      socketManager.emit('call_declined', {
+        callId,
+        declinedBy: response.data.declinedBy
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error declining call:', error);
+      throw error;
+    }
+  },
+  
+  // End a call
+  endCall: async (callId) => {
+    try {
+      const response = await api.post(`/api/calls/${callId}/end`);
+      
+      // Notify call end via socket
+      socketManager.emit('call_ended', {
+        callId,
+        endedBy: response.data.endedBy
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error ending call:', error);
+      throw error;
+    }
   }
 };
-
 // Network endpoints
 const networkService = {
   sendConnectionRequest: async (userId) => {
