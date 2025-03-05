@@ -72,7 +72,10 @@ app.use(session({
 
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(cors());
+// app.use(cors({
+//   origin: 'http://localhost:5173', // Your frontend URL
+//   credentials: true
+// }));
 app.use(bodyParser.json());
 
 // Cloudinary storage setup for file uploads
@@ -113,6 +116,7 @@ const postUpload = multer({
     }
   }
 });
+
 // JWT Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -307,9 +311,11 @@ const storySchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  filter: { type: String, default: 'none' },
+  textPosition: { type: String, default: 'bottom' },
   content: {
-    type: String,
-    required: true
+   type: String,
+  default: ''
   },
   mediaUrl: {
     type: String,
@@ -3074,7 +3080,7 @@ app.get('/api/network/connection-requests', authenticateToken, async (req, res) 
     const result = await Promise.all(connectionRequests.map(async (request) => {
       // Find mutual connections (users who are connected to both parties)
       const mutualConnections = currentUser.connections.filter(connection => 
-        request.connections.includes(connection)
+        request.connections?.includes(connection)
       ).length;
       
       return {
@@ -3514,7 +3520,30 @@ app.get('/api/chats', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Error fetching chats' });
   }
 });
+const testUpload = multer({ dest: 'uploads/' });
+// Simplified CloudinaryStorage
+const simpleStoryStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'stories',
+    resource_type: 'auto'
+  }
+});
 
+const simpleStoryUpload = multer({ storage: simpleStoryStorage });
+
+app.post('/api/simple-cloudinary-test', simpleStoryUpload.single('media'), (req, res) => {
+  console.log('File received and uploaded to Cloudinary:', req.file);
+  res.json({ 
+    success: true, 
+    message: 'File uploaded to Cloudinary', 
+    file: req.file ? req.file.path : 'No file'
+  });
+});
+app.post('/api/simple-test-upload', storyUpload.single('media'), (req, res) => {
+  console.log('File received:', req.file);
+  res.json({ success: true, message: 'File received' });
+});
 app.post('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
   try {
     const { content, messageType } = req.body;
@@ -3794,124 +3823,34 @@ app.post('/api/chats/:chatId/polls', authenticateToken, async (req, res) => {
 
 app.post('/api/stories', authenticateToken, storyUpload.single('media'), async (req, res) => {
   try {
-    const {
-      content, 
-      privacy, 
-      backgroundColor, 
-      textColor, 
-      fontStyle,
-      location,
-      mentions,
-      linkUrl,
-      stickers
-    } = req.body;
+    console.log('Starting story creation...');
+    console.log('User: ', req.user ? req.user.id : 'No user');
+    console.log('File: ', req.file ? 'File uploaded' : 'No file');
+    console.log('Content: ', req.body.content || 'No content');
     
-    // Check for media file
     if (!req.file) {
-      return res.status(400).json({ error: 'Media file is required for stories' });
+      return res.status(400).json({ error: 'Media file is required' });
     }
     
-    // Determine media type from mimetype
-    const mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
-    
-    // Process location if provided
-    let locationData = null;
-    if (location) {
-      try {
-        const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
-        locationData = {
-          name: parsedLocation.name,
-          coordinates: parsedLocation.coordinates
-        };
-      } catch (error) {
-        console.error('Error parsing location data:', error);
-      }
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // Process mentions if provided
-    let mentionsData = [];
-    if (mentions) {
-      try {
-        mentionsData = typeof mentions === 'string' ? JSON.parse(mentions) : mentions;
-      } catch (error) {
-        console.error('Error parsing mentions data:', error);
-      }
-    }
-    
-    // Process stickers if provided
-    let stickersData = [];
-    if (stickers) {
-      try {
-        stickersData = typeof stickers === 'string' ? JSON.parse(stickers) : stickers;
-      } catch (error) {
-        console.error('Error parsing stickers data:', error);
-      }
-    }
-    
-    // Fetch user to get default privacy settings if not provided
-    const user = await User.findById(req.user.id);
-    const defaultPrivacy = user.privacy?.storyVisibility || 'public';
-    
-    // Create the story
+    // Create minimal story first to test
     const story = await Story.create({
       author: req.user.id,
-      content: content || '',
+      content: req.body.content || 'Default caption',
       mediaUrl: req.file.path,
-      mediaType,
-      privacy: privacy || defaultPrivacy,
-      location: locationData,
-      backgroundStyle: {
-        backgroundColor,
-        textColor,
-        fontStyle
-      },
-      mentions: mentionsData,
-      stickers: stickersData,
-      linkUrl
+      mediaType: req.file.mimetype.startsWith('image/') ? 'image' : 'video',
+      filter: req.body.filter || 'none',
+      textPosition: req.body.textPosition || 'bottom',
     });
     
-    // Process mentions to create notifications
-    if (mentionsData.length > 0) {
-      for (const mention of mentionsData) {
-        await createNotification({
-          recipient: mention.user,
-          sender: req.user.id,
-          type: 'mention',
-          contentType: 'story',
-          contentId: story._id,
-          text: `${user.firstName} ${user.lastName} mentioned you in a story`,
-          actionUrl: `/stories/view/${story._id}`
-        });
-        
-        // Create mention record
-        await Mention.create({
-          user: mention.user,
-          mentionedBy: req.user.id,
-          contentType: 'story',
-          contentId: story._id
-        });
-      }
-    }
-
-    // Populate author details for response
-    const populatedStory = await Story.findById(story._id)
-      .populate('author', 'firstName lastName profilePicture')
-      .populate('mentions.user', 'firstName lastName profilePicture');
-
-    res.status(201).json(populatedStory);
+    console.log('Story created successfully with ID:', story._id);
+    res.status(201).json(story);
   } catch (error) {
-    console.error('Create story error:', error);
-    
-    // Provide more specific error messages based on the error type
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File size exceeded. Maximum file size is 50MB.' });
-    }
-    
-    if (error.message && error.message.includes('Invalid file type')) {
-      return res.status(400).json({ error: error.message });
-    }
-    
-    res.status(500).json({ error: 'Error creating story' });
+    console.error('Story creation error:', error);
+    res.status(500).json({ error: 'Error creating story', message: error.message });
   }
 });
 
@@ -5039,7 +4978,8 @@ const io = new Server(server, {
       'http://localhost:3000',   // If your backend is also serving frontend
       /\.yourdomain\.com$/       // Production domain pattern
     ],
-    methods: ["GET", "POST"],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   },
   path: '/socket.io/',            // Explicit socket path
@@ -5087,6 +5027,9 @@ io.use((socket, next) => {
           }
         }
       }
+      // Near the top of your file where Cloudinary is set up
+console.log('Cloudinary config status:', !!cloudinary.config().cloud_name);
+
     });
   
     // Initialize WebSocket Server
