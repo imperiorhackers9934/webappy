@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import img from "../../assets/MeetKats.jpg"
-
+import img1 from "../../assets/messenger.png"
 const Sidebar = ({ user, onLogout }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -151,6 +151,11 @@ const Sidebar = ({ user, onLogout }) => {
               </svg>
               {!isCollapsed && <span className="text-sm font-medium">Portfolio</span>}
             </Link>
+            <Link to="/chat" className="group flex items-center px-2 py-3 text-gray-600 hover:bg-orange-50 hover:text-orange-500 rounded-md">
+            <div className='w-[22px] h-[22px]'
+            ><img src={img1} alt="" /></div>
+              {!isCollapsed && <span className="text-sm font-medium ml-3">Chats</span>}
+            </Link>
 
             <div ref={messagesRef} className="relative">
               <button
@@ -169,7 +174,7 @@ const Sidebar = ({ user, onLogout }) => {
                     <div className="px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-400">
                       <div className="flex justify-between items-center">
                         <h3 className="text-sm font-medium text-white">Messages</h3>
-                        <Link to="/messages" className="text-xs font-medium text-white hover:text-orange-100">View all</Link>
+                        <Link to="/chat" className="text-xs font-medium text-white hover:text-orange-100">View all</Link>
                       </div>
                     </div>
                     
