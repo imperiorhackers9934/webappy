@@ -11,7 +11,7 @@ import {
   BookOpen,
   Bell
 } from 'lucide-react';
-import EmptyState from './EmptyState';
+
 
 const EmptyState = () => {
   return (
