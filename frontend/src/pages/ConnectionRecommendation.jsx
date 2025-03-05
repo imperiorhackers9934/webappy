@@ -99,7 +99,7 @@ const ConnectionRequestPage = () => {
           </Link>
         </div>
         
-        <EmptyState
+        <EmptyStateExamples
           icon={<UserPlus size={48} />}
           title="No Connection Requests"
           description="You don't have any pending connection requests at the moment."
