@@ -23,6 +23,7 @@ import RecommendedConnections from './pages/RecommendedConnections';
 import EditProfilePage from './pages/EditProfilePage';
 import NetworkExplorePage from './pages/NetworkExplorePage';
 import ProjectCreationPage from './components/portfolio/ProjectCreation';
+import ConnectionRequestPage from './pages/ConnectionRecommendation';
 
 const App = () => {
   return (
@@ -65,10 +66,9 @@ const App = () => {
           <Route path="/portfolio/add-achievement" element={<AddAchievementForm/>}/>
           <Route path="/portfolio/project/new" element={<ProjectCreationPage/>}/>
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
+          <Route path="/connections" element={<ConnectionRequestPage/>}/>
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-          /portfolio/add-project
           {/* 404 Page */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

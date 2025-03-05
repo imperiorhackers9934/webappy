@@ -15,18 +15,16 @@ const AuthLayout = ({ children }) => {
           Connect with professionals and grow your network
         </p>
       </div>
-
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         {children}
       </div>
-      
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center text-sm text-gray-500">
           <p>© 2023 ProfNet. All rights reserved.</p>
-        </div>
+          </div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default AuthLayout;
