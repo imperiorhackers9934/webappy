@@ -283,9 +283,11 @@ const Dashboard = () => {
                 
                 <div className="mt-4 md:mt-0 w-full md:w-auto">
                   <div className="flex items-center space-x-2">
+                    <Link to={`/connections`}>
                     <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-md text-sm font-medium">
                       {pendingRequests} connection requests
                     </span>
+                      </Link>
                     <span className="bg-green-100 text-green-800 px-3 py-1 rounded-md text-sm font-medium">
                       {planner.filter(task => !task.completed).length} pending tasks
                     </span>
