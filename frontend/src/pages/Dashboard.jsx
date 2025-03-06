@@ -8,10 +8,14 @@ import api from '../services/api';
 import StoryCard from '../components/posts/StoryCard';
 import CreatePost from '../components/posts/CreatePost';
 import { PlusCircle, Check, Calendar, X } from 'lucide-react';
+import { useToast } from '../components/common/Toast'; // Adjust this import based on your UI library
+
+// Add this inside your component function
 
 const Dashboard = () => {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeSection, setActiveSection] = useState('overview');
   const [pendingRequests, setPendingRequests] = useState(0);
   const [connectionRequests, setConnectionRequests] = useState([]);
@@ -175,31 +179,107 @@ const Dashboard = () => {
 // locationControl.stop();
 
 // After (fixed implementation):
-useEffect(() => {
+
+  
+  useEffect(() => {
   let locationControl = null;
   
-  // Start location tracking when component mounts
-  const startLocationTracking = async () => {
+  // Function to request location permission with toaster
+  const requestLocationPermission = () => {
+    toast({
+      title: "Location Access Required",
+      description: "This app needs access to your location for networking features. Please enable location services.",
+      status: "info",
+      duration: 10000,
+      isClosable: true,
+      action: (
+        <div className="flex space-x-2">
+          <button 
+            onClick={() => startLocationTracking(true)} 
+            className="bg-orange-500 text-white px-4 py-2 rounded-md text-sm hover:bg-orange-600 transition"
+          >
+            Enable
+          </button>
+          <button 
+            onClick={() => toast.close()} 
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300 transition"
+          >
+            Not Now
+          </button>
+        </div>
+      )
+    });
+  };
+  
+  // Start location tracking with optional force param
+  const startLocationTracking = async (force = false) => {
     try {
-      // Check if the user has location sharing enabled in their settings
-      const settings = await api.getSettings();
-      const locationEnabled = settings?.locationSharing?.enabled || false;
-      
-      if (locationEnabled) {
-        console.log('Starting location tracking based on user settings');
-        locationControl = api.startContinuousLocationUpdates({
-          interval: 30000, // 30 seconds
-          successCallback: (result) => console.log('Location updated:', result),
-          errorCallback: (error) => console.error('Location update error:', error)
-        });
-      } else {
-        console.log('Location tracking disabled in user settings');
+      // If force is true, skip settings check and directly try to get location
+      if (!force) {
+        // Check if the user has location sharing enabled in their settings
+        const settings = await api.getSettings();
+        const locationEnabled = settings?.locationSharing?.enabled || false;
+        
+        if (!locationEnabled) {
+          console.log('Location tracking disabled in user settings');
+          return;
+        }
       }
+      
+      // Check if we have permission
+      if (navigator.permissions) {
+        const permission = await navigator.permissions.query({ name: 'geolocation' });
+        
+        if (permission.state === 'denied') {
+          // Permission permanently denied, show toaster with instructions
+          toast({
+            title: "Location Access Blocked",
+            description: "Please enable location access in your browser settings to use this feature.",
+            status: "error",
+            duration: 5000,
+            isClosable: true
+          });
+          return;
+        } 
+        else if (permission.state === 'prompt') {
+          // Will prompt the user, show informative toaster
+          requestLocationPermission();
+          return;
+        }
+        // If 'granted', proceed normally
+      }
+      
+      // Start tracking if permission is granted or permissions API not available
+      console.log('Starting location tracking');
+      locationControl = api.startContinuousLocationUpdates({
+        interval: 30000, // 30 seconds
+        successCallback: (result) => console.log('Location updated:', result),
+        errorCallback: (error) => {
+          console.error('Location update error:', error);
+          // Show error toaster if there's an issue
+          toast({
+            title: "Location Error",
+            description: "There was a problem accessing your location. Please check your device settings.",
+            status: "error",
+            duration: 5000,
+            isClosable: true
+          });
+        }
+      });
     } catch (error) {
       console.error('Error starting location tracking:', error);
+      // Show error toaster
+      toast({
+        title: "Location Error",
+        description: "There was a problem setting up location tracking.",
+        status: "error",
+        duration: 5000,
+        isClosable: true
+      });
     }
   };
   
+  // Initial call to start tracking
   startLocationTracking();
   
   // Clean up function - stop location tracking when component unmounts
@@ -213,6 +293,36 @@ useEffect(() => {
     }
   };
 }, [user?._id]); // Only re-run if user ID changes
+
+// Add this useEffect to check if location is available on mount and show toaster if needed
+useEffect(() => {
+  // Check if geolocation is supported
+  if (!navigator.geolocation) {
+    toast({
+      title: "Location Not Supported",
+      description: "Your browser doesn't support location services. Some features may not work properly.",
+      status: "warning",
+      duration: 5000,
+      isClosable: true
+    });
+    return;
+  }
+  
+  // For browsers that support the permissions API, check status on mount
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' }).then(result => {
+      if (result.state === 'denied') {
+        toast({
+          title: "Location Access Blocked",
+          description: "Location features are disabled. Please enable location access in your browser settings.",
+          status: "warning",
+          duration: 5000,
+          isClosable: true
+        });
+      }
+    });
+  }
+}, []);
 
   if (loading || loadingData) {
     return (
