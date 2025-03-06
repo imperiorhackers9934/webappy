@@ -20,7 +20,7 @@ const AuthLayout = ({ children }) => {
       </div>
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center text-sm text-gray-500">
-          <p>© 2023 ProfNet. All rights reserved.</p>
+          <p>© 2025 MeetKats. All rights reserved.</p>
           </div>
       </div>
     </div>
