@@ -25,7 +25,7 @@ const SuggestedUsersPage = () => {
     try {
       const response = await api.getProfessionalSuggestions(filters);
       
-      // Filter out connected users and self
+      // Filter out connected users, pending connections, and self
       const filteredUsers = response.filter(suggUser => {
         // Filter out self
         if (suggUser._id === user?._id) return false;
@@ -59,11 +59,11 @@ const SuggestedUsersPage = () => {
   const handleConnect = async (userId) => {
     try {
       await api.sendConnectionRequest(userId);
-      // Update the user's status in the list
+      // Update the user's status in the list to show 'pending' instead of 'connect'
       setSuggestedUsers(prev => 
         prev.map(user => 
           user._id === userId 
-            ? { ...user, connectionStatus: 'pending' } 
+            ? { ...user, connectionStatus: 'pending', isPending: true } 
             : user
         )
       );
@@ -100,7 +100,7 @@ const SuggestedUsersPage = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-orange-50">
       {/* Sidebar */}
       <Sidebar user={user} />
       
@@ -190,7 +190,7 @@ const SuggestedUsersPage = () => {
                         onConnect={() => handleConnect(user._id)}
                         onFollow={() => handleFollow(user._id)}
                         onViewProfile={() => handleViewProfile(user._id)}
-                        theme="orange" // Add a theme prop to customize UserCard colors
+                        theme="orange"
                       />
                     ))}
                   </div>
