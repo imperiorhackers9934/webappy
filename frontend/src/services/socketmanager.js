@@ -217,9 +217,19 @@ class SocketManager {
   }
   
   // Get current connection status
-  getStatus() {
-    return this.connectionStatus;
-  }
+ getStatus() {
+  return this.connectionStatus;
+}
+
+// Check if socket is currently connected
+isConnected() {
+  return this.socket !== null && this.socket.connected && this.connectionStatus === 'CONNECTED';
+}
+
+// Get the last received message for an event
+getLastMessage(event) {
+  return this.lastMessages[event] || null;
+}
   
   // Get the last received message for an event
   getLastMessage(event) {
