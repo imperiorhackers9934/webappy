@@ -656,7 +656,7 @@ const chatService = {
 
 // Network endpoints
 const networkService = {
-  sendConnectionRequest: async (userId) => {
+   sendConnectionRequest: async (userId) => {
     const response = await api.post('/api/connections/request', { targetUserId: userId });
     return response.data;
   },
@@ -691,7 +691,7 @@ const networkService = {
     return response.data;
   },
 
-   getProfessionalSuggestions: async (options = {}) => {
+  getProfessionalSuggestions: async (options = {}) => {
     try {
       const { industry, skills, limit } = options;
       
