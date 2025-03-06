@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-
+import { ToastProvider } from './components/ui/Toast'
 // Pages
 import AuthPage from './pages/AuthPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
@@ -31,6 +31,7 @@ const App = () => {
   return (
     <Router>
       <AuthProvider>
+          <ToastProvider>
         <Routes>
           {/* Auth Routes */}
           <Route path="/login" element={<AuthPage />} />
@@ -75,6 +76,7 @@ const App = () => {
           {/* 404 Page */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+          </ToastProvider>
       </AuthProvider>
     </Router>
   );
