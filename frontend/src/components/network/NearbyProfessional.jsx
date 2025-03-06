@@ -9,6 +9,7 @@ const NearbyProfessionalsPage = () => {
   const [loading, setLoading] = useState(true);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
   const [filters, setFilters] = useState({
     distance: 10, // km
     industries: '',
@@ -24,6 +25,9 @@ const NearbyProfessionalsPage = () => {
   }, []);
 
   const getUserLocation = () => {
+    setLoading(true);
+    setLocationError(null);
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -33,32 +37,44 @@ const NearbyProfessionalsPage = () => {
         },
         (error) => {
           console.error('Error getting location:', error);
+          setLocationError(`Unable to access your location: ${error.message}`);
           setLoading(false);
+        },
+        { 
+          enableHighAccuracy: true, 
+          timeout: 15000, 
+          maximumAge: 10000 
         }
       );
     } else {
-      console.error('Geolocation is not supported by this browser.');
+      setLocationError('Geolocation is not supported by this browser.');
       setLoading(false);
     }
   };
+
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
     setLoading(true);
     try {
-      const [nearbyResponse, connectionsResponse] = await Promise.all([
-        api.getNearbyProfessionals(distance),
-        api.getConnections('all')
-      ]);
+      // Pass filters to the API call
+      const nearbyResponse = await api.getNearbyProfessionals(distance, {
+        industries: filters.industries,
+        skills: filters.skills,
+        availableForMeeting: filters.availableForMeeting
+      });
+      
+      // Get all connections to filter them out
+      const connectionsResponse = await api.getConnections('all');
       
       // Create a Set of connection IDs for faster lookup
       const connectionIds = new Set(connectionsResponse.map(conn => conn._id));
       
-      // Filter out users who are in your connections
+      // Filter out users who are already connected
       const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
       
-      setNearbyUsers(nearbyResponse);
-      setLoading(false);
+      setNearbyUsers(filteredUsers);
     } catch (error) {
       console.error('Error fetching nearby professionals:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -78,12 +94,16 @@ const NearbyProfessionalsPage = () => {
         userLocation.longitude,
         filters.distance
       );
+    } else {
+      // No location available, try to get it again
+      getUserLocation();
     }
   };
 
   const handleConnect = async (userId) => {
     try {
       await api.sendConnectionRequest(userId);
+      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -100,6 +120,7 @@ const NearbyProfessionalsPage = () => {
   const handleFollow = async (userId) => {
     try {
       const response = await api.followUser(userId);
+      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -147,13 +168,23 @@ const NearbyProfessionalsPage = () => {
       {/* Location Status */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex items-center">
         <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-        {userLocation ? (
+        {locationError ? (
+          <div className="text-yellow-600 flex-1">
+            {locationError}
+            <button 
+              onClick={getUserLocation}
+              className="ml-2 text-blue-600 underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : userLocation ? (
           <span className="text-gray-700">
             Showing professionals near your current location
           </span>
         ) : (
           <span className="text-yellow-600">
-            Unable to get your location. Please enable location services.
+            Fetching your location...
           </span>
         )}
       </div>
