@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState,useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/common/Navbar';
@@ -13,6 +13,8 @@ import LocationPermissionIcon from '../components/LocationPermissionIcon';
 // Add this inside your component function
 
 const Dashboard = () => {
+   const [locationEnabled, setLocationEnabled] = useState(false);
+  const locationControlRef = useRef(null);
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -184,70 +186,60 @@ const Dashboard = () => {
   
   
   // Start location tracking with optional force param
- useEffect(() => {
-  let locationControl = null;
-  
-  // Start location tracking when permission is granted
-  const startLocationTracking = async () => {
-    try {
-      // Check if the user has location sharing enabled in their settings
-      const settings = await api.getSettings();
-      const locationEnabled = settings?.locationSharing?.enabled || false;
-      
-      if (!locationEnabled) {
-        console.log('Location tracking disabled in user settings');
-        return;
-      }
-      
-      // Start tracking only if we have permission
-      if (navigator.permissions) {
-        const permission = await navigator.permissions.query({ name: 'geolocation' });
-        
-        if (permission.state !== 'granted') {
-          console.log('Location permission not granted yet');
-          return;
-        }
-      }
-      
-      console.log('Starting location tracking...');
-      locationControl = api.startContinuousLocationUpdates({
-        interval: 30000, // 30 seconds
-        successCallback: (result) => console.log('Location updated:', result),
-        errorCallback: (error) => console.error('Location update error:', error)
-      });
-    } catch (error) {
-      console.error('Error starting location tracking:', error);
-    }
-  };
-  
-  // Call this once to set up initial tracking if permission is already granted
-  startLocationTracking();
-  
-  // Set up a listener for permission changes
-  if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' })
-      .then(permissionStatus => {
-        // Listen for changes
-        permissionStatus.onchange = () => {
-          console.log('Permission changed:', permissionStatus.state);
-          if (permissionStatus.state === 'granted') {
-            startLocationTracking();
-          }
-        };
-      })
-      .catch(err => console.error('Permission query error:', err));
-  }
+
   
   // Clean up function
-  return () => {
-    if (locationControl && typeof locationControl.stop === 'function') {
-      console.log('Stopping location tracking');
-      locationControl.stop();
-    } else {
-      api.stopContinuousLocationUpdates();
-    }
-  };
-}, [user?._id]);
+  // Clean and reliable location tracking implementation
+  useEffect(() => {
+    // Skip if user is not logged in
+    if (!user || !user._id) return;
+    
+    const startLocationTracking = async () => {
+      try {
+        // Check if we have permission first
+        if (navigator.permissions) {
+          const permission = await navigator.permissions.query({ name: 'geolocation' });
+          
+          if (permission.state !== 'granted') {
+            console.log('Location permission not granted');
+            setLocationEnabled(false);
+            return;
+          }
+        }
+        
+        console.log('Starting location tracking...');
+        
+        // Start tracking and store the control object
+        locationControlRef.current = api.startContinuousLocationUpdates({
+          interval: 30000, // 30 seconds
+          successCallback: (result) => {
+            console.log('Location updated successfully:', result);
+            setLocationEnabled(true);
+          },
+          errorCallback: (error) => {
+            console.error('Location update error:', error);
+            setLocationEnabled(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error setting up location tracking:', error);
+        setLocationEnabled(false);
+      }
+    };
+    
+    // Start tracking
+    startLocationTracking();
+    
+    // Clean up function
+    return () => {
+      if (locationControlRef.current && typeof locationControlRef.current.stop === 'function') {
+        console.log('Stopping location tracking');
+        locationControlRef.current.stop();
+        locationControlRef.current = null;
+      }
+    };
+  }, [user?._id]); // Only re-run if user ID changes
+
 
   if (loading || loadingData) {
     return (
