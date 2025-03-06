@@ -1450,6 +1450,9 @@ const locationService = {
   // Add this new method to your locationService object
 
 // Continuous location update (every 30 seconds)
+// Update these methods in your locationService object in api.js
+
+// Continuous location update method - fixed
 continuousLocationUpdate: async (locationData) => {
   try {
     const { latitude, longitude, accuracy, heading, speed } = locationData;
@@ -1469,7 +1472,8 @@ continuousLocationUpdate: async (locationData) => {
     });
     
     // Emit location update via Socket.IO if socket is available
-    if (socketManager && socketManager.isConnected()) {
+    // Use the proper connection check method now available in socketManager
+    if (socketManager && typeof socketManager.isConnected === 'function' && socketManager.isConnected()) {
       socketManager.emit('update_location', { latitude, longitude });
     }
     
@@ -1483,8 +1487,8 @@ continuousLocationUpdate: async (locationData) => {
   }
 },
 
-// Add the following to set up the update interval (can be called when app initializes)
-startContinuousLocationUpdates: async (options = {}) => {
+// Start continuous location updates - fixed
+startContinuousLocationUpdates: (options = {}) => {
   const { 
     interval = 30000, // Default 30 seconds
     errorCallback,
@@ -1494,6 +1498,7 @@ startContinuousLocationUpdates: async (options = {}) => {
   // Clear any existing interval
   if (window._locationUpdateInterval) {
     clearInterval(window._locationUpdateInterval);
+    window._locationUpdateInterval = null;
   }
   
   // Store the update function
@@ -1541,16 +1546,18 @@ startContinuousLocationUpdates: async (options = {}) => {
   // Set up the interval
   window._locationUpdateInterval = setInterval(updateLocation, interval);
   
+  // Return a control object with a valid stop method
   return {
-    stop: () => {
+    stop: function() {
       if (window._locationUpdateInterval) {
         clearInterval(window._locationUpdateInterval);
         window._locationUpdateInterval = null;
+        return true;
       }
+      return false;
     }
   };
-},
-
+}
 stopContinuousLocationUpdates: () => {
   if (window._locationUpdateInterval) {
     clearInterval(window._locationUpdateInterval);
