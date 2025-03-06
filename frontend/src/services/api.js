@@ -688,6 +688,8 @@ const networkService = {
   
 // Replace the getNearbyProfessionals function in your api.js file
 
+// Update this function in your api.js file
+
 getNearbyProfessionals: async (distance = 10) => {
   try {
     logApiCall('GET', `/api/network/nearby?distance=${distance}`);
@@ -728,18 +730,30 @@ getNearbyProfessionals: async (distance = 10) => {
     let url = `/api/network/nearby?distance=${distance}`;
     url += `&latitude=${userLocation.latitude}&longitude=${userLocation.longitude}`;
     
-    const response = await api.get(url);
+    console.log('Fetching nearby professionals with URL:', url);
     
-    // Ensure we have an array of users to return
-    if (!Array.isArray(response.data)) {
-      console.error('Invalid response format:', response.data);
+    // Make request with explicit timeout to prevent hanging requests
+    const response = await axios.get(url, { timeout: 30000 });
+    
+    // Ensure we got a valid response
+    if (!response || !response.data) {
+      console.error('Empty response from server');
       return [];
     }
     
-    logApiCall('GET', url, response.data);
+    // Verify the response contains an array
+    if (!Array.isArray(response.data)) {
+      console.error('Response is not an array:', response.data);
+      return Array.isArray(response.data.users) ? response.data.users : [];
+    }
+    
+    // Log successful response
+    console.log(`Successfully retrieved ${response.data.length} nearby users`);
+    
+    // Return the array of users
     return response.data;
   } catch (error) {
-    logApiCall('GET', `/api/network/nearby?distance=${distance}`, null, error);
+    logApiCall('GET', `/api/network/nearby`, null, error);
     console.error('Error fetching nearby professionals:', error);
     return [];  // Return empty array on error
   }
