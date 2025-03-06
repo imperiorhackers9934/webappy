@@ -686,10 +686,62 @@ const networkService = {
     return response.data;
   },
   
-  getNearbyProfessionals: async (distance = 10) => {
-    const response = await api.get(`/api/network/nearby?distance=${distance}`);
+// In your api.js file, update the getNearbyProfessionals method:
+
+getNearbyProfessionals: async (distance = 10, filters = {}) => {
+  try {
+    // Get current user location
+    let userLocation = null;
+    
+    // Get location using a Promise
+    if (navigator.geolocation) {
+      try {
+        userLocation = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            position => {
+              resolve({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+              });
+            },
+            error => {
+              console.error('Error getting location:', error);
+              reject(error);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        });
+      } catch (error) {
+        console.error('Failed to get location:', error);
+        return [];
+      }
+    }
+    
+    if (!userLocation) {
+      console.error('Location services unavailable');
+      return [];
+    }
+    
+    // Build URL with parameters
+    const queryParams = new URLSearchParams();
+    queryParams.append('distance', distance);
+    queryParams.append('latitude', userLocation.latitude);
+    queryParams.append('longitude', userLocation.longitude);
+    
+    // Add optional filters if provided
+    if (filters.industries) queryParams.append('industries', filters.industries);
+    if (filters.skills) queryParams.append('skills', filters.skills);
+    if (filters.availableForMeeting) queryParams.append('availableForMeeting', true);
+    
+    console.log('Fetching nearby professionals with params:', queryParams.toString());
+    
+    const response = await axios.get(`/api/network/nearby?${queryParams.toString()}`);
     return response.data;
-  },
+  } catch (error) {
+    console.error('Error fetching nearby professionals:', error);
+    return [];
+  }
+},
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
