@@ -186,11 +186,14 @@ useEffect(() => {
       const locationEnabled = settings?.locationSharing?.enabled || false;
       
       if (locationEnabled) {
+        console.log('Starting location tracking based on user settings');
         locationControl = api.startContinuousLocationUpdates({
           interval: 30000, // 30 seconds
           successCallback: (result) => console.log('Location updated:', result),
           errorCallback: (error) => console.error('Location update error:', error)
         });
+      } else {
+        console.log('Location tracking disabled in user settings');
       }
     } catch (error) {
       console.error('Error starting location tracking:', error);
@@ -202,9 +205,10 @@ useEffect(() => {
   // Clean up function - stop location tracking when component unmounts
   return () => {
     if (locationControl && typeof locationControl.stop === 'function') {
+      console.log('Stopping location tracking via control object');
       locationControl.stop();
     } else {
-      // Fallback to the global method if the control object doesn't have stop
+      console.log('Stopping location tracking via global method');
       api.stopContinuousLocationUpdates();
     }
   };
