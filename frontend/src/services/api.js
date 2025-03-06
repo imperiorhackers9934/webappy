@@ -690,9 +690,12 @@ const networkService = {
 
 // Update this function in your api.js file
 
+// Replace your getNearbyProfessionals function in api.js with this one
+
 getNearbyProfessionals: async (distance = 10) => {
   try {
-    logApiCall('GET', `/api/network/nearby?distance=${distance}`);
+    // Start with logging the API call
+    console.log(`Calling getNearbyProfessionals with distance: ${distance}km`);
     
     // Get current user location
     let userLocation = null;
@@ -726,35 +729,94 @@ getNearbyProfessionals: async (distance = 10) => {
       return [];
     }
     
-    // Build URL with params
-    let url = `/api/network/nearby?distance=${distance}`;
-    url += `&latitude=${userLocation.latitude}&longitude=${userLocation.longitude}`;
+    console.log(`Using location: ${JSON.stringify(userLocation)}`);
     
-    console.log('Fetching nearby professionals with URL:', url);
+    // Make sure the URL is correct - ensure it has the right domain/base URL
+    // Use baseURL from the api instance + the correct relative path
+    const url = `${baseURL}/api/network/nearby`;
     
-    // Make request with explicit timeout to prevent hanging requests
-    const response = await axios.get(url, { timeout: 30000 });
+    // Build query parameters
+    const params = {
+      distance,
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude
+    };
     
-    // Ensure we got a valid response
+    console.log(`Fetching nearby professionals from: ${url} with params:`, params);
+    
+    // Make request with explicit authorization header
+    const response = await axios.get(url, { 
+      params,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json'
+      },
+      timeout: 30000 
+    });
+    
+    console.log('Raw response from server:', response);
+    
+    // Check if the response contains data
     if (!response || !response.data) {
       console.error('Empty response from server');
       return [];
     }
     
-    // Verify the response contains an array
-    if (!Array.isArray(response.data)) {
-      console.error('Response is not an array:', response.data);
-      return Array.isArray(response.data.users) ? response.data.users : [];
+    // Log the response data to see what we're actually getting
+    console.log('Response data:', response.data);
+    
+    // Handle different response formats
+    let users = [];
+    
+    if (Array.isArray(response.data)) {
+      users = response.data;
+    } else if (response.data && typeof response.data === 'object') {
+      // Check for common patterns in API responses
+      if (Array.isArray(response.data.users)) {
+        users = response.data.users;
+      } else if (Array.isArray(response.data.data)) {
+        users = response.data.data;
+      } else if (Array.isArray(response.data.results)) {
+        users = response.data.results;
+      } else {
+        // If we can't find users array, log an error
+        console.error('Could not extract users array from response:', response.data);
+        return [];
+      }
+    } else {
+      console.error('Invalid response format:', typeof response.data);
+      return [];
     }
     
-    // Log successful response
-    console.log(`Successfully retrieved ${response.data.length} nearby users`);
+    // Validate each user has required fields
+    const validUsers = users.filter(user => {
+      if (!user || typeof user !== 'object') return false;
+      if (!user._id) return false;
+      if (!user.firstName || !user.lastName) return false;
+      return true;
+    });
     
-    // Return the array of users
-    return response.data;
+    console.log(`Retrieved ${validUsers.length} valid nearby users`);
+    
+    return validUsers;
   } catch (error) {
-    logApiCall('GET', `/api/network/nearby`, null, error);
     console.error('Error fetching nearby professionals:', error);
+    
+    // Log detailed error information
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('Error request:', error.request);
+    } else {
+      // Something happened in setting up the request
+      console.error('Error message:', error.message);
+    }
+    
     return [];  // Return empty array on error
   }
 },
