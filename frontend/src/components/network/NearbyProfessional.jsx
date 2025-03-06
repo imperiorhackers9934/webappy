@@ -55,7 +55,7 @@ const NearbyProfessionalsPage = () => {
       // Filter out users who are in your connections
       const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
       
-      setNearbyUsers(filteredUsers);
+      setNearbyUsers(bearbyResponse);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching nearby professionals:', error);
