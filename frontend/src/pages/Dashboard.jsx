@@ -167,7 +167,16 @@ const Dashboard = () => {
       </div>
     );
   }
-
+  const locationControl = api.startContinuousLocationUpdates({
+    interval: 30000, // 30 seconds
+    successCallback: (result) => console.log('Location updated:', result),
+    errorCallback: (error) => console.error('Location update error:', error)
+  });
+  
+  // Later, when user wants to stop sharing
+  api.stopContinuousLocationUpdates();
+  // or 
+  locationControl.stop();
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
