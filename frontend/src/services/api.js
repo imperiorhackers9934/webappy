@@ -691,22 +691,40 @@ const networkService = {
     return response.data;
   },
 
-  getProfessionalSuggestions: async (options = {}) => {
-    const { industry, skills, limit } = options;
-    
-    let url = '/api/network/suggestions';
-    const params = new URLSearchParams();
-    
-    if (industry) params.append('industry', industry);
-    if (skills) params.append('skills', skills);
-    if (limit) params.append('limit', limit);
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
+   getProfessionalSuggestions: async (options = {}) => {
+    try {
+      const { industry, skills, limit } = options;
+      
+      let url = '/api/network/suggestions';
+      const params = new URLSearchParams();
+      
+      if (industry) params.append('industry', industry);
+      if (skills) params.append('skills', skills);
+      if (limit) params.append('limit', limit);
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await api.get(url);
+      
+      // Filter out self and already connected users from the response
+      const currentUser = localStorage.getItem('userId');
+      const filteredUsers = response.data.filter(user => {
+        // Filter out self
+        if (user._id === currentUser) return false;
+        
+        // Filter out connected users
+        if (user.isConnected) return false;
+        
+        return true;
+      });
+      
+      return filteredUsers;
+    } catch (error) {
+      console.error('Error fetching professional suggestions:', error);
+      return [];
     }
-    
-    const response = await api.get(url);
-    return response.data;
   },
 
   // Location-based networking
