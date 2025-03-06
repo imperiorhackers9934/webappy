@@ -9,7 +9,6 @@ const NearbyProfessionalsPage = () => {
   const [loading, setLoading] = useState(true);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     distance: 10, // km
     industries: '',
@@ -17,7 +16,6 @@ const NearbyProfessionalsPage = () => {
     availableForMeeting: false,
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,93 +24,72 @@ const NearbyProfessionalsPage = () => {
   }, []);
 
   const getUserLocation = () => {
-    setLoading(true);
-    setError(null);
-    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          console.log(`Got location: ${latitude}, ${longitude}`);
           setUserLocation({ latitude, longitude });
           fetchNearbyUsers(latitude, longitude, filters.distance);
         },
         (error) => {
           console.error('Error getting location:', error);
-          setError(`Location error: ${error.message}`);
           setLoading(false);
-        },
-        { 
-          enableHighAccuracy: true, 
-          timeout: 15000, 
-          maximumAge: 10000 
         }
       );
     } else {
-      setError('Geolocation is not supported by this browser.');
+      console.error('Geolocation is not supported by this browser.');
       setLoading(false);
     }
   };
   
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
     setLoading(true);
-    setError(null);
-    
     try {
-      console.log(`Fetching nearby users with distance: ${distance}km`);
-      
-      // Get nearby users
+      // Just get the nearby users without filtering in the component
       const nearbyResponse = await api.getNearbyProfessionals(distance);
       
-      console.log('Nearby users response:', nearbyResponse);
-      
       if (!Array.isArray(nearbyResponse)) {
-        throw new Error('Invalid API response format');
+        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+        setNearbyUsers([]);
+        setLoading(false);
+        return;
       }
       
-      // Get connections separately
+      // Now fetch connections in a separate call
       let connections = [];
       try {
         connections = await api.getConnections('all');
-        console.log('Connections response:', connections);
-        
         if (!Array.isArray(connections)) {
-          console.warn('Invalid connections response format');
+          console.error('Invalid response from getConnections:', connections);
           connections = [];
         }
-      } catch (connError) {
-        console.error('Failed to fetch connections:', connError);
+      } catch (connectionError) {
+        console.error('Error fetching connections:', connectionError);
         connections = [];
       }
       
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set();
-      connections.forEach(conn => {
-        if (conn && conn._id) {
-          connectionIds.add(conn._id);
-        }
-      });
+      // Create a Set of connection IDs for faster lookup (only if we have connections)
+      const connectionIds = new Set(connections.map(conn => conn._id));
       
-      console.log(`Found ${connectionIds.size} connections to filter out`);
+      // Filter out users who are in your connections (only if we have connections)
+      const filteredUsers = connections.length > 0 
+        ? nearbyResponse.filter(user => !connectionIds.has(user._id))
+        : nearbyResponse;
       
-      // Filter out users who are in your connections
-      const filteredUsers = nearbyResponse.filter(user => {
-        // Skip invalid user data
-        if (!user || !user._id) {
-          console.warn('Skipping invalid user:', user);
-          return false;
-        }
+      // Sort users by distance (closest first)
+      const sortedUsers = filteredUsers.sort((a, b) => {
+        // Handle cases where distance might be missing
+        const distanceA = typeof a.distance === 'number' ? a.distance : Infinity;
+        const distanceB = typeof b.distance === 'number' ? b.distance : Infinity;
         
-        // Skip connections
-        return !connectionIds.has(user._id);
+        return distanceA - distanceB; // Sort ascending (closest first)
       });
       
-      console.log(`After filtering: ${filteredUsers.length} users`);
+      console.log('Users sorted by distance:', sortedUsers.map(u => `${u.firstName} (${u.distance}km)`));
       
-      setNearbyUsers(filteredUsers);
+      setNearbyUsers(sortedUsers);
     } catch (error) {
       console.error('Error fetching nearby professionals:', error);
-      setError(`Failed to get nearby users: ${error.message}`);
       setNearbyUsers([]);
     } finally {
       setLoading(false);
@@ -134,15 +111,12 @@ const NearbyProfessionalsPage = () => {
         userLocation.longitude,
         filters.distance
       );
-    } else {
-      setError('Your location is required. Please enable location services.');
     }
   };
 
   const handleConnect = async (userId) => {
     try {
       await api.sendConnectionRequest(userId);
-      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -159,7 +133,6 @@ const NearbyProfessionalsPage = () => {
   const handleFollow = async (userId) => {
     try {
       const response = await api.followUser(userId);
-      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -183,19 +156,6 @@ const NearbyProfessionalsPage = () => {
     'Consulting', 'Legal', 'Real Estate', 'Hospitality'
   ];
 
-  // Manually force display of all users
-  const renderAllUsers = nearbyUsers.map((user, index) => (
-    <div key={user._id} className="mb-4">
-      <UserCard
-        user={user}
-        distance={user.distance}
-        onConnect={() => handleConnect(user._id)}
-        onFollow={() => handleFollow(user._id)}
-        onViewProfile={() => handleViewProfile(user._id)}
-      />
-    </div>
-  ));
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
@@ -217,46 +177,6 @@ const NearbyProfessionalsPage = () => {
         </div>
       </div>
 
-      {/* Debug Toggle */}
-      <div className="mb-4">
-        <button 
-          onClick={() => setShowDebug(!showDebug)}
-          className="text-sm text-blue-600 underline"
-        >
-          {showDebug ? 'Hide Debug Info' : 'Show Debug Info'}
-        </button>
-      </div>
-
-      {/* Debug Information */}
-      {showDebug && (
-        <div className="bg-gray-100 p-4 rounded mb-4">
-          <h3 className="font-bold mb-2">Debug Information</h3>
-          <div>
-            <p>User Location: {userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : 'Not available'}</p>
-            <p>Total Users: {nearbyUsers.length}</p>
-            {error && <p className="text-red-500">Error: {error}</p>}
-          </div>
-          
-          <div className="mt-2">
-            <h4 className="font-bold">User List ({nearbyUsers.length}):</h4>
-            <ul className="pl-4">
-              {nearbyUsers.map((user, index) => (
-                <li key={user._id}>
-                  {index + 1}. {user.firstName} {user.lastName} ({user.distance ? `${user.distance}km` : 'unknown distance'})
-                </li>
-              ))}
-            </ul>
-          </div>
-          
-          <button 
-            onClick={getUserLocation}
-            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            Refresh Data
-          </button>
-        </div>
-      )}
-
       {/* Location Status */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex items-center">
         <MapPin className="h-5 w-5 text-blue-600 mr-2" />
@@ -269,8 +189,6 @@ const NearbyProfessionalsPage = () => {
             Unable to get your location. Please enable location services.
           </span>
         )}
-        
-        {error && <span className="text-red-500 ml-2">({error})</span>}
       </div>
 
       {/* Filters */}
@@ -354,37 +272,19 @@ const NearbyProfessionalsPage = () => {
             <div className="text-center py-10">
               <p className="text-gray-600">No professionals found in your area.</p>
               <p className="text-gray-600 mt-2">Try expanding your search distance or changing your filters.</p>
-              <button 
-                onClick={getUserLocation}
-                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                Try Again
-              </button>
             </div>
           ) : (
-            <div>
-              {/* Simple list rendering - should show all users */}
-              {showDebug && (
-                <div className="mb-8">
-                  <h3 className="font-bold mb-4">Simple List Display (Should show all {nearbyUsers.length} users):</h3>
-                  {renderAllUsers}
-                </div>
-              )}
-            
-              {/* Main grid display */}
-              <div className="flex flex-wrap -mx-2">
-                {nearbyUsers.map((user, index) => (
-                  <div key={user._id} className="w-full md:w-1/2 lg:w-1/3 px-2 mb-4">
-                    <UserCard
-                      user={user}
-                      distance={user.distance}
-                      onConnect={() => handleConnect(user._id)}
-                      onFollow={() => handleFollow(user._id)}
-                      onViewProfile={() => handleViewProfile(user._id)}
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {nearbyUsers.map(user => (
+                <UserCard
+                  key={user._id}
+                  user={user}
+                  distance={user.distance}
+                  onConnect={() => handleConnect(user._id)}
+                  onFollow={() => handleFollow(user._id)}
+                  onViewProfile={() => handleViewProfile(user._id)}
+                />
+              ))}
             </div>
           )}
         </>
