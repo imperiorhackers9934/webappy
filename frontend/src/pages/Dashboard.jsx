@@ -159,6 +159,56 @@ const Dashboard = () => {
     const options = { weekday: 'short', month: 'short', day: 'numeric' };
     return date.toLocaleDateString(undefined, options);
   };
+  // Fix for Dashboard.jsx component
+// Replace the problematic location tracking code with this implementation
+
+// Before (problematic code):
+// const locationControl = api.startContinuousLocationUpdates({
+//   interval: 30000, // 30 seconds
+//   successCallback: (result) => console.log('Location updated:', result),
+//   errorCallback: (error) => console.error('Location update error:', error)
+// });
+// 
+// // Later, when user wants to stop sharing
+// api.stopContinuousLocationUpdates();
+// // or 
+// locationControl.stop();
+
+// After (fixed implementation):
+useEffect(() => {
+  let locationControl = null;
+  
+  // Start location tracking when component mounts
+  const startLocationTracking = async () => {
+    try {
+      // Check if the user has location sharing enabled in their settings
+      const settings = await api.getSettings();
+      const locationEnabled = settings?.locationSharing?.enabled || false;
+      
+      if (locationEnabled) {
+        locationControl = api.startContinuousLocationUpdates({
+          interval: 30000, // 30 seconds
+          successCallback: (result) => console.log('Location updated:', result),
+          errorCallback: (error) => console.error('Location update error:', error)
+        });
+      }
+    } catch (error) {
+      console.error('Error starting location tracking:', error);
+    }
+  };
+  
+  startLocationTracking();
+  
+  // Clean up function - stop location tracking when component unmounts
+  return () => {
+    if (locationControl && typeof locationControl.stop === 'function') {
+      locationControl.stop();
+    } else {
+      // Fallback to the global method if the control object doesn't have stop
+      api.stopContinuousLocationUpdates();
+    }
+  };
+}, [user?._id]); // Only re-run if user ID changes
 
   if (loading || loadingData) {
     return (
@@ -167,16 +217,7 @@ const Dashboard = () => {
       </div>
     );
   }
-  const locationControl = api.startContinuousLocationUpdates({
-    interval: 30000, // 30 seconds
-    successCallback: (result) => console.log('Location updated:', result),
-    errorCallback: (error) => console.error('Location update error:', error)
-  });
-  
-  // Later, when user wants to stop sharing
-  api.stopContinuousLocationUpdates();
-  // or 
-  locationControl.stop();
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
