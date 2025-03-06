@@ -1,4 +1,4 @@
-import React, { useEffect, useState,useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/common/Navbar';
@@ -7,13 +7,15 @@ import Posts from '../components/posts/Posts';
 import api from '../services/api';
 import StoryCard from '../components/posts/StoryCard';
 import CreatePost from '../components/posts/CreatePost';
-import { PlusCircle, Check, Calendar, X } from 'lucide-react';
-import { useToast } from '../components/common/Toast'; // Adjust this import based on your UI library
+import { PlusCircle, Check, Calendar, X, User } from 'lucide-react';
+import { useToast } from '../components/common/Toast';
 import LocationPermissionIcon from '../components/LocationPermissionIcon';
-// Add this inside your component function
+
+// Add default profile picture
+import defaultProfilePic from '../assets/default-avatar.png'; // Make sure this path matches where you store the image
 
 const Dashboard = () => {
-   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
   const locationControlRef = useRef(null);
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
@@ -34,6 +36,14 @@ const Dashboard = () => {
   const [recentPosts, setRecentPosts] = useState([]);
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
+
+  // Helper function to get profile picture
+  const getProfilePicture = (userObj) => {
+    if (userObj?.profilePicture) {
+      return userObj.profilePicture;
+    }
+    return defaultProfilePic;
+  };
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -100,6 +110,57 @@ const Dashboard = () => {
     fetchAllData();
   }, [user]);
 
+  // Location tracking implementation
+  useEffect(() => {
+    // Skip if user is not logged in
+    if (!user || !user._id) return;
+    
+    const startLocationTracking = async () => {
+      try {
+        // Check if we have permission first
+        if (navigator.permissions) {
+          const permission = await navigator.permissions.query({ name: 'geolocation' });
+          
+          if (permission.state !== 'granted') {
+            console.log('Location permission not granted');
+            setLocationEnabled(false);
+            return;
+          }
+        }
+        
+        console.log('Starting location tracking...');
+        
+        // Start tracking and store the control object
+        locationControlRef.current = api.startContinuousLocationUpdates({
+          interval: 30000, // 30 seconds
+          successCallback: (result) => {
+            console.log('Location updated successfully:', result);
+            setLocationEnabled(true);
+          },
+          errorCallback: (error) => {
+            console.error('Location update error:', error);
+            setLocationEnabled(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error setting up location tracking:', error);
+        setLocationEnabled(false);
+      }
+    };
+    
+    // Start tracking
+    startLocationTracking();
+    
+    // Clean up function
+    return () => {
+      if (locationControlRef.current && typeof locationControlRef.current.stop === 'function') {
+        console.log('Stopping location tracking');
+        locationControlRef.current.stop();
+        locationControlRef.current = null;
+      }
+    };
+  }, [user?._id]);
+
   const handleAcceptConnection = async (userId) => {
     try {
       await api.acceptConnection(userId);
@@ -165,92 +226,17 @@ const Dashboard = () => {
     const options = { weekday: 'short', month: 'short', day: 'numeric' };
     return date.toLocaleDateString(undefined, options);
   };
-  // Fix for Dashboard.jsx component
-// Replace the problematic location tracking code with this implementation
-
-// Before (problematic code):
-// const locationControl = api.startContinuousLocationUpdates({
-//   interval: 30000, // 30 seconds
-//   successCallback: (result) => console.log('Location updated:', result),
-//   errorCallback: (error) => console.error('Location update error:', error)
-// });
-// 
-// // Later, when user wants to stop sharing
-// api.stopContinuousLocationUpdates();
-// // or 
-// locationControl.stop();
-
-// After (fixed implementation):
-
-  
-  
-  
-  // Start location tracking with optional force param
-
-  
-  // Clean up function
-  // Clean and reliable location tracking implementation
-  useEffect(() => {
-    // Skip if user is not logged in
-    if (!user || !user._id) return;
-    
-    const startLocationTracking = async () => {
-      try {
-        // Check if we have permission first
-        if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: 'geolocation' });
-          
-          if (permission.state !== 'granted') {
-            console.log('Location permission not granted');
-            setLocationEnabled(false);
-            return;
-          }
-        }
-        
-        console.log('Starting location tracking...');
-        
-        // Start tracking and store the control object
-        locationControlRef.current = api.startContinuousLocationUpdates({
-          interval: 30000, // 30 seconds
-          successCallback: (result) => {
-            console.log('Location updated successfully:', result);
-            setLocationEnabled(true);
-          },
-          errorCallback: (error) => {
-            console.error('Location update error:', error);
-            setLocationEnabled(false);
-          }
-        });
-      } catch (error) {
-        console.error('Error setting up location tracking:', error);
-        setLocationEnabled(false);
-      }
-    };
-    
-    // Start tracking
-    startLocationTracking();
-    
-    // Clean up function
-    return () => {
-      if (locationControlRef.current && typeof locationControlRef.current.stop === 'function') {
-        console.log('Stopping location tracking');
-        locationControlRef.current.stop();
-        locationControlRef.current = null;
-      }
-    };
-  }, [user?._id]); // Only re-run if user ID changes
-
 
   if (loading || loadingData) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center min-h-screen bg-orange-50">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
       </div>
     );
   }
   
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-orange-50">
       {/* Sidebar */}
       <Sidebar user={user} onLogout={logout} />
       
@@ -473,17 +459,11 @@ const Dashboard = () => {
                                 <div key={post._id} className="mb-4 pb-4 border-b border-gray-100">
                                   <div className="flex items-center mb-2">
                                     <div className="h-10 w-10 rounded-lg overflow-hidden mr-3">
-                                      {post.author.profilePicture ? (
-                                        <img 
-                                          src={post.author.profilePicture} 
-                                          alt={`${post.author.firstName} ${post.author.lastName}`}
-                                          className="h-full w-full object-cover" 
-                                        />
-                                      ) : (
-                                        <div className="h-full w-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold">
-                                          {post.author.firstName.charAt(0)}
-                                        </div>
-                                      )}
+                                      <img 
+                                        src={getProfilePicture(post.author)}
+                                        alt={`${post.author.firstName} ${post.author.lastName}`}
+                                        className="h-full w-full object-cover" 
+                                      />
                                     </div>
                                     <div>
                                       <p className="font-medium text-sm">{post.author.firstName} {post.author.lastName}</p>
@@ -561,26 +541,20 @@ const Dashboard = () => {
                   
                   {/* Right Side - 2 columns */}
                   <div className="lg:col-span-2 space-y-6">
-                    <div clasName="mx-4 my-4">
-                    <LocationPermissionIcon/>
+                    <div className="mx-4 my-4">
+                      <LocationPermissionIcon/>
                     </div>
                     {/* User Profile Card */}
                     <div className="bg-white rounded-xl shadow-md overflow-hidden">
                       <div className="relative">
                         <div className="h-24 bg-gradient-to-r from-orange-400 to-orange-500"></div>
                         <div className="absolute top-14 left-6">
-                          <div className="h-20 w-20 rounded-lg border-4 border-white bg-white flex items-center justify-center shadow-md">
-                            {user?.profilePicture ? (
-                              <img
-                                src={user.profilePicture}
-                                alt="Profile"
-                                className="h-full w-full rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full rounded-lg flex items-center justify-center bg-orange-100 text-orange-600 text-2xl font-bold">
-                                {user?.firstName?.charAt(0)}
-                              </div>
-                            )}
+                          <div className="h-20 w-20 rounded-lg border-4 border-white bg-white flex items-center justify-center shadow-md overflow-hidden">
+                            <img
+                              src={getProfilePicture(user)}
+                              alt="Profile"
+                              className="h-full w-full object-cover"
+                            />
                           </div>
                         </div>
                       </div>
@@ -591,7 +565,8 @@ const Dashboard = () => {
                             <h2 className="text-xl font-bold text-gray-900">
                               {user?.firstName} {user?.lastName}
                             </h2>
-                            <p className="text-sm text-gray-500">{user?.headline || 'Professional Title'}</p>
+                             
+                             <p className="text-sm text-gray-500">{user?.headline || 'Professional Title'}</p>
                           </div>
                           <Link 
                             to="/profile" 
@@ -765,16 +740,12 @@ const Dashboard = () => {
                         {connectionRequests.map(request => (
                           <div key={request._id} className="flex items-center justify-between">
                             <div className="flex items-center">
-                              <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
-                                {request.profilePicture ? (
-                                  <img 
-                                    src={request.profilePicture} 
-                                    alt={`${request.firstName} ${request.lastName}`} 
-                                    className="h-12 w-12 rounded-lg object-cover"
-                                  />
-                                ) : (
-                                  request.firstName.charAt(0)
-                                )}
+                              <div className="h-12 w-12 rounded-lg overflow-hidden bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
+                                <img 
+                                  src={getProfilePicture(request)} 
+                                  alt={`${request.firstName} ${request.lastName}`} 
+                                  className="h-12 w-12 object-cover"
+                                />
                               </div>
                               <div>
                                 <h4 className="font-medium">{request.firstName} {request.lastName}</h4>
