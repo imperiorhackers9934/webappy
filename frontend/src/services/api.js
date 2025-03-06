@@ -686,8 +686,6 @@ const networkService = {
     return response.data;
   },
   
-// In your api.js file, update the getNearbyProfessionals method:
-
 // Replace the getNearbyProfessionals function in your api.js file
 
 getNearbyProfessionals: async (distance = 10) => {
@@ -745,7 +743,7 @@ getNearbyProfessionals: async (distance = 10) => {
     console.error('Error fetching nearby professionals:', error);
     return [];  // Return empty array on error
   }
-}
+},
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
