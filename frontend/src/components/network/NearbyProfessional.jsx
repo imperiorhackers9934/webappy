@@ -9,7 +9,6 @@ const NearbyProfessionalsPage = () => {
   const [loading, setLoading] = useState(true);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [locationError, setLocationError] = useState(null);
   const [filters, setFilters] = useState({
     distance: 10, // km
     industries: '',
@@ -25,9 +24,6 @@ const NearbyProfessionalsPage = () => {
   }, []);
 
   const getUserLocation = () => {
-    setLoading(true);
-    setLocationError(null);
-    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -37,43 +33,53 @@ const NearbyProfessionalsPage = () => {
         },
         (error) => {
           console.error('Error getting location:', error);
-          setLocationError(`Unable to access your location: ${error.message}`);
           setLoading(false);
-        },
-        { 
-          enableHighAccuracy: true, 
-          timeout: 15000, 
-          maximumAge: 10000 
         }
       );
     } else {
-      setLocationError('Geolocation is not supported by this browser.');
+      console.error('Geolocation is not supported by this browser.');
       setLoading(false);
     }
   };
-
+  
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
     setLoading(true);
     try {
-      // Pass filters to the API call
-      const nearbyResponse = await api.getNearbyProfessionals(distance, {
-        industries: filters.industries,
-        skills: filters.skills,
-        availableForMeeting: filters.availableForMeeting
-      });
+      // Just get the nearby users without filtering in the component
+      const nearbyResponse = await api.getNearbyProfessionals(distance);
       
-      // Get all connections to filter them out
-      const connectionsResponse = await api.getConnections('all');
+      if (!Array.isArray(nearbyResponse)) {
+        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+        setNearbyUsers([]);
+        setLoading(false);
+        return;
+      }
       
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set(connectionsResponse.map(conn => conn._id));
+      // Now fetch connections in a separate call
+      let connections = [];
+      try {
+        connections = await api.getConnections('all');
+        if (!Array.isArray(connections)) {
+          console.error('Invalid response from getConnections:', connections);
+          connections = [];
+        }
+      } catch (connectionError) {
+        console.error('Error fetching connections:', connectionError);
+        connections = [];
+      }
       
-      // Filter out users who are already connected
-      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
+      // Create a Set of connection IDs for faster lookup (only if we have connections)
+      const connectionIds = new Set(connections.map(conn => conn._id));
+      
+      // Filter out users who are in your connections (only if we have connections)
+      const filteredUsers = connections.length > 0 
+        ? nearbyResponse.filter(user => !connectionIds.has(user._id))
+        : nearbyResponse;
       
       setNearbyUsers(filteredUsers);
     } catch (error) {
       console.error('Error fetching nearby professionals:', error);
+      setNearbyUsers([]);
     } finally {
       setLoading(false);
     }
@@ -94,16 +100,12 @@ const NearbyProfessionalsPage = () => {
         userLocation.longitude,
         filters.distance
       );
-    } else {
-      // No location available, try to get it again
-      getUserLocation();
     }
   };
 
   const handleConnect = async (userId) => {
     try {
       await api.sendConnectionRequest(userId);
-      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -120,7 +122,6 @@ const NearbyProfessionalsPage = () => {
   const handleFollow = async (userId) => {
     try {
       const response = await api.followUser(userId);
-      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -168,23 +169,13 @@ const NearbyProfessionalsPage = () => {
       {/* Location Status */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex items-center">
         <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-        {locationError ? (
-          <div className="text-yellow-600 flex-1">
-            {locationError}
-            <button 
-              onClick={getUserLocation}
-              className="ml-2 text-blue-600 underline"
-            >
-              Try again
-            </button>
-          </div>
-        ) : userLocation ? (
+        {userLocation ? (
           <span className="text-gray-700">
             Showing professionals near your current location
           </span>
         ) : (
           <span className="text-yellow-600">
-            Fetching your location...
+            Unable to get your location. Please enable location services.
           </span>
         )}
       </div>
