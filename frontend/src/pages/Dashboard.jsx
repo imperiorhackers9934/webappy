@@ -181,35 +181,7 @@ const Dashboard = () => {
 // After (fixed implementation):
 
   
-  useEffect(() => {
-  let locationControl = null;
   
-  // Function to request location permission with toaster
-  const requestLocationPermission = () => {
-    toast({
-      title: "Location Access Required",
-      description: "This app needs access to your location for networking features. Please enable location services.",
-      status: "info",
-      duration: 10000,
-      isClosable: true,
-      action: (
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => startLocationTracking(true)} 
-            className="bg-orange-500 text-white px-4 py-2 rounded-md text-sm hover:bg-orange-600 transition"
-          >
-            Enable
-          </button>
-          <button 
-            onClick={() => toast.close()} 
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300 transition"
-          >
-            Not Now
-          </button>
-        </div>
-      )
-    });
-  };
   
   // Start location tracking with optional force param
  useEffect(() => {
@@ -284,7 +256,7 @@ const Dashboard = () => {
       </div>
     );
   }
-
+  }
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
