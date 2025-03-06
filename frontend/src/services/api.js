@@ -688,12 +688,16 @@ const networkService = {
   
 // In your api.js file, update the getNearbyProfessionals method:
 
-getNearbyProfessionals: async (distance = 10, filters = {}) => {
+// Replace the getNearbyProfessionals function in your api.js file
+
+getNearbyProfessionals: async (distance = 10) => {
   try {
+    logApiCall('GET', `/api/network/nearby?distance=${distance}`);
+    
     // Get current user location
     let userLocation = null;
     
-    // Get location using a Promise
+    // Try to get location from browser
     if (navigator.geolocation) {
       try {
         userLocation = await new Promise((resolve, reject) => {
@@ -722,26 +726,26 @@ getNearbyProfessionals: async (distance = 10, filters = {}) => {
       return [];
     }
     
-    // Build URL with parameters
-    const queryParams = new URLSearchParams();
-    queryParams.append('distance', distance);
-    queryParams.append('latitude', userLocation.latitude);
-    queryParams.append('longitude', userLocation.longitude);
+    // Build URL with params
+    let url = `/api/network/nearby?distance=${distance}`;
+    url += `&latitude=${userLocation.latitude}&longitude=${userLocation.longitude}`;
     
-    // Add optional filters if provided
-    if (filters.industries) queryParams.append('industries', filters.industries);
-    if (filters.skills) queryParams.append('skills', filters.skills);
-    if (filters.availableForMeeting) queryParams.append('availableForMeeting', true);
+    const response = await api.get(url);
     
-    console.log('Fetching nearby professionals with params:', queryParams.toString());
+    // Ensure we have an array of users to return
+    if (!Array.isArray(response.data)) {
+      console.error('Invalid response format:', response.data);
+      return [];
+    }
     
-    const response = await axios.get(`/api/network/nearby?${queryParams.toString()}`);
+    logApiCall('GET', url, response.data);
     return response.data;
   } catch (error) {
+    logApiCall('GET', `/api/network/nearby?distance=${distance}`, null, error);
     console.error('Error fetching nearby professionals:', error);
-    return [];
+    return [];  // Return empty array on error
   }
-},
+}
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
