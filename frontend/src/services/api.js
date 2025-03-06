@@ -1448,6 +1448,8 @@ const analyticsService = {
 // Location sharing endpoints
 // locationService object - with syntax fixes and proper formatting
 
+// Replace the locationService object in your api.js file with this implementation
+
 const locationService = {
   // Continuous location update method
   continuousLocationUpdate: async (locationData) => {
@@ -1484,113 +1486,98 @@ const locationService = {
   },
 
   // Start continuous location updates
-  const startContinuousLocationUpdates = (options = {}) => {
-  const {
-    interval = 30000,
-    successCallback = () => {},
-    errorCallback = () => {}
-  } = options;
-  
-  let watchId = null;
-  let intervalId = null;
-  let isRunning = false;
-  
-  // Function to get and send location
-  const updateLocation = () => {
-    if (!isRunning) return;
+  startContinuousLocationUpdates: (options = {}) => {
+    const {
+      interval = 30000,
+      successCallback = () => {},
+      errorCallback = () => {}
+    } = options;
     
-    // Use high accuracy for better results
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const locationData = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            heading: position.coords.heading,
-            speed: position.coords.speed
-          };
-          
-          // Send to server
-          const response = await fetch('/api/location/continuous-update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(locationData)
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Server responded with ${response.status}`);
+    let watchId = null;
+    let intervalId = null;
+    let isRunning = false;
+    
+    // Function to get and send location
+    const updateLocation = () => {
+      if (!isRunning) return;
+      
+      // Use high accuracy for better results
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const locationData = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              heading: position.coords.heading,
+              speed: position.coords.speed
+            };
+            
+            // Send to server
+            const result = await locationService.continuousLocationUpdate(locationData);
+            successCallback(result);
+          } catch (error) {
+            console.error('Error updating location:', error);
+            errorCallback(error);
           }
-          
-          const result = await response.json();
-          successCallback(result);
-        } catch (error) {
-          console.error('Error updating location:', error);
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
           errorCallback(error);
+        },
+        { 
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        errorCallback(error);
-      },
-      { 
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
-  };
-  
-  // Start tracking
-  const start = () => {
-    if (isRunning) return;
-    
-    isRunning = true;
-    
-    // Initial update
-    updateLocation();
-    
-    // Set up regular interval updates
-    intervalId = setInterval(updateLocation, interval);
-    
-    // Return control object
-    return {
-      stop: stop,
-      isRunning: () => isRunning
+      );
     };
-  };
-  
-  // Stop tracking
-  const stop = () => {
-    isRunning = false;
     
-    if (watchId !== null) {
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
-    }
+    // Start tracking
+    const start = () => {
+      if (isRunning) return;
+      
+      isRunning = true;
+      
+      // Initial update
+      updateLocation();
+      
+      // Set up regular interval updates
+      intervalId = setInterval(updateLocation, interval);
+      
+      // Return control object
+      return {
+        stop: stop,
+        isRunning: () => isRunning
+      };
+    };
     
-    if (intervalId !== null) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-  };
-  
-  // Start tracking immediately
-  return start();
-};
+    // Stop tracking
+    const stop = () => {
+      isRunning = false;
+      
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    
+    // Start tracking immediately
+    return start();
+  },
 
-/**
- * Stop continuous location updates
- */
-const stopContinuousLocationUpdates = () => {
-  // This is a simple wrapper that doesn't do anything since the 
-  // actual stop function is returned by startContinuousLocationUpdates
-  console.log('Use the stop function returned by startContinuousLocationUpdates instead');
-};
-  
+  // Stop continuous location updates
+  stopContinuousLocationUpdates: () => {
+    // This is a simple wrapper that doesn't do anything since the 
+    // actual stop function is returned by startContinuousLocationUpdates
+    console.log('Use the stop function returned by startContinuousLocationUpdates instead');
+  },
+    
   // Enable/disable real-time location sharing
   toggleLocationSharing: async (settings) => {
     const response = await api.post('/api/location/sharing', settings);
