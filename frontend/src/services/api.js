@@ -686,12 +686,6 @@ const networkService = {
     return response.data;
   },
   
-// Replace the getNearbyProfessionals function in your api.js file
-
-// Update this function in your api.js file
-
-// Replace your getNearbyProfessionals function in api.js with this one
-
 getNearbyProfessionals: async (distance = 10) => {
   try {
     // Start with logging the API call
@@ -795,21 +789,21 @@ getNearbyProfessionals: async (distance = 10) => {
       if (!user.firstName || !user.lastName) return false;
       return true;
     });
-    const sortedUsers = filteredUsers.sort((a, b) => {
-  // Handle cases where distance might be missing
-  const distanceA = typeof a.distance === 'number' ? a.distance : Infinity;
-  const distanceB = typeof b.distance === 'number' ? b.distance : Infinity;
-  
-  return distanceA - distanceB; // Sort ascending (closest first)
-});
-
-console.log('Users sorted by distance:', sortedUsers.map(u => `${u.firstName} (${u.distance}km)`));
-
-// Set the sorted users in state
-setNearbyUsers(sortedUsers);
-    console.log(`Retrieved ${validUsers.length} valid nearby users`);
     
-    return validUsers;
+    // Sort users by distance (closest first)
+    const sortedUsers = validUsers.sort((a, b) => {
+      // Handle cases where distance might be missing
+      const distanceA = typeof a.distance === 'number' ? a.distance : Infinity;
+      const distanceB = typeof b.distance === 'number' ? b.distance : Infinity;
+      
+      return distanceA - distanceB; // Sort ascending (closest first)
+    });
+    
+    console.log('Users sorted by distance:', sortedUsers.map(u => `${u.firstName} (${u.distance}km)`));
+    
+    console.log(`Retrieved ${sortedUsers.length} valid nearby users`);
+    
+    return sortedUsers;
   } catch (error) {
     console.error('Error fetching nearby professionals:', error);
     
