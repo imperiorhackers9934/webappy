@@ -1,7 +1,8 @@
+// Dashboard.jsx - Fixed version with proper null checks
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Sidebar from '../components/common/Navbar';
+import Sidebar from '../components/common/Navbar'; // Note: Component naming mismatch
 import NearbyProfessionals from '../components/network/NearbyProfessional';
 import Posts from '../components/posts/Posts';
 import api from '../services/api';
@@ -12,7 +13,7 @@ import { useToast } from '../components/common/Toast';
 import LocationPermissionIcon from '../components/LocationPermissionIcon';
 
 // Add default profile picture
-import defaultProfilePic from '../assets/default-avatar.png'; // Make sure this path matches where you store the image
+import defaultProfilePic from '../assets/default-avatar.png';
 
 const Dashboard = () => {
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -80,19 +81,19 @@ const Dashboard = () => {
         
         // Update dashboard stats with real data
         setDashboardStats({
-          profileViews: profileViewData.totalViews || 0,
-          connections: connectionsData.length || 0,
-          streaks: streaksData.items?.length || 0,
-          projects: projectsData.items?.length || 0
+          profileViews: profileViewData?.totalViews || 0,
+          connections: connectionsData?.length || 0,
+          streaks: streaksData?.items?.length || 0,
+          projects: projectsData?.items?.length || 0
         });
         
-        // Update other state data
-        setPendingRequests(pendingRequestsData.length || 0);
-        setConnectionRequests(pendingRequestsData);
-        setUserStreaks(streaksData.items || []);
-        setUserProjects(projectsData.items || []);
-        setUserAchievements(achievementsData.items || []);
-        setRecentPosts(postsData.posts || []);
+        // Update other state data - add null checks
+        setPendingRequests(pendingRequestsData?.length || 0);
+        setConnectionRequests(pendingRequestsData || []);
+        setUserStreaks(streaksData?.items || []);
+        setUserProjects(projectsData?.items || []);
+        setUserAchievements(achievementsData?.items || []);
+        setRecentPosts(postsData?.posts || []);
         
         // Load planner from local storage if exists
         const savedPlanner = localStorage.getItem('userPlanner');
@@ -253,7 +254,7 @@ const Dashboard = () => {
                       {new Date().getDate()}
                     </div>
                     <div>
-                      <h1 className="text-2xl font-bold text-gray-800">Hello, {user?.firstName}!</h1>
+                      <h1 className="text-2xl font-bold text-gray-800">Hello, {user?.firstName || 'User'}!</h1>
                       <p className="text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                     </div>
                   </div>
@@ -459,18 +460,24 @@ const Dashboard = () => {
                                 <div key={post._id} className="mb-4 pb-4 border-b border-gray-100">
                                   <div className="flex items-center mb-2">
                                     <div className="h-10 w-10 rounded-lg overflow-hidden mr-3">
-                                      <img 
-                                        src={getProfilePicture(post.author)}
-                                        alt={`${post.author.firstName} ${post.author.lastName}`}
-                                        className="h-full w-full object-cover" 
-                                      />
+                                      {post.author && (
+                                        <img 
+                                          src={getProfilePicture(post.author)}
+                                          alt={`${post.author?.firstName || 'User'} ${post.author?.lastName || ''}`}
+                                          className="h-full w-full object-cover" 
+                                        />
+                                      )}
                                     </div>
                                     <div>
-                                      <p className="font-medium text-sm">{post.author.firstName} {post.author.lastName}</p>
-                                      <p className="text-xs text-gray-500">{formatDate(post.createdAt)}</p>
+                                      {post.author && (
+                                        <p className="font-medium text-sm">
+                                          {post.author?.firstName || 'User'} {post.author?.lastName || ''}
+                                        </p>
+                                      )}
+                                    <p className="text-xs text-gray-500">{formatDate(post.createdAt)}</p>
                                     </div>
                                   </div>
-                                  <p className="text-sm text-gray-700">{post.content.length > 150 ? post.content.substring(0, 150) + '...' : post.content}</p>
+                                  <p className="text-sm text-gray-700">{post.content?.length > 150 ? post.content.substring(0, 150) + '...' : post.content}</p>
                                   {post.images && post.images.length > 0 && (
                                     <div className="mt-2">
                                       <div className="h-32 rounded-lg overflow-hidden">
@@ -505,7 +512,7 @@ const Dashboard = () => {
                                         {achievement.image ? (
                                           <img 
                                             src={achievement.image} 
-                                            alt={achievement.title}
+                                            alt={achievement.title || 'Achievement'}
                                             className="h-8 w-8 object-contain" 
                                           />
                                         ) : (
@@ -516,9 +523,9 @@ const Dashboard = () => {
                                       </div>
                                     </div>
                                     <div>
-                                      <h5 className="font-medium text-gray-800">{achievement.title}</h5>
+                                      <h5 className="font-medium text-gray-800">{achievement.title || 'Untitled Achievement'}</h5>
                                       <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
-                                      <p className="text-sm text-gray-600 mt-1">{achievement.description}</p>
+                                      <p className="text-sm text-gray-600 mt-1">{achievement.description || ''}</p>
                                     </div>
                                   </div>
                                 </div>
@@ -563,10 +570,9 @@ const Dashboard = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <h2 className="text-xl font-bold text-gray-900">
-                              {user?.firstName} {user?.lastName}
+                              {user?.firstName || 'User'} {user?.lastName || ''}
                             </h2>
-                             
-                             <p className="text-sm text-gray-500">{user?.headline || 'Professional Title'}</p>
+                            <p className="text-sm text-gray-500">{user?.headline || 'Professional Title'}</p>
                           </div>
                           <Link 
                             to="/profile" 
@@ -690,8 +696,8 @@ const Dashboard = () => {
                                 </div>
                               </div>
                               <div>
-                                <h4 className="text-sm font-semibold text-gray-900">{streak.title}</h4>
-                                <p className="text-xs text-gray-500 mt-1">{streak.activity}</p>
+                                <h4 className="text-sm font-semibold text-gray-900">{streak.title || 'Streak'}</h4>
+                                <p className="text-xs text-gray-500 mt-1">{streak.activity || ''}</p>
                                 <div className="mt-2">
                                   <Link 
                                     to={`/portfolio/streaks/${streak._id}`}
@@ -743,13 +749,13 @@ const Dashboard = () => {
                               <div className="h-12 w-12 rounded-lg overflow-hidden bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
                                 <img 
                                   src={getProfilePicture(request)} 
-                                  alt={`${request.firstName} ${request.lastName}`} 
+                                  alt={`${request?.firstName || 'User'} ${request?.lastName || ''}`} 
                                   className="h-12 w-12 object-cover"
                                 />
                               </div>
                               <div>
-                                <h4 className="font-medium">{request.firstName} {request.lastName}</h4>
-                                <p className="text-sm text-gray-500">{request.headline || 'Professional'}</p>
+                                <h4 className="font-medium">{request?.firstName || 'User'} {request?.lastName || ''}</h4>
+                                <p className="text-sm text-gray-500">{request?.headline || 'Professional'}</p>
                               </div>
                             </div>
                             <div className="flex space-x-2">
@@ -791,7 +797,13 @@ const Dashboard = () => {
             )}
 
             {activeSection === 'content' && (
-              <div> <CreatePost/></div>
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Content Creation</h2>
+                  <p className="text-gray-500">Share updates, insights, and connect with your network</p>
+                </div>
+                <CreatePost/>
+              </div>
             )}
 
             {activeSection === 'portfolio' && (
@@ -811,11 +823,11 @@ const Dashboard = () => {
                       <div className="space-y-4">
                         {userProjects.map(project => (
                           <div key={project._id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
-                            <h4 className="font-medium text-gray-900">{project.title}</h4>
+                            <h4 className="font-medium text-gray-900">{project.title || 'Untitled Project'}</h4>
                             <p className="text-sm text-gray-600 mt-1">
                               {project.description?.length > 100 
                                 ? project.description.substring(0, 100) + '...' 
-                                : project.description}
+                                : project.description || 'No description available'}
                             </p>
                             <div className="mt-3 flex justify-between items-center">
                               <Link 
@@ -861,7 +873,7 @@ const Dashboard = () => {
                                   {achievement.image ? (
                                     <img 
                                       src={achievement.image} 
-                                      alt={achievement.title}
+                                      alt={achievement.title || 'Achievement'}
                                       className="h-8 w-8 object-contain" 
                                     />
                                   ) : (
@@ -872,12 +884,12 @@ const Dashboard = () => {
                                 </div>
                               </div>
                               <div>
-                                <h4 className="font-medium text-gray-900">{achievement.title}</h4>
+                                <h4 className="font-medium text-gray-900">{achievement.title || 'Untitled Achievement'}</h4>
                                 <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
                                 <p className="text-sm text-gray-600 mt-1">
                                   {achievement.description?.length > 100 
                                     ? achievement.description.substring(0, 100) + '...' 
-                                    : achievement.description}
+                                    : achievement.description || 'No description available'}
                                 </p>
                               </div>
                             </div>
