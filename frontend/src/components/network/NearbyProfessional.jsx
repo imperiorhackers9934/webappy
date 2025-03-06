@@ -9,11 +9,7 @@ const NearbyProfessionalsPage = () => {
   const [loading, setLoading] = useState(true);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [debugInfo, setDebugInfo] = useState({
-    apiResponseCount: 0,
-    connectionsCount: 0,
-    filteredCount: 0
-  });
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     distance: 10, // km
     industries: '',
@@ -29,107 +25,95 @@ const NearbyProfessionalsPage = () => {
     getUserLocation();
   }, []);
 
-  // Debug effect to log when users change
-  useEffect(() => {
-    console.log(`Rendering ${nearbyUsers.length} users:`, nearbyUsers);
-  }, [nearbyUsers]);
-
   const getUserLocation = () => {
+    setLoading(true);
+    setError(null);
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
+          console.log(`Got location: ${latitude}, ${longitude}`);
           setUserLocation({ latitude, longitude });
           fetchNearbyUsers(latitude, longitude, filters.distance);
         },
         (error) => {
           console.error('Error getting location:', error);
+          setError(`Location error: ${error.message}`);
           setLoading(false);
+        },
+        { 
+          enableHighAccuracy: true, 
+          timeout: 15000, 
+          maximumAge: 10000 
         }
       );
     } else {
-      console.error('Geolocation is not supported by this browser.');
+      setError('Geolocation is not supported by this browser.');
       setLoading(false);
     }
   };
   
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
     setLoading(true);
+    setError(null);
+    
     try {
-      // Just get the nearby users without filtering in the component
+      console.log(`Fetching nearby users with distance: ${distance}km`);
+      
+      // Get nearby users
       const nearbyResponse = await api.getNearbyProfessionals(distance);
       
-      // Log detailed API response for debugging
-      console.log('API response data:', nearbyResponse);
+      console.log('Nearby users response:', nearbyResponse);
       
       if (!Array.isArray(nearbyResponse)) {
-        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
-        setNearbyUsers([]);
-        setLoading(false);
-        return;
+        throw new Error('Invalid API response format');
       }
       
-      console.log(`API returned ${nearbyResponse.length} users`);
-      
-      // Now fetch connections in a separate call
+      // Get connections separately
       let connections = [];
       try {
         connections = await api.getConnections('all');
+        console.log('Connections response:', connections);
+        
         if (!Array.isArray(connections)) {
-          console.error('Invalid response from getConnections:', connections);
+          console.warn('Invalid connections response format');
           connections = [];
         }
-      } catch (connectionError) {
-        console.error('Error fetching connections:', connectionError);
+      } catch (connError) {
+        console.error('Failed to fetch connections:', connError);
         connections = [];
       }
       
-      console.log(`Found ${connections.length} connections`);
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set();
+      connections.forEach(conn => {
+        if (conn && conn._id) {
+          connectionIds.add(conn._id);
+        }
+      });
       
-      // Create a Set of connection IDs for faster lookup (only if we have connections)
-      const connectionIds = new Set(connections.map(conn => conn._id));
+      console.log(`Found ${connectionIds.size} connections to filter out`);
       
-      // Filter out users who are in your connections (only if we have connections)
-      const filteredUsers = connections.length > 0 
-        ? nearbyResponse.filter(user => {
-            // Validate user data
-            if (!user || !user._id) {
-              console.warn('Invalid user data found:', user);
-              return false;
-            }
-            return !connectionIds.has(user._id);
-          })
-        : nearbyResponse;
-      
-      console.log(`After filtering: ${filteredUsers.length} users remaining`);
-      
-      // Do a final validation of user data to ensure all required fields are present
-      const validUsers = filteredUsers.filter(user => {
-        if (!user || !user._id || !user.firstName || !user.lastName) {
-          console.warn('User missing required data:', user);
+      // Filter out users who are in your connections
+      const filteredUsers = nearbyResponse.filter(user => {
+        // Skip invalid user data
+        if (!user || !user._id) {
+          console.warn('Skipping invalid user:', user);
           return false;
         }
-        return true;
+        
+        // Skip connections
+        return !connectionIds.has(user._id);
       });
       
-      console.log(`${validUsers.length} valid users to display`);
+      console.log(`After filtering: ${filteredUsers.length} users`);
       
-      // Update debug info
-      setDebugInfo({
-        apiResponseCount: nearbyResponse.length,
-        connectionsCount: connections.length,
-        filteredCount: filteredUsers.length,
-        validCount: validUsers.length
-      });
-      
-      // Set the final list of users
-      setNearbyUsers(validUsers);
+      setNearbyUsers(filteredUsers);
     } catch (error) {
       console.error('Error fetching nearby professionals:', error);
+      setError(`Failed to get nearby users: ${error.message}`);
       setNearbyUsers([]);
-      setDebugInfo({
-        error: error.message
-      });
     } finally {
       setLoading(false);
     }
@@ -150,12 +134,15 @@ const NearbyProfessionalsPage = () => {
         userLocation.longitude,
         filters.distance
       );
+    } else {
+      setError('Your location is required. Please enable location services.');
     }
   };
 
   const handleConnect = async (userId) => {
     try {
       await api.sendConnectionRequest(userId);
+      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -172,6 +159,7 @@ const NearbyProfessionalsPage = () => {
   const handleFollow = async (userId) => {
     try {
       const response = await api.followUser(userId);
+      
       // Update the user's status in the list
       setNearbyUsers(prev => 
         prev.map(user => 
@@ -194,6 +182,19 @@ const NearbyProfessionalsPage = () => {
     'Marketing', 'Sales', 'Design', 'Engineering', 
     'Consulting', 'Legal', 'Real Estate', 'Hospitality'
   ];
+
+  // Manually force display of all users
+  const renderAllUsers = nearbyUsers.map((user, index) => (
+    <div key={user._id} className="mb-4">
+      <UserCard
+        user={user}
+        distance={user.distance}
+        onConnect={() => handleConnect(user._id)}
+        onFollow={() => handleFollow(user._id)}
+        onViewProfile={() => handleViewProfile(user._id)}
+      />
+    </div>
+  ));
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -228,26 +229,31 @@ const NearbyProfessionalsPage = () => {
 
       {/* Debug Information */}
       {showDebug && (
-        <div className="bg-gray-100 p-4 rounded mb-4 text-xs">
+        <div className="bg-gray-100 p-4 rounded mb-4">
           <h3 className="font-bold mb-2">Debug Information</h3>
-          <ul>
-            <li>API Response: {debugInfo.apiResponseCount} users</li>
-            <li>Connections: {debugInfo.connectionsCount} users</li>
-            <li>After Filtering: {debugInfo.filteredCount} users</li>
-            <li>Valid Users: {debugInfo.validCount} users</li>
-            {debugInfo.error && <li className="text-red-500">Error: {debugInfo.error}</li>}
-          </ul>
+          <div>
+            <p>User Location: {userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : 'Not available'}</p>
+            <p>Total Users: {nearbyUsers.length}</p>
+            {error && <p className="text-red-500">Error: {error}</p>}
+          </div>
           
           <div className="mt-2">
-            <h4 className="font-bold">User IDs in state ({nearbyUsers.length}):</h4>
+            <h4 className="font-bold">User List ({nearbyUsers.length}):</h4>
             <ul className="pl-4">
               {nearbyUsers.map((user, index) => (
                 <li key={user._id}>
-                  {index + 1}. {user.firstName} {user.lastName} ({user.distance}km)
+                  {index + 1}. {user.firstName} {user.lastName} ({user.distance ? `${user.distance}km` : 'unknown distance'})
                 </li>
               ))}
             </ul>
           </div>
+          
+          <button 
+            onClick={getUserLocation}
+            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Refresh Data
+          </button>
         </div>
       )}
 
@@ -263,6 +269,8 @@ const NearbyProfessionalsPage = () => {
             Unable to get your location. Please enable location services.
           </span>
         )}
+        
+        {error && <span className="text-red-500 ml-2">({error})</span>}
       </div>
 
       {/* Filters */}
@@ -346,32 +354,27 @@ const NearbyProfessionalsPage = () => {
             <div className="text-center py-10">
               <p className="text-gray-600">No professionals found in your area.</p>
               <p className="text-gray-600 mt-2">Try expanding your search distance or changing your filters.</p>
+              <button 
+                onClick={getUserLocation}
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
+              >
+                Try Again
+              </button>
             </div>
           ) : (
-            <>
-              {/* Simple text list for debugging */}
+            <div>
+              {/* Simple list rendering - should show all users */}
               {showDebug && (
-                <div className="bg-white p-4 mb-6 rounded shadow-sm">
-                  <h3 className="font-bold mb-2">Text List of Users:</h3>
-                  <ul className="pl-5 list-decimal">
-                    {nearbyUsers.map(user => (
-                      <li key={user._id} className="mb-1">
-                        {user.firstName} {user.lastName} - {user.distance}km
-                      </li>
-                    ))}
-                  </ul>
+                <div className="mb-8">
+                  <h3 className="font-bold mb-4">Simple List Display (Should show all {nearbyUsers.length} users):</h3>
+                  {renderAllUsers}
                 </div>
               )}
             
               {/* Main grid display */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-screen">
+              <div className="flex flex-wrap -mx-2">
                 {nearbyUsers.map((user, index) => (
-                  <div key={user._id} className="relative">
-                    {showDebug && (
-                      <div className="absolute top-0 right-0 bg-blue-500 text-white px-2 py-1 text-xs rounded-bl z-10">
-                        User #{index + 1}
-                      </div>
-                    )}
+                  <div key={user._id} className="w-full md:w-1/2 lg:w-1/3 px-2 mb-4">
                     <UserCard
                       user={user}
                       distance={user.distance}
@@ -382,7 +385,7 @@ const NearbyProfessionalsPage = () => {
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </>
       )}
