@@ -1045,6 +1045,7 @@ const jobService = {
 };
 
 // Company endpoints
+
 const companyService = {
   // Create a company profile
   createCompany: async (companyData) => {
@@ -1446,6 +1447,118 @@ const analyticsService = {
 
 // Location sharing endpoints
 const locationService = {
+  // Add this new method to your locationService object
+
+// Continuous location update (every 30 seconds)
+continuousLocationUpdate: async (locationData) => {
+  try {
+    const { latitude, longitude, accuracy, heading, speed } = locationData;
+    
+    // Validate required parameters
+    if (!latitude || !longitude) {
+      console.error('Continuous location update requires latitude and longitude');
+      return { success: false, error: 'Missing required location data' };
+    }
+    
+    const response = await api.post('/api/location/continuous-update', {
+      latitude,
+      longitude,
+      accuracy,
+      heading,
+      speed
+    });
+    
+    // Emit location update via Socket.IO if socket is available
+    if (socketManager && socketManager.isConnected()) {
+      socketManager.emit('update_location', { latitude, longitude });
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Continuous location update error:', error);
+    return { 
+      success: false, 
+      error: error.response?.data?.msg || error.message 
+    };
+  }
+},
+
+// Add the following to set up the update interval (can be called when app initializes)
+startContinuousLocationUpdates: async (options = {}) => {
+  const { 
+    interval = 30000, // Default 30 seconds
+    errorCallback,
+    successCallback
+  } = options;
+  
+  // Clear any existing interval
+  if (window._locationUpdateInterval) {
+    clearInterval(window._locationUpdateInterval);
+  }
+  
+  // Store the update function
+  const updateLocation = async () => {
+    try {
+      // Get current position
+      if (!navigator.geolocation) {
+        if (errorCallback) errorCallback('Geolocation not supported');
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy, heading, speed } = position.coords;
+          
+          const result = await locationService.continuousLocationUpdate({
+            latitude,
+            longitude,
+            accuracy,
+            heading,
+            speed
+          });
+          
+          if (successCallback) successCallback(result);
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          if (errorCallback) errorCallback(error.message);
+        },
+        { 
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 5000
+        }
+      );
+    } catch (error) {
+      console.error('Error in continuous location update:', error);
+      if (errorCallback) errorCallback(error.message);
+    }
+  };
+  
+  // Call immediately once
+  updateLocation();
+  
+  // Set up the interval
+  window._locationUpdateInterval = setInterval(updateLocation, interval);
+  
+  return {
+    stop: () => {
+      if (window._locationUpdateInterval) {
+        clearInterval(window._locationUpdateInterval);
+        window._locationUpdateInterval = null;
+      }
+    }
+  };
+},
+
+stopContinuousLocationUpdates: () => {
+  if (window._locationUpdateInterval) {
+    clearInterval(window._locationUpdateInterval);
+    window._locationUpdateInterval = null;
+    return true;
+  }
+  return false;
+},
   // Enable/disable real-time location sharing
   toggleLocationSharing: async (settings) => {
     const response = await api.post('/api/location/sharing', settings);
