@@ -6,9 +6,9 @@ const AuthLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-16 bg-gradient-to-r from-orange-400 to-orange-500"></div>
+{/*       <div className="absolute top-0 left-0 w-full h-16 bg-gradient-to-r from-orange-400 to-orange-500"></div>
       <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-orange-100 -mr-16 -mt-16"></div>
-      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-orange-100 -ml-32 -mb-32 opacity-50"></div>
+      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-orange-100 -ml-32 -mb-32 opacity-50"></div> */}
       
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <Link to="/">
