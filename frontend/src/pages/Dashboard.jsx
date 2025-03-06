@@ -9,7 +9,7 @@ import StoryCard from '../components/posts/StoryCard';
 import CreatePost from '../components/posts/CreatePost';
 import { PlusCircle, Check, Calendar, X } from 'lucide-react';
 import { useToast } from '../components/common/Toast'; // Adjust this import based on your UI library
-import LocationPermissionIcon from "../commponents/LocationPermissionIcon"
+import LocationPermissionIcon from '../components/LocationPermissionIcon';
 // Add this inside your component function
 
 const Dashboard = () => {
