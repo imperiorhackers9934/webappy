@@ -9,7 +9,7 @@ import StoryCard from '../components/posts/StoryCard';
 import CreatePost from '../components/posts/CreatePost';
 import { PlusCircle, Check, Calendar, X } from 'lucide-react';
 import { useToast } from '../components/common/Toast'; // Adjust this import based on your UI library
-
+import LocationPermissionIcon from "../commponents/LocationPermissionIcon
 // Add this inside your component function
 
 const Dashboard = () => {
@@ -212,117 +212,70 @@ const Dashboard = () => {
   };
   
   // Start location tracking with optional force param
-  const startLocationTracking = async (force = false) => {
+ useEffect(() => {
+  let locationControl = null;
+  
+  // Start location tracking when permission is granted
+  const startLocationTracking = async () => {
     try {
-      // If force is true, skip settings check and directly try to get location
-      if (!force) {
-        // Check if the user has location sharing enabled in their settings
-        const settings = await api.getSettings();
-        const locationEnabled = settings?.locationSharing?.enabled || false;
-        
-        if (!locationEnabled) {
-          console.log('Location tracking disabled in user settings');
-          return;
-        }
+      // Check if the user has location sharing enabled in their settings
+      const settings = await api.getSettings();
+      const locationEnabled = settings?.locationSharing?.enabled || false;
+      
+      if (!locationEnabled) {
+        console.log('Location tracking disabled in user settings');
+        return;
       }
       
-      // Check if we have permission
+      // Start tracking only if we have permission
       if (navigator.permissions) {
         const permission = await navigator.permissions.query({ name: 'geolocation' });
         
-        if (permission.state === 'denied') {
-          // Permission permanently denied, show toaster with instructions
-          toast({
-            title: "Location Access Blocked",
-            description: "Please enable location access in your browser settings to use this feature.",
-            status: "error",
-            duration: 5000,
-            isClosable: true
-          });
-          return;
-        } 
-        else if (permission.state === 'prompt') {
-          // Will prompt the user, show informative toaster
-          requestLocationPermission();
+        if (permission.state !== 'granted') {
+          console.log('Location permission not granted yet');
           return;
         }
-        // If 'granted', proceed normally
       }
       
-      // Start tracking if permission is granted or permissions API not available
-      console.log('Starting location tracking');
+      console.log('Starting location tracking...');
       locationControl = api.startContinuousLocationUpdates({
         interval: 30000, // 30 seconds
         successCallback: (result) => console.log('Location updated:', result),
-        errorCallback: (error) => {
-          console.error('Location update error:', error);
-          // Show error toaster if there's an issue
-          toast({
-            title: "Location Error",
-            description: "There was a problem accessing your location. Please check your device settings.",
-            status: "error",
-            duration: 5000,
-            isClosable: true
-          });
-        }
+        errorCallback: (error) => console.error('Location update error:', error)
       });
     } catch (error) {
       console.error('Error starting location tracking:', error);
-      // Show error toaster
-      toast({
-        title: "Location Error",
-        description: "There was a problem setting up location tracking.",
-        status: "error",
-        duration: 5000,
-        isClosable: true
-      });
     }
   };
   
-  // Initial call to start tracking
+  // Call this once to set up initial tracking if permission is already granted
   startLocationTracking();
   
-  // Clean up function - stop location tracking when component unmounts
+  // Set up a listener for permission changes
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' })
+      .then(permissionStatus => {
+        // Listen for changes
+        permissionStatus.onchange = () => {
+          console.log('Permission changed:', permissionStatus.state);
+          if (permissionStatus.state === 'granted') {
+            startLocationTracking();
+          }
+        };
+      })
+      .catch(err => console.error('Permission query error:', err));
+  }
+  
+  // Clean up function
   return () => {
     if (locationControl && typeof locationControl.stop === 'function') {
-      console.log('Stopping location tracking via control object');
+      console.log('Stopping location tracking');
       locationControl.stop();
     } else {
-      console.log('Stopping location tracking via global method');
       api.stopContinuousLocationUpdates();
     }
   };
-}, [user?._id]); // Only re-run if user ID changes
-
-// Add this useEffect to check if location is available on mount and show toaster if needed
-useEffect(() => {
-  // Check if geolocation is supported
-  if (!navigator.geolocation) {
-    toast({
-      title: "Location Not Supported",
-      description: "Your browser doesn't support location services. Some features may not work properly.",
-      status: "warning",
-      duration: 5000,
-      isClosable: true
-    });
-    return;
-  }
-  
-  // For browsers that support the permissions API, check status on mount
-  if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then(result => {
-      if (result.state === 'denied') {
-        toast({
-          title: "Location Access Blocked",
-          description: "Location features are disabled. Please enable location access in your browser settings.",
-          status: "warning",
-          duration: 5000,
-          isClosable: true
-        });
-      }
-    });
-  }
-}, []);
+}, [user?._id]);
 
   if (loading || loadingData) {
     return (
@@ -642,6 +595,9 @@ useEffect(() => {
                   
                   {/* Right Side - 2 columns */}
                   <div className="lg:col-span-2 space-y-6">
+                    <div clasName="mx-4 my-4">
+                    <LocationPermissionIcon/>
+                    </div>
                     {/* User Profile Card */}
                     <div className="bg-white rounded-xl shadow-md overflow-hidden">
                       <div className="relative">
