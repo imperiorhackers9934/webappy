@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { FaLinkedin, FaTwitter, FaGlobe, FaEnvelope, FaPhone } from 'react-icons/fa';
@@ -24,65 +24,98 @@ const ProfilePage = () => {
     const [isCurrentUser, setIsCurrentUser] = useState(false);
     const [currentUserInfo, setCurrentUserInfo] = useState(null);
   
+    // Memoized fetch function to avoid recreation on each render
+    const fetchUserData = useCallback(async () => {
+      try {
+        setLoading(true);
+        console.log("Starting to fetch profile data...");
+        
+        // First, get the current user's info
+        console.log("Fetching current user info...");
+        const userInfo = await api.getUserInfo();
+        console.log("Current user info fetched:", userInfo);
+        setCurrentUserInfo(userInfo);
+        
+        // If no userId is provided or it's "undefined", redirect to the current user's profile
+        if (!userId) {
+          console.log("No userId provided, redirecting to current user profile");
+          navigate(`/profile/${userInfo._id}`, { replace: true });
+          return;
+        }
+        
+        // Check if we're viewing our own profile
+        const isSelf = userInfo._id === userId;
+        console.log(`Viewing profile ${userId}, is self: ${isSelf}`);
+        setIsCurrentUser(isSelf);
+        
+        // Fetch the requested profile
+        console.log(`Fetching profile data for user ${userId}...`);
+        const profileData = await api.getProfile(userId);
+        console.log("Profile data fetched:", profileData);
+        
+        // Make sure we have valid data before setting state
+        if (!profileData || !profileData.user) {
+          console.error("Invalid profile data received:", profileData);
+          setError('Received invalid profile data');
+          setLoading(false);
+          return;
+        }
+        
+        // Update state with fetched data
+        setProfile(profileData.user);
+        setUserRelationship(profileData.relationshipStatus || {});
+        setPortfolio(profileData.portfolio || {});
+        setRecommendations(profileData.recommendations || []);
+        
+        // Record view if not our own profile
+        if (!isSelf) {
+          try {
+            await api.recordProfileView(userId);
+          } catch (viewError) {
+            console.error('Failed to record profile view:', viewError);
+            // Continue regardless of profile view recording
+          }
+        } else {
+          // Get our own view analytics
+          try {
+            const analytics = await api.getProfileViewAnalytics('month');
+            setViewsAnalytics(analytics);
+          } catch (analyticsError) {
+            console.error('Failed to get view analytics:', analyticsError);
+            // Continue regardless of analytics error
+          }
+        }
+        
+        // Finally, set loading to false
+        console.log("Profile data successfully loaded, setting loading=false");
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        setError('Failed to load profile data');
+        setLoading(false);
+      }
+    }, [userId, navigate]);
+  
     useEffect(() => {
       // If we're on the edit route, we should handle it differently
       if (location.pathname.endsWith('/edit')) {
+        console.log("Edit route detected, skipping profile fetch");
         return; // Don't fetch profile data on the edit route
       }
       
-      const fetchUserData = async () => {
-        try {
-          setLoading(true);
-          
-          // First, get the current user's info
-          const userInfo = await api.getUserInfo();
-          setCurrentUserInfo(userInfo);
-          
-          // If no userId is provided or it's "undefined", redirect to the current user's profile
-          if (!userId) {
-            navigate(`/profile/${userInfo._id}`, { replace: true });
-            return;
-          }
-          
-          // Check if we're viewing our own profile
-          setIsCurrentUser(userInfo._id === userId);
-          
-          // Fetch the requested profile
-          const profileData = await api.getProfile(userId);
-          setProfile(profileData.user);
-          setUserRelationship(profileData.relationshipStatus || {});
-          setPortfolio(profileData.portfolio || {});
-          setRecommendations(profileData.recommendations || []);
-          
-          // Record view if not our own profile
-          if (userInfo._id !== userId) {
-            try {
-              await api.recordProfileView(userId);
-            } catch (viewError) {
-              console.error('Failed to record profile view:', viewError);
-              // Continue regardless of profile view recording
-            }
-          } else {
-            // Get our own view analytics
-            try {
-              const analytics = await api.getProfileViewAnalytics('month');
-              setViewsAnalytics(analytics);
-            } catch (analyticsError) {
-              console.error('Failed to get view analytics:', analyticsError);
-              // Continue regardless of analytics error
-            }
-          }
-          
-          setLoading(false);
-        } catch (err) {
-          console.error('Error fetching profile:', err);
-          setError('Failed to load profile data');
-          setLoading(false);
-        }
-      };
-  
+      console.log(`ProfilePage: useEffect triggered with userId=${userId}`);
       fetchUserData();
-    }, [userId, navigate, location.pathname]);
+    }, [userId, location.pathname, fetchUserData]);
+    
+    // Log state changes to debug
+    useEffect(() => {
+      console.log("Profile state changed:", { 
+        loading, 
+        error, 
+        hasProfile: !!profile, 
+        isCurrentUser 
+      });
+    }, [loading, error, profile, isCurrentUser]);
     
     // If we're on the edit route, render the profile editor instead
     if (location.pathname.endsWith('/edit')) {
@@ -110,39 +143,49 @@ const ProfilePage = () => {
       );
     }
   
-    if (loading) return (
-      <div className="flex h-screen bg-orange-50">
-        <Sidebar user={user} />
-        <div className="flex-1 overflow-auto">
-          <div className="md:pl-0 pl-0 md:pt-0 pt-16 flex justify-center items-center h-64">
-            <Loader />
+    if (loading) {
+      console.log("Rendering loading state");
+      return (
+        <div className="flex h-screen bg-orange-50">
+          <Sidebar user={user} />
+          <div className="flex-1 overflow-auto">
+            <div className="md:pl-0 pl-0 md:pt-0 pt-16 flex justify-center items-center h-64">
+              <Loader />
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
     
-    if (error) return (
-      <div className="flex h-screen bg-orange-50">
-        <Sidebar user={user} />
-        <div className="flex-1 overflow-auto">
-          <div className="md:pl-0 pl-0 md:pt-0 pt-16 flex justify-center items-center h-64">
-            <div className="text-center text-red-500">{error}</div>
+    if (error) {
+      console.log("Rendering error state:", error);
+      return (
+        <div className="flex h-screen bg-orange-50">
+          <Sidebar user={user} />
+          <div className="flex-1 overflow-auto">
+            <div className="md:pl-0 pl-0 md:pt-0 pt-16 flex justify-center items-center h-64">
+              <div className="text-center text-red-500">{error}</div>
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
     
-    if (!profile) return (
-      <div className="flex h-screen bg-orange-50">
-        <Sidebar user={user} />
-        <div className="flex-1 overflow-auto">
-          <div className="md:pl-0 pl-0 md:pt-0 pt-16 flex justify-center items-center h-64">
-            <div className="text-center">Profile not found</div>
+    if (!profile) {
+      console.log("Rendering 'profile not found' state");
+      return (
+        <div className="flex h-screen bg-orange-50">
+          <Sidebar user={user} />
+          <div className="flex-1 overflow-auto">
+            <div className="md:pl-0 pl-0 md:pt-0 pt-16 flex justify-center items-center h-64">
+              <div className="text-center">Profile not found</div>
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
 
+  console.log("Rendering complete profile");
   return (
     <div className="flex h-screen bg-orange-50">
       <Sidebar user={user} />
