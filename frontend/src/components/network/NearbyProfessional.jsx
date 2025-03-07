@@ -196,7 +196,13 @@ const NearbyProfessionalsPage = () => {
       const input = document.createElement('input');
       input.placeholder = 'Search for a location';
       input.className = 'map-search-box';
-      input.style.cssText = 'position:absolute;top:10px;left:110px;width:60%;padding:8px;border:1px solid #ccc;border-radius:4px;box-shadow:0 2px 4px rgba(0,0,0,0.1);';
+      
+      // Make the search box responsive - more space on mobile
+      if (window.innerWidth < 768) {
+        input.style.cssText = 'position:absolute;top:10px;left:10px;width:calc(100% - 20px);padding:8px;border:1px solid #ccc;border-radius:4px;box-shadow:0 2px 4px rgba(0,0,0,0.1);font-size:14px;z-index:10;';
+      } else {
+        input.style.cssText = 'position:absolute;top:10px;left:110px;width:60%;padding:8px;border:1px solid #ccc;border-radius:4px;box-shadow:0 2px 4px rgba(0,0,0,0.1);z-index:10;';
+      }
       
       map.controls[window.google.maps.ControlPosition.TOP_LEFT].push(input);
       
@@ -395,6 +401,10 @@ const NearbyProfessionalsPage = () => {
         filters.distance
       );
     }
+    // On mobile, automatically hide filters after applying
+    if (window.innerWidth < 768) {
+      setShowFilters(false);
+    }
   };
 
   const handleRefreshLocation = () => {
@@ -459,21 +469,21 @@ const NearbyProfessionalsPage = () => {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Nearby Professionals</h1>
-        <div className="flex space-x-4">
+    <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-6 gap-3 sm:gap-0">
+        <h1 className="text-xl md:text-2xl font-bold">Nearby Professionals</h1>
+        <div className="flex w-full sm:w-auto space-x-2 md:space-x-4">
           <button 
             onClick={() => navigate('/network/suggested')}
-            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+            className="flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm bg-gray-200 rounded-lg hover:bg-gray-300 transition"
           >
             View Suggested
           </button>
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center"
+            className="flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center justify-center"
           >
-            <Sliders className="h-4 w-4 mr-2" />
+            <Sliders className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
             Filters
           </button>
         </div>
@@ -481,33 +491,33 @@ const NearbyProfessionalsPage = () => {
 
       {/* Map Modal */}
       {showMap && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-3 md:p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl overflow-hidden shadow-xl">
-            <div className="flex justify-between items-center bg-orange-500 text-white p-4">
-              <h3 className="text-lg font-medium">Set Your Location</h3>
+            <div className="flex justify-between items-center bg-orange-500 text-white p-3 md:p-4">
+              <h3 className="text-base md:text-lg font-medium">Set Your Location</h3>
               <button onClick={handleCloseMap} className="text-white">
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5 md:h-6 md:w-6" />
               </button>
             </div>
-            <div className="p-4">
-              <p className="text-gray-600 mb-3">
+            <div className="p-3 md:p-4">
+              <p className="text-sm md:text-base text-gray-600 mb-2 md:mb-3">
                 Drag the marker to your exact location or search for a place.
               </p>
               <div 
                 ref={mapRef} 
-                className="h-96 w-full bg-gray-100 rounded-lg"
-                style={{ height: '400px' }}
+                className="h-64 md:h-96 w-full bg-gray-100 rounded-lg"
+                style={{ height: '250px', minHeight: '250px', maxHeight: '400px', '@media (min-width: 768px)': { height: '400px' } }}
               >
                 {!mapLoaded && (
                   <div className="h-full w-full flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 md:h-10 md:w-10 border-t-2 border-b-2 border-orange-500"></div>
                   </div>
                 )}
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-3 md:mt-4 flex justify-end">
                 <button
                   onClick={handleConfirmMapLocation}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                  className="px-3 md:px-4 py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
                 >
                   Confirm Location
                 </button>
@@ -518,28 +528,28 @@ const NearbyProfessionalsPage = () => {
       )}
 
       {/* Location Status */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+      <div className="bg-white rounded-lg shadow-md p-3 md:p-4 mb-4 md:mb-6">
         {locationLoading ? (
           <div className="flex items-center">
             <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-orange-500 mr-2"></div>
-            <span className="text-gray-700">Getting your location...</span>
+            <span className="text-sm md:text-base text-gray-700">Getting your location...</span>
           </div>
         ) : locationError ? (
-          <div className="flex items-center text-red-600">
-            <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+          <div className="flex flex-col md:flex-row md:items-center text-red-600">
+            <AlertCircle className="h-5 w-5 mb-2 md:mb-0 md:mr-2 flex-shrink-0" />
             <div>
-              <p className="font-medium">Location Error</p>
-              <p className="text-sm">{locationError}</p>
+              <p className="font-medium text-sm md:text-base">Location Error</p>
+              <p className="text-xs md:text-sm">{locationError}</p>
               <div className="mt-2 flex space-x-3">
                 <button 
                   onClick={handleRefreshLocation}
-                  className="text-orange-500 text-sm hover:underline"
+                  className="text-orange-500 text-xs md:text-sm hover:underline"
                 >
                   Try Again
                 </button>
                 <button 
                   onClick={handleUseMap}
-                  className="text-orange-500 text-sm hover:underline"
+                  className="text-orange-500 text-xs md:text-sm hover:underline"
                 >
                   Set Location Manually
                 </button>
@@ -548,50 +558,52 @@ const NearbyProfessionalsPage = () => {
           </div>
         ) : userLocation ? (
           <div>
-            <div className="flex items-center">
-              <MapPin className="h-5 w-5 text-orange-600 mr-2" />
-              <span className="text-gray-700">
-                {userLocation.isManual ? 
-                  'Using your manually selected location' : 
-                  'Showing professionals near your current location'
-                }
-              </span>
-              <div className="ml-auto flex space-x-3">
+            <div className="flex flex-col sm:flex-row sm:items-center">
+              <div className="flex items-center">
+                <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-600 mr-2" />
+                <span className="text-sm md:text-base text-gray-700">
+                  {userLocation.isManual ? 
+                    'Using your manually selected location' : 
+                    'Showing professionals near your current location'
+                  }
+                </span>
+              </div>
+              <div className="mt-2 sm:mt-0 sm:ml-auto flex space-x-3">
                 <button 
                   onClick={handleRefreshLocation}
-                  className="text-sm text-orange-500 hover:underline"
+                  className="text-xs md:text-sm text-orange-500 hover:underline"
                 >
                   Refresh Location
                 </button>
                 <button 
                   onClick={handleUseMap}
-                  className="text-sm text-orange-500 hover:underline"
+                  className="text-xs md:text-sm text-orange-500 hover:underline"
                 >
                   Set Manually
                 </button>
               </div>
             </div>
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-1 md:mt-2 text-xs text-gray-500">
               {userLocation.isManual ? 
                 'Manually set locations provide the best accuracy.' :
                 `Location accuracy: ${userLocation.accuracy ? `${Math.round(userLocation.accuracy)} meters` : 'Unknown'}`
               }
               {userLocation.accuracy > 1000 && !userLocation.isManual && (
-                <span className="ml-2 text-orange-500">
+                <span className="block sm:ml-2 sm:inline text-orange-500">
                   (Poor accuracy. Consider setting your location manually for better results)
                 </span>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex items-center text-yellow-600">
+          <div className="flex flex-col sm:flex-row sm:items-center text-yellow-600">
             <MapPin className="h-5 w-5 mr-2" />
-            <span>
+            <span className="text-sm md:text-base">
               Unable to get your location. Please enable location services.
             </span>
             <button 
               onClick={handleUseMap}
-              className="ml-3 text-orange-500 text-sm hover:underline"
+              className="mt-2 sm:mt-0 sm:ml-3 text-orange-500 text-xs md:text-sm hover:underline"
             >
               Set Location Manually
             </button>
@@ -601,10 +613,10 @@ const NearbyProfessionalsPage = () => {
 
       {/* Filters */}
       {showFilters && (
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="bg-white rounded-lg shadow-md p-3 md:p-4 mb-4 md:mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Distance (km)</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Distance (km)</label>
               <input
                 type="range"
                 name="distance"
@@ -621,12 +633,12 @@ const NearbyProfessionalsPage = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Industry</label>
               <select
                 name="industries"
                 value={filters.industries}
                 onChange={handleFilterChange}
-                className="w-full border border-gray-300 rounded-md p-2"
+                className="w-full border border-gray-300 rounded-md p-2 text-xs md:text-sm"
               >
                 <option value="">All Industries</option>
                 {industries.map((industry) => (
@@ -635,18 +647,18 @@ const NearbyProfessionalsPage = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
               <input
                 type="text"
                 name="skills"
                 value={filters.skills}
                 onChange={handleFilterChange}
                 placeholder="e.g. React, Marketing, Design"
-                className="w-full border border-gray-300 rounded-md p-2"
+                className="w-full border border-gray-300 rounded-md p-2 text-xs md:text-sm"
               />
             </div>
           </div>
-          <div className="mt-4 flex items-center">
+          <div className="mt-3 md:mt-4 flex items-center">
             <input
               type="checkbox"
               name="availableForMeeting"
@@ -655,14 +667,14 @@ const NearbyProfessionalsPage = () => {
               onChange={handleFilterChange}
               className="mr-2"
             />
-            <label htmlFor="availableForMeeting" className="text-sm text-gray-700">
+            <label htmlFor="availableForMeeting" className="text-xs md:text-sm text-gray-700">
               Only show users available for in-person meetings
             </label>
           </div>
-          <div className="mt-4">
+          <div className="mt-3 md:mt-4">
             <button
               onClick={handleApplyFilters}
-              className="bg-orange-500 text-white py-2 px-4 rounded-md hover:bg-orange-600 transition"
+              className="bg-orange-500 text-white py-1.5 md:py-2 px-3 md:px-4 rounded-md text-xs md:text-sm hover:bg-orange-600 transition"
             >
               Apply Filters
             </button>
@@ -671,35 +683,35 @@ const NearbyProfessionalsPage = () => {
       )}
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
+        <div className="flex justify-center items-center h-48 md:h-64">
           <Loader />
         </div>
       ) : (
         <>
           {nearbyUsers.length === 0 ? (
-            <div className="text-center py-10 bg-white rounded-lg shadow-md p-8">
-              <div className="bg-orange-100 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4">
-                <MapPin className="h-10 w-10 text-orange-500" />
+            <div className="text-center py-6 md:py-10 bg-white rounded-lg shadow-md p-4 md:p-8">
+              <div className="bg-orange-100 rounded-full h-16 w-16 md:h-20 md:w-20 flex items-center justify-center mx-auto mb-3 md:mb-4">
+                <MapPin className="h-8 w-8 md:h-10 md:w-10 text-orange-500" />
               </div>
-              <p className="text-gray-600">No professionals found in your area.</p>
-              <p className="text-gray-600 mt-2">Try expanding your search distance or changing your filters.</p>
-              <div className="mt-4 flex justify-center space-x-4">
+              <p className="text-sm md:text-base text-gray-600">No professionals found in your area.</p>
+              <p className="text-sm md:text-base text-gray-600 mt-2">Try expanding your search distance or changing your filters.</p>
+              <div className="mt-4 flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
                 <button 
                   onClick={handleRefreshLocation}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
+                  className="px-4 py-2 text-xs md:text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
                 >
                   Refresh Location
                 </button>
                 <button 
                   onClick={handleUseMap}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                  className="px-4 py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
                 >
                   Set Location Manually
                 </button>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
               {nearbyUsers.map(user => (
                 <UserCard
                   key={user._id}
