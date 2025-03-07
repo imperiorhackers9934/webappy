@@ -696,12 +696,20 @@ const networkService = {
 // Add this improved function to your api.js file
 // Replace the existing getNearbyProfessionals function
 
-getNearbyProfessionals: async (distance = 10) => {
+// Update this function in your api.js file
+
+getNearbyProfessionals: async (distance = 10, latitude = null, longitude = null) => {
   try {
-    // Get current user location with high accuracy
-    let userLocation = null;
+    console.log(`getNearbyProfessionals called with: distance=${distance}, lat=${latitude}, lng=${longitude}`);
     
-    if (navigator.geolocation) {
+    // If coordinates are provided directly, use them
+    let userLocation = null;
+    if (latitude && longitude) {
+      userLocation = { latitude, longitude };
+      console.log('Using provided coordinates:', userLocation);
+    } 
+    // Otherwise try to get them from browser geolocation
+    else if (navigator.geolocation) {
       try {
         userLocation = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -723,21 +731,15 @@ getNearbyProfessionals: async (distance = 10) => {
             }
           );
         });
+        console.log('Using browser geolocation:', userLocation);
       } catch (error) {
-        console.error('Failed to get accurate location:', error);
-        // Continue with API call using direct API location detection
+        console.error('Failed to get location from browser:', error);
       }
     }
     
-    console.log('Using location for nearby professionals API call:', userLocation);
-    
-    // Make the API call with location data
-    const url = `${baseURL}/api/network/nearby`;
-    
-    // Build query parameters
-    const params = {
-      distance
-    };
+    // Build the API request
+    let url = '/api/network/nearby';
+    const params = { distance };
     
     // Add location parameters if available
     if (userLocation) {
@@ -745,46 +747,53 @@ getNearbyProfessionals: async (distance = 10) => {
       params.longitude = userLocation.longitude;
     }
     
-    console.log(`Fetching nearby professionals from: ${url} with params:`, params);
+    console.log(`Making API request to ${url} with params:`, params);
     
-    // Make request with explicit authorization header
-    const response = await api.get('/api/network/nearby', { 
-      params,
-      timeout: 30000 
-    });
+    // Make the API call
+    const response = await api.get(url, { params });
     
-    // Log the response data
-    console.log('Nearby professionals API response:', response.data);
-    
+    // Process the response
     if (!response || !response.data) {
       console.error('Empty response from server');
       return [];
     }
     
-    // Extract and return the user data
+    // Extract the users from the response
     let users = [];
-    
     if (Array.isArray(response.data)) {
       users = response.data;
     } else if (response.data && typeof response.data === 'object') {
-      // Check for common patterns in API responses
+      // Handle different response formats
       if (Array.isArray(response.data.users)) {
         users = response.data.users;
       } else if (Array.isArray(response.data.data)) {
         users = response.data.data;
       } else if (Array.isArray(response.data.results)) {
         users = response.data.results;
-      } else {
-        console.error('Could not extract users array from response:', response.data);
-        return [];
       }
     }
     
-    // Log the users with distances for debugging
-    console.log('Users with distances:', users.map(u => ({
-      name: `${u.firstName} ${u.lastName}`,
-      distance: u.distance
-    })));
+    // Check for empty results
+    if (users.length === 0) {
+      console.log('No nearby users found');
+      return [];
+    }
+    
+    // Add default distance if missing
+    users = users.map(user => {
+      if (typeof user.distance !== 'number') {
+        return { ...user, distance: null };
+      }
+      return user;
+    });
+    
+    // Log some sample data
+    console.log(`Retrieved ${users.length} nearby users. Sample:`, 
+      users.slice(0, 3).map(u => ({ 
+        name: `${u.firstName} ${u.lastName}`, 
+        distance: u.distance 
+      }))
+    );
     
     return users;
   } catch (error) {
@@ -792,21 +801,16 @@ getNearbyProfessionals: async (distance = 10) => {
     
     // Log detailed error information
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      console.error('Error response data:', error.response.data);
-      console.error('Error response status:', error.response.status);
+      console.error('Server responded with error:', error.response.status, error.response.data);
     } else if (error.request) {
-      // The request was made but no response was received
-      console.error('Error request:', error.request);
+      console.error('No response received:', error.request);
     } else {
-      // Something happened in setting up the request
-      console.error('Error message:', error.message);
+      console.error('Error setting up request:', error.message);
     }
     
-    return [];  // Return empty array on error
+    return [];
   }
-},
+}
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
