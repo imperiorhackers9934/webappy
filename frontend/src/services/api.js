@@ -811,6 +811,44 @@ getNearbyProfessionals: async (distance = 10, latitude = null, longitude = null)
     return [];
   }
 },
+  // Add this method to your api.js file to provide IP-based geolocation as a fallback
+
+// IP-based geolocation as a fallback when other methods fail
+getIPLocation: async () => {
+  try {
+    // First try server-side IP detection
+    const response = await api.get('/api/location/ip');
+    
+    // If the server has an endpoint for IP location
+    if (response.data && response.data.latitude && response.data.longitude) {
+      console.log('Using server-provided IP location:', response.data);
+      return response.data;
+    }
+    
+    // If server doesn't provide location or endpoint doesn't exist,
+    // fall back to a free IP geolocation service
+    const ipInfoResponse = await axios.get('https://ipapi.co/json/');
+    
+    if (ipInfoResponse.data && ipInfoResponse.data.latitude && ipInfoResponse.data.longitude) {
+      const location = {
+        latitude: ipInfoResponse.data.latitude,
+        longitude: ipInfoResponse.data.longitude,
+        city: ipInfoResponse.data.city,
+        region: ipInfoResponse.data.region,
+        country: ipInfoResponse.data.country_name
+      };
+      
+      console.log('Using ipapi.co IP location:', location);
+      return location;
+    }
+    
+    // If all else fails
+    throw new Error('Could not determine location from IP');
+  } catch (error) {
+    console.error('Error in IP-based geolocation:', error);
+    throw error;
+  }
+},
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
