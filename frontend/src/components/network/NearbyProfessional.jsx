@@ -34,29 +34,25 @@ const NearbyProfessionalsPage = () => {
     }
 
     const loadGoogleMapsApi = () => {
-      const googleMapScript = document.createElement('script');
-      // Updated to use environment variable:
-googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places`;
-      googleMapScript.async = true;
-      googleMapScript.defer = true;
-      
-      googleMapScript.addEventListener('load', () => {
-        console.log('Google Maps API loaded');
-        setMapLoaded(true);
-      });
-      
-      googleMapScript.addEventListener('error', (e) => {
-        console.error('Error loading Google Maps API:', e);
-        setLocationError('Failed to load maps. Please try again later.');
-        setLocationLoading(false);
-      });
-      
-      document.body.appendChild(googleMapScript);
-    };
-
-    loadGoogleMapsApi();
-  }, []);
-
+  const googleMapScript = document.createElement('script');
+  googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async&callback=initMap`;
+  googleMapScript.async = true;
+  googleMapScript.defer = true;
+  
+  // Define initMap globally so Google Maps can call it when loaded
+  window.initMap = () => {
+    console.log('Google Maps API loaded');
+    setMapLoaded(true);
+  };
+  
+  googleMapScript.addEventListener('error', (e) => {
+    console.error('Error loading Google Maps API:', e);
+    setLocationError('Failed to load maps. Please try again later.');
+    setLocationLoading(false);
+  });
+  
+  document.body.appendChild(googleMapScript);
+};
   // Initialize map when it's shown and API is loaded
   useEffect(() => {
     if (showMap && mapLoaded && mapRef.current && !googleMapRef.current) {
