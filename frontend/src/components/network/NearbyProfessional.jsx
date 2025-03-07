@@ -72,9 +72,7 @@ const NearbyProfessionalsPage = () => {
       const connectionIds = new Set(connections.map(conn => conn._id));
       
       // Filter out users who are in your connections (only if we have connections)
-      const filteredUsers = connections.length > 0 
-        ? nearbyResponse.filter(user => !connectionIds.has(user._id))
-        : nearbyResponse;
+      const filteredUsers = nearbyResponse;
       
       // Sort users by distance (closest first)
       const sortedUsers = filteredUsers.sort((a, b) => {
