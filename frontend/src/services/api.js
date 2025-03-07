@@ -693,15 +693,14 @@ const networkService = {
     return response.data;
   },
   
+// Add this improved function to your api.js file
+// Replace the existing getNearbyProfessionals function
+
 getNearbyProfessionals: async (distance = 10) => {
   try {
-    // Start with logging the API call
-    console.log(`Calling getNearbyProfessionals with distance: ${distance}km`);
-    
-    // Get current user location
+    // Get current user location with high accuracy
     let userLocation = null;
     
-    // Try to get location from browser
     if (navigator.geolocation) {
       try {
         userLocation = await new Promise((resolve, reject) => {
@@ -709,64 +708,60 @@ getNearbyProfessionals: async (distance = 10) => {
             position => {
               resolve({
                 latitude: position.coords.latitude,
-                longitude: position.coords.longitude
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
               });
             },
             error => {
               console.error('Error getting location:', error);
               reject(error);
             },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+            { 
+              enableHighAccuracy: true,
+              timeout: 15000,
+              maximumAge: 0
+            }
           );
         });
       } catch (error) {
-        console.error('Failed to get location:', error);
-        return [];
+        console.error('Failed to get accurate location:', error);
+        // Continue with API call using direct API location detection
       }
     }
     
-    if (!userLocation) {
-      console.error('Location services unavailable');
-      return [];
-    }
+    console.log('Using location for nearby professionals API call:', userLocation);
     
-    console.log(`Using location: ${JSON.stringify(userLocation)}`);
-    
-    // Make sure the URL is correct - ensure it has the right domain/base URL
-    // Use baseURL from the api instance + the correct relative path
+    // Make the API call with location data
     const url = `${baseURL}/api/network/nearby`;
     
     // Build query parameters
     const params = {
-      distance,
-      latitude: userLocation.latitude,
-      longitude: userLocation.longitude
+      distance
     };
+    
+    // Add location parameters if available
+    if (userLocation) {
+      params.latitude = userLocation.latitude;
+      params.longitude = userLocation.longitude;
+    }
     
     console.log(`Fetching nearby professionals from: ${url} with params:`, params);
     
     // Make request with explicit authorization header
-    const response = await axios.get(url, { 
+    const response = await api.get('/api/network/nearby', { 
       params,
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Accept': 'application/json'
-      },
       timeout: 30000 
     });
     
-    console.log('Raw response from server:', response);
+    // Log the response data
+    console.log('Nearby professionals API response:', response.data);
     
-    // Check if the response contains data
     if (!response || !response.data) {
       console.error('Empty response from server');
       return [];
     }
     
-    // Log the response data to see what we're actually getting
-    console.log('Response data:', response.data);
-    
-    // Handle different response formats
+    // Extract and return the user data
     let users = [];
     
     if (Array.isArray(response.data)) {
@@ -780,37 +775,18 @@ getNearbyProfessionals: async (distance = 10) => {
       } else if (Array.isArray(response.data.results)) {
         users = response.data.results;
       } else {
-        // If we can't find users array, log an error
         console.error('Could not extract users array from response:', response.data);
         return [];
       }
-    } else {
-      console.error('Invalid response format:', typeof response.data);
-      return [];
     }
     
-    // Validate each user has required fields
-    const validUsers = users.filter(user => {
-      if (!user || typeof user !== 'object') return false;
-      if (!user._id) return false;
-      if (!user.firstName || !user.lastName) return false;
-      return true;
-    });
+    // Log the users with distances for debugging
+    console.log('Users with distances:', users.map(u => ({
+      name: `${u.firstName} ${u.lastName}`,
+      distance: u.distance
+    })));
     
-    // Sort users by distance (closest first)
-    const sortedUsers = validUsers.sort((a, b) => {
-      // Handle cases where distance might be missing
-      const distanceA = typeof a.distance === 'number' ? a.distance : Infinity;
-      const distanceB = typeof b.distance === 'number' ? b.distance : Infinity;
-      
-      return distanceA - distanceB; // Sort ascending (closest first)
-    });
-    
-    console.log('Users sorted by distance:', sortedUsers.map(u => `${u.firstName} (${u.distance}km)`));
-    
-    console.log(`Retrieved ${sortedUsers.length} valid nearby users`);
-    
-    return sortedUsers;
+    return users;
   } catch (error) {
     console.error('Error fetching nearby professionals:', error);
     
@@ -820,7 +796,6 @@ getNearbyProfessionals: async (distance = 10) => {
       // that falls out of the range of 2xx
       console.error('Error response data:', error.response.data);
       console.error('Error response status:', error.response.status);
-      console.error('Error response headers:', error.response.headers);
     } else if (error.request) {
       // The request was made but no response was received
       console.error('Error request:', error.request);
@@ -831,7 +806,7 @@ getNearbyProfessionals: async (distance = 10) => {
     
     return [];  // Return empty array on error
   }
-},
+}
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
