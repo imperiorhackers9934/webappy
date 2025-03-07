@@ -16,6 +16,7 @@ import defaultProfilePic from '../assets/default-avatar.png';
 
 const Dashboard = () => {
   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [nearbyUsers, setNearbyUsers] = useState([]);
   const locationControlRef = useRef(null);
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
@@ -37,7 +38,44 @@ const Dashboard = () => {
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
 
-  // Helper function to get profile picture
+  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+    try {
+      const nearbyResponse = await api.getNearbyProfessionals(distance);
+      
+      if (!Array.isArray(nearbyResponse)) {
+        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+        setNearbyUsers([]);
+        setLoading(prev => ({ ...prev, nearby: false }));
+        return;
+      }
+      
+      // Now fetch connections in a separate call
+      let connections = [];
+      try {
+        connections = await api.getConnections('all');
+        if (!Array.isArray(connections)) {
+          console.error('Invalid response from getConnections:', connections);
+          connections = [];
+        }
+      } catch (connectionError) {
+        console.error('Error fetching connections:', connectionError);
+        connections = [];
+      }
+      
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set(connections.map(conn => conn._id));
+      
+      // Filter out users who are in your connections
+      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
+      
+      setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
+      setLoading(prev => ({ ...prev, nearby: false }));
+    } catch (error) {
+      console.error('Error fetching nearby professionals:', error);
+      setLoading(prev => ({ ...prev, nearby: false }));
+    }
+  };
+
   const getProfilePicture = (userObj) => {
     if (userObj?.profilePicture) {
       return userObj.profilePicture;
