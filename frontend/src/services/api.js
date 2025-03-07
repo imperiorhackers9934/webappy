@@ -556,44 +556,49 @@ const chatService = {
   },
   
   // Start an audio call
+
   startAudioCall: async (chatId) => {
-    try {
-      const response = await api.post(`/api/calls/${chatId}/audio`);
-      
-      // Notify call via socket
-      socketManager.emit('call_started', {
-        chatId,
-        callId: response.data.callId,
-        type: 'audio',
-        initiator: response.data.initiator
-      });
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error starting audio call:', error);
-      throw error;
-    }
-  },
-  
-  // Start a video call
-  startVideoCall: async (chatId) => {
-    try {
-      const response = await api.post(`/api/calls/${chatId}/video`);
-      
-      // Notify call via socket
-      socketManager.emit('call_started', {
-        chatId,
-        callId: response.data.callId,
-        type: 'video',
-        initiator: response.data.initiator
-      });
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error starting video call:', error);
-      throw error;
-    }
-  },
+  try {
+    const response = await api.post(`/api/calls/${chatId}/audio`);
+    
+    // Notify call via socket - include full initiator and participant objects
+    const callData = {
+      chatId,
+      callId: response.data.callId,
+      type: 'audio',
+      initiator: response.data.initiator
+    };
+    
+    socketManager.emit('call_started', callData);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error starting audio call:', error);
+    throw error;
+  }
+},
+
+// Update video call method similarly
+startVideoCall: async (chatId) => {
+  try {
+    const response = await api.post(`/api/calls/${chatId}/video`);
+    
+    // Notify call via socket - include full initiator and participant objects
+    const callData = {
+      chatId,
+      callId: response.data.callId,
+      type: 'video',
+      initiator: response.data.initiator
+    };
+    
+    socketManager.emit('call_started', callData);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error starting video call:', error);
+    throw error;
+  }
+},
   
   // Accept a call
   acceptCall: async (callId) => {
