@@ -899,163 +899,259 @@ const [userLocation, setUserLocation] = useState(null);
                     )}
                   </div>
                   
-                    <div className={`mb-8 ${activeSection !== 'all' ? 'mb-0' : ''}`}>
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center">
-                  <MapPin className="h-5 w-5 text-orange-500 mr-2" />
-                  <h2 className="text-xl font-semibold text-gray-800">Nearby Professionals</h2>
-                </div>
-                <Link to="/network/nearby" className="text-orange-500 hover:text-orange-600 text-sm flex items-center">
-                  See All <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </div>
+                   <div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
+  <div className="flex justify-between items-center mb-4">
+    <div className="flex items-center">
+      <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
+      <h2 className="text-base md:text-xl font-semibold text-gray-800">Nearby Professionals</h2>
+    </div>
+    <Link to="/network/nearby" className="text-xs md:text-sm text-orange-500 hover:text-orange-600 flex items-center">
+      See All <ChevronRight className="h-3 w-3 md:h-4 md:w-4 ml-1" />
+    </Link>
+  </div>
 
-              {loading.nearby ? (
-                <div className="bg-white rounded-xl shadow-md p-4 flex justify-center items-center h-60">
-                  <Loader />
-                </div>
-              ) : nearbyUsers.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {nearbyUsers.map(user => (
-                    <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                      <div className="h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative">
-                        {/* User distance badge */}
-                        {user.distance && (
-                          <div className="absolute top-2 right-2 bg-white px-2 py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                            {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="p-4 relative">
-                        {/* Profile Picture */}
-                        <div className="absolute -top-12 left-4 border-4 border-white rounded-full">
-                          {user.profilePicture ? (
-                            <img 
-                              src={user.profilePicture} 
-                              alt={`${user.firstName} ${user.lastName}`}
-                              className="h-20 w-20 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center">
-                              <span className="text-xl font-medium text-orange-600">
-                                {user.firstName?.charAt(0)}
-                                {user.lastName?.charAt(0)}
-                              </span>
-                            </div>
-                          )}
-                          {user.online && (
-                            <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-green-500 border-2 border-white"></div>
-                          )}
-                        </div>
-                        
-                        <div className="mt-10">
-                          <h3 
-                            className="text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer"
-                            onClick={() => navigate(`/profile/${user._id}`)}
-                          >
-                            {user.firstName} {user.lastName}
-                          </h3>
-                          <p className="text-sm text-gray-600 truncate">
-                            {user.headline || "Professional"}
-                          </p>
-                          
-                          {user.industry && (
-                            <div className="mt-2 text-sm text-gray-600">
-                              {user.industry}
-                            </div>
-                          )}
-                          
-                          {/* Skills tags */}
-                          {user.skills && user.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-3">
-                              {user.skills.slice(0, 2).map((skill, index) => (
-                                <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded">
-                                  {typeof skill === 'string' ? skill : skill.name}
-                                </span>
-                              ))}
-                              {user.skills.length > 2 && (
-                                <span className="text-xs text-gray-500">+{user.skills.length - 2} more</span>
-                              )}
-                            </div>
-                          )}
-                          
-                          <div className="mt-4 flex space-x-2">
-                            <button
-                              onClick={() => handleConnect(user._id, 'nearby')}
-                              disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
-                              className={`flex-1 py-2 rounded-md text-sm font-medium ${
-                                user.connectionStatus === 'pending' 
-                                  ? 'bg-gray-100 text-gray-500'
-                                  : user.connectionStatus === 'connected'
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-orange-500 text-white hover:bg-orange-600'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center">
-                                <UserPlus className="h-4 w-4 mr-1" />
-                                {user.connectionStatus === 'pending' 
-                                  ? 'Pending' 
-                                  : user.connectionStatus === 'connected'
-                                    ? 'Connected'
-                                    : 'Connect'}
-                              </div>
-                            </button>
-                            
-                            <button
-                              onClick={() => handleFollow(user._id, 'nearby')}
-                              className={`flex-1 py-2 rounded-md text-sm font-medium ${
-                                user.isFollowing
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center">
-                                <Rss className="h-4 w-4 mr-1" />
-                                {user.isFollowing ? 'Following' : 'Follow'}
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+  {nearbyUsers.length > 0 ? (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+      {nearbyUsers.map(user => (
+        <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100">
+          <div className="h-16 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative">
+            {/* User distance badge */}
+            {user.distance && (
+              <div className="absolute top-2 right-2 bg-white px-2 py-0.5 md:py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
+              </div>
+            )}
+          </div>
+          
+          <div className="p-3 md:p-4 relative">
+            {/* Profile Picture */}
+            <div className="absolute -top-10 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
+              {user.profilePicture ? (
+                <img 
+                  src={user.profilePicture} 
+                  alt={`${user.firstName} ${user.lastName}`}
+                  className="h-16 w-16 md:h-20 md:w-20 rounded-full object-cover"
+                />
               ) : (
-                <div className="bg-white rounded-xl shadow-md p-8 text-center">
-                  <div className="inline-flex h-16 w-16 rounded-full bg-orange-100 items-center justify-center mb-4">
-                    <MapPin className="h-8 w-8 text-orange-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-2">No Nearby Professionals</h3>
-                  <p className="text-gray-600 mb-4">
-                    {userLocation 
-                      ? "We couldn't find any professionals near your current location." 
-                      : "Please enable location services to see professionals near you."}
-                  </p>
-                  <button 
-                    onClick={getUserLocation}
-                    className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-                  >
-                    Retry
-                  </button>
+                <div className="h-16 w-16 md:h-20 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
+                  <span className="text-lg md:text-xl font-medium text-orange-600">
+                    {user.firstName?.charAt(0)}
+                    {user.lastName?.charAt(0)}
+                  </span>
                 </div>
               )}
+              {user.online && (
+                <div className="absolute bottom-0 right-0 h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500 border-2 border-white"></div>
+              )}
             </div>
-          )}
+            
+            <div className="mt-8 md:mt-10">
+              <h3 
+                className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate"
+                onClick={() => navigate(`/profile/${user._id}`)}
+              >
+                {user.firstName} {user.lastName}
+              </h3>
+              <p className="text-xs md:text-sm text-gray-600 truncate">
+                {user.headline || "Professional"}
+              </p>
+              
+              {user.industry && (
+                <div className="mt-1 md:mt-2 text-xs md:text-sm text-gray-600 truncate">
+                  {user.industry}
+                </div>
+              )}
+              
+              {/* Skills tags */}
+              {user.skills && user.skills.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2 md:mt-3">
+                  {user.skills.slice(0, 2).map((skill, index) => (
+                    <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate max-w-[100px]">
+                      {typeof skill === 'string' ? skill : skill.name}
+                    </span>
+                  ))}
+                  {user.skills.length > 2 && (
+                    <span className="text-xs text-gray-500">+{user.skills.length - 2} more</span>
+                  )}
+                </div>
+              )}
+              
+              <div className="mt-3 md:mt-4 flex space-x-2">
+                <button
+                  onClick={() => handleConnect(user._id)}
+                  disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                  className={`flex-1 py-1 md:py-2 rounded-md text-xs md:text-sm font-medium ${
+                    user.connectionStatus === 'pending' 
+                      ? 'bg-gray-100 text-gray-500'
+                      : user.connectionStatus === 'connected'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-orange-500 text-white hover:bg-orange-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-center">
+                    <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                    {user.connectionStatus === 'pending' 
+                      ? 'Pending' 
+                      : user.connectionStatus === 'connected'
+                        ? 'Connected'
+                        : 'Connect'}
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => handleFollow(user._id)}
+                  className={`flex-1 py-1 md:py-2 rounded-md text-xs md:text-sm font-medium ${
+                    user.isFollowing
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-center">
+                    <Rss className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                    {user.isFollowing ? 'Following' : 'Follow'}
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-8 text-center">
+      <div className="inline-flex h-12 w-12 md:h-16 md:w-16 rounded-full bg-orange-100 items-center justify-center mb-3 md:mb-4">
+        <MapPin className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
+      </div>
+      <h3 className="text-base md:text-xl font-semibold text-gray-800 mb-1 md:mb-2">No Nearby Professionals</h3>
+      <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
+        {userLocation 
+          ? "We couldn't find any professionals near your current location." 
+          : "Please enable location services to see professionals near you."}
+      </p>
+      <button 
+        onClick={getUserLocation}
+        className="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+      >
+        Retry
+      </button>
+    </div>
+  )}
+</div>
+
+{/* No Nearby Users Empty State - Responsive */}
+{nearbyUsers.length === 0 && (
+  <div className="text-center py-4 md:py-6 bg-white rounded-xl shadow-md p-4 md:p-8 mb-4">
+    <div className="bg-orange-100 rounded-full h-16 w-16 md:h-20 md:w-20 flex items-center justify-center mx-auto mb-3 md:mb-4">
+      <MapPin className="h-8 w-8 md:h-10 md:w-10 text-orange-500" />
+    </div>
+    <p className="text-sm md:text-base text-gray-600">No professionals found in your area.</p>
+    <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">Try expanding your search distance or changing your filters.</p>
+    <div className="mt-3 md:mt-4 flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
+      <button 
+        onClick={getUserLocation}
+        className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
+      >
+        Refresh Location
+      </button>
+      <button 
+        onClick={() => navigate('/network/nearby')}
+        className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+      >
+        View All Nearby Users
+      </button>
+    </div>
+  </div>
+)}
                 </div>
               </div>
             )}
 
-            {activeSection === 'content' && (
-              <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
-                <div className="mb-4 md:mb-6">
-                  <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-2">Content Creation</h2>
-                  <p className="text-sm text-gray-500">Share updates, insights, and connect with your network</p>
+           {activeSection === 'content' && (
+  <div className="bg-white rounded-xl shadow-md p-3 md:p-6">
+    <div className="mb-3 md:mb-6">
+      <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1 md:mb-2">Content Creation</h2>
+      <p className="text-xs md:text-sm text-gray-500">Share updates, insights, and connect with your network</p>
+    </div>
+    
+    {/* CreatePost Component - Add responsive props or wrapper */}
+    <div className="create-post-wrapper">
+      <CreatePost />
+    </div>
+    
+    {/* Recent Posts Preview - More responsive */}
+    {recentPosts.length > 0 && (
+      <div className="mt-4 md:mt-8">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-base md:text-lg font-semibold text-gray-800">Your Recent Posts</h3>
+          <Link to="/posts" className="text-xs md:text-sm text-orange-500 hover:text-orange-600">
+            View All →
+          </Link>
+        </div>
+        
+        <div className="space-y-3 md:space-y-4">
+          {recentPosts.slice(0, 2).map(post => (
+            <div key={post._id} className="p-2 md:p-4 border border-gray-100 rounded-lg hover:bg-orange-50 transition-colors">
+              <div className="flex items-start">
+                <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg overflow-hidden mr-2 md:mr-3 flex-shrink-0">
+                  <img 
+                    src={getProfilePicture(post.author || user)}
+                    alt={`${post.author?.firstName || user?.firstName || 'User'}`}
+                    className="h-full w-full object-cover" 
+                  />
                 </div>
-                <CreatePost/>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                    <p className="font-medium text-xs md:text-sm text-gray-900 truncate">
+                      {post.author?.firstName || user?.firstName || 'You'} {post.author?.lastName || user?.lastName || ''}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(post.createdAt)}
+                    </p>
+                  </div>
+                  <p className="text-xs md:text-sm text-gray-700 mt-1 line-clamp-2">
+                    {post.content}
+                  </p>
+                  
+                  {post.images && post.images.length > 0 && (
+                    <div className="mt-2">
+                      <div className="h-20 md:h-28 rounded-lg overflow-hidden">
+                        <img 
+                          src={post.images[0].url} 
+                          alt="Post media"
+                          className="h-full w-full object-cover" 
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center space-x-3 text-xs text-gray-500">
+                      <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                        </svg>
+                        {post.likes || 0}
+                      </div>
+                      <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        {post.comments?.length || 0}
+                      </div>
+                    </div>
+                    <Link to={`/posts/${post._id}`} className="text-xs md:text-sm text-orange-500 hover:text-orange-600 font-medium">
+                      View Post
+                    </Link>
+                  </div>
+                </div>
               </div>
-            )}
-
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
             {activeSection === 'portfolio' && (
               <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
                 <div className="mb-4 md:mb-6">
