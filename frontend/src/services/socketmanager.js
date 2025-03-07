@@ -10,7 +10,7 @@ class SocketManager {
     this.maxReconnectAttempts = 5;
     this.statusListeners = [];
     this.lastMessages = {};
-    this.debug = process.env.NODE_ENV === 'development';
+    this.debug = true; // Always log for debugging
   }
 
   connect(token, url) {
@@ -22,9 +22,7 @@ class SocketManager {
     // Determine server URL
     const serverUrl = url || this._getDefaultServerUrl();
     
-    if (this.debug) {
-      console.log(`Socket.IO: Connecting to ${serverUrl} with token: ${token.substring(0, 10)}...`);
-    }
+    console.log(`Socket.IO: Connecting to ${serverUrl} with token: ${token.substring(0, 10)}...`);
 
     // Close existing connection if any
     this._cleanup();
@@ -55,44 +53,44 @@ class SocketManager {
 
   _getDefaultServerUrl() {
     // Use environment variable if available
-    if (import.meta.env.VITE_SOCKET_URL) {
-      return import.meta.env.VITE_SOCKET_URL;
+    if (window.env && window.env.SOCKET_URL) {
+      return window.env.SOCKET_URL;
+    }
+    
+    // Try to use the current API URL without the path
+    try {
+      // Get the base URL from your API
+      const apiBase = "https://myapp-uc9m.onrender.com"; // Replace with your actual API base URL
+      return apiBase;
+    } catch (e) {
+      console.error('Error constructing socket URL:', e);
     }
 
     // Otherwise construct from window location
     const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
     const host = window.location.hostname || 'localhost';
-    const port = import.meta.env.VITE_SOCKET_PORT || '3000';
+    const port = window.location.hostname === 'localhost' ? '3000' : '';
     
-    return `${protocol}://${host}:${port}`;
+    return `${protocol}://${host}${port ? `:${port}` : ''}`;
   }
 
   _setupEventHandlers() {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
+      console.log('Socket.IO: Connected successfully with ID:', this.socket.id);
       this._updateStatus('CONNECTED');
       this.reconnectAttempts = 0;
       
-      if (this.debug) {
-        console.log('Socket.IO: Connected successfully with ID:', this.socket.id);
-      }
-      
       // Re-register all event handlers
-      for (const [event, handlers] of Object.entries(this.eventHandlers)) {
-        for (const handler of handlers) {
-          const wrappedHandler = (data) => {
-            this.lastMessages[event] = data;
-            handler(data);
-          };
-          
-          // Store the reference to the wrapper
-          handler._wrappedHandler = wrappedHandler;
-          
-          // Add event listener to socket
-          this.socket.on(event, wrappedHandler);
-        }
-      }
+      Object.entries(this.eventHandlers).forEach(([event, handlers]) => {
+        handlers.forEach(handler => {
+          if (typeof handler._rawHandler === 'function') {
+            // Use the raw handler function directly with socket.on
+            this.socket.on(event, handler._rawHandler);
+          }
+        });
+      });
       
       // Request initial data from server
       this.emit('client_ready', { timestamp: new Date().toISOString() });
@@ -111,18 +109,13 @@ class SocketManager {
 
     this.socket.on('disconnect', (reason) => {
       this._updateStatus('DISCONNECTED');
-      
-      if (this.debug) {
-        console.log(`Socket.IO: Disconnected (${reason})`);
-      }
+      console.log(`Socket.IO: Disconnected (${reason})`);
     });
 
     // Setup debug event for development
-    if (this.debug) {
-      this.socket.onAny((event, ...args) => {
-        console.log(`Socket.IO [Event]: ${event}`, args);
-      });
-    }
+    this.socket.onAny((event, ...args) => {
+      console.log(`Socket.IO [Event]: ${event}`, args);
+    });
   }
 
   disconnect() {
@@ -160,24 +153,45 @@ class SocketManager {
       this.eventHandlers[event] = [];
     }
     
-    this.eventHandlers[event].push(handler);
+    // Create a wrapper function that will update lastMessages and call the handler
+    const wrappedHandler = (data) => {
+      console.log(`Socket.IO: Event ${event} received`, data);
+      this.lastMessages[event] = data;
+      handler(data);
+    };
     
-    // If socket exists, add the handler
+    // Store the original handler for reconnection
+    wrappedHandler._rawHandler = wrappedHandler;
+    
+    // Add to our handlers list
+    this.eventHandlers[event].push(wrappedHandler);
+    
+    // If socket exists, register with the socket
     if (this.socket) {
-      // We need to create a wrapper that will call our handler
-      const wrappedHandler = (data) => {
-        this.lastMessages[event] = data;
-        handler(data);
-      };
-      
-      // Store the reference to the wrapper
-      handler._wrappedHandler = wrappedHandler;
-      
+      console.log(`Socket.IO: Registering handler for ${event}`);
       this.socket.on(event, wrappedHandler);
     }
     
     // Return unsubscribe function
-    return () => this.off(event, handler);
+    return () => this.off(event, wrappedHandler);
+  }
+
+  // Register a handler that directly uses socket.io's API
+  // This is helpful for debugging
+  rawOn(event, handler) {
+    if (this.socket) {
+      console.log(`Socket.IO: Directly registering raw handler for ${event}`);
+      this.socket.on(event, handler);
+      
+      // Return function to remove listener
+      return () => {
+        if (this.socket) {
+          this.socket.off(event, handler);
+        }
+      };
+    }
+    
+    return () => {}; // No-op if no socket
   }
 
   // Remove an event handler
@@ -190,8 +204,8 @@ class SocketManager {
     this.eventHandlers[event] = this.eventHandlers[event].filter(h => h !== handler);
     
     // Remove from socket if it exists
-    if (this.socket && handler._wrappedHandler) {
-      this.socket.off(event, handler._wrappedHandler);
+    if (this.socket) {
+      this.socket.off(event, handler._rawHandler || handler);
     }
   }
 
@@ -203,6 +217,7 @@ class SocketManager {
     }
     
     try {
+      console.log(`Socket.IO: Emitting event ${event}`, data);
       this.socket.emit(event, data);
       return true;
     } catch (error) {
@@ -226,11 +241,13 @@ class SocketManager {
 
   // Join a chat room
   joinChat(chatId) {
+    console.log(`Socket.IO: Joining chat ${chatId}`);
     return this.emit('join_chat', { chatId });
   }
   
   // Leave a chat room
   leaveChat(chatId) {
+    console.log(`Socket.IO: Leaving chat ${chatId}`);
     return this.emit('leave_chat', { chatId });
   }
   
@@ -262,6 +279,20 @@ class SocketManager {
   // Get the last received message for an event
   getLastMessage(event) {
     return this.lastMessages[event] || null;
+  }
+  
+  // Force a reconnection
+  forceReconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+    
+    const token = localStorage.getItem('token');
+    if (token) {
+      setTimeout(() => {
+        this.connect(token);
+      }, 1000);
+    }
   }
 }
 
