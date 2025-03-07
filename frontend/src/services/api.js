@@ -806,7 +806,7 @@ getNearbyProfessionals: async (distance = 10) => {
     
     return [];  // Return empty array on error
   }
-}
+},
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
