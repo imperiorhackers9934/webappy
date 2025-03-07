@@ -838,10 +838,149 @@ const Dashboard = () => {
                     )}
                   </div>
                   
-                  <div className="bg-blue-50 rounded-xl p-4 md:p-6">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Nearby Professionals</h3>
-                    <NearbyProfessionals />
+                    <div className={`mb-8 ${activeSection !== 'all' ? 'mb-0' : ''}`}>
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center">
+                  <MapPin className="h-5 w-5 text-orange-500 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Nearby Professionals</h2>
+                </div>
+                <Link to="/network/nearby" className="text-orange-500 hover:text-orange-600 text-sm flex items-center">
+                  See All <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
+
+              {loading.nearby ? (
+                <div className="bg-white rounded-xl shadow-md p-4 flex justify-center items-center h-60">
+                  <Loader />
+                </div>
+              ) : nearbyUsers.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {nearbyUsers.map(user => (
+                    <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                      <div className="h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative">
+                        {/* User distance badge */}
+                        {user.distance && (
+                          <div className="absolute top-2 right-2 bg-white px-2 py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                            {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="p-4 relative">
+                        {/* Profile Picture */}
+                        <div className="absolute -top-12 left-4 border-4 border-white rounded-full">
+                          {user.profilePicture ? (
+                            <img 
+                              src={user.profilePicture} 
+                              alt={`${user.firstName} ${user.lastName}`}
+                              className="h-20 w-20 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center">
+                              <span className="text-xl font-medium text-orange-600">
+                                {user.firstName?.charAt(0)}
+                                {user.lastName?.charAt(0)}
+                              </span>
+                            </div>
+                          )}
+                          {user.online && (
+                            <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-green-500 border-2 border-white"></div>
+                          )}
+                        </div>
+                        
+                        <div className="mt-10">
+                          <h3 
+                            className="text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer"
+                            onClick={() => navigate(`/profile/${user._id}`)}
+                          >
+                            {user.firstName} {user.lastName}
+                          </h3>
+                          <p className="text-sm text-gray-600 truncate">
+                            {user.headline || "Professional"}
+                          </p>
+                          
+                          {user.industry && (
+                            <div className="mt-2 text-sm text-gray-600">
+                              {user.industry}
+                            </div>
+                          )}
+                          
+                          {/* Skills tags */}
+                          {user.skills && user.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-3">
+                              {user.skills.slice(0, 2).map((skill, index) => (
+                                <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded">
+                                  {typeof skill === 'string' ? skill : skill.name}
+                                </span>
+                              ))}
+                              {user.skills.length > 2 && (
+                                <span className="text-xs text-gray-500">+{user.skills.length - 2} more</span>
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="mt-4 flex space-x-2">
+                            <button
+                              onClick={() => handleConnect(user._id, 'nearby')}
+                              disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                              className={`flex-1 py-2 rounded-md text-sm font-medium ${
+                                user.connectionStatus === 'pending' 
+                                  ? 'bg-gray-100 text-gray-500'
+                                  : user.connectionStatus === 'connected'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center">
+                                <UserPlus className="h-4 w-4 mr-1" />
+                                {user.connectionStatus === 'pending' 
+                                  ? 'Pending' 
+                                  : user.connectionStatus === 'connected'
+                                    ? 'Connected'
+                                    : 'Connect'}
+                              </div>
+                            </button>
+                            
+                            <button
+                              onClick={() => handleFollow(user._id, 'nearby')}
+                              className={`flex-1 py-2 rounded-md text-sm font-medium ${
+                                user.isFollowing
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center">
+                                <Rss className="h-4 w-4 mr-1" />
+                                {user.isFollowing ? 'Following' : 'Follow'}
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl shadow-md p-8 text-center">
+                  <div className="inline-flex h-16 w-16 rounded-full bg-orange-100 items-center justify-center mb-4">
+                    <MapPin className="h-8 w-8 text-orange-600" />
                   </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">No Nearby Professionals</h3>
+                  <p className="text-gray-600 mb-4">
+                    {userLocation 
+                      ? "We couldn't find any professionals near your current location." 
+                      : "Please enable location services to see professionals near you."}
+                  </p>
+                  <button 
+                    onClick={getUserLocation}
+                    className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
                 </div>
               </div>
             )}
