@@ -161,35 +161,42 @@ const profileService = {
     }
   },
 
-  getProfile: async (userId) => {
+getProfile: async (userId) => {
+  try {
     // Special case for "view"
     if (userId === 'view') {
       return api.get('/api/profile-views/analytics');
     }
     
-    // Validate userId before making the request
+    // Basic validation for userId
     if (!userId || userId === 'undefined') {
-      const error = new Error('Valid user ID is required');
       console.error('Invalid userId in getProfile:', userId);
-      throw error;
+      throw new Error('Valid user ID is required');
     }
     
-    // Ensure userId is a valid ObjectId format
-    if (!/^[0-9a-fA-F]{24}$/.test(userId)) {
-      const error = new Error('Invalid user ID format');
-      console.error('Invalid userId format in getProfile:', userId);
-      throw error;
-    }
-    
+    // Log the userId being requested
     console.log(`Getting profile for user: ${userId}`);
-    try {
-      const response = await api.get(`/api/users/${userId}/profile`);
-      return response.data;
-    } catch (error) {
-      console.error('Error getting user profile:', error);
-      throw error;
+    
+    // Make the API request to fetch the profile
+    const response = await api.get(`/api/users/${userId}/profile`);
+    
+    // Log successful response
+    console.log(`Successfully fetched profile for user: ${userId}`);
+    
+    return response.data;
+  } catch (error) {
+    // Enhanced error logging
+    console.error(`Error fetching profile for user ${userId}:`, error);
+    
+    if (error.response) {
+      console.error('Error response status:', error.response.status);
+      console.error('Error response data:', error.response.data);
     }
-  },
+    
+    // Re-throw the error to be handled by the component
+    throw error;
+  }
+}
   
   updateLocation: async (latitude, longitude) => {
     const response = await api.put('/api/location', { latitude, longitude });
