@@ -24,6 +24,7 @@ const ChatWindow = ({
   const [activeCall, setActiveCall] = useState(null);
   const messageEndRef = useRef(null);
   const lastMessageRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const isInitialLoad = useRef(true);
 
   // Get the other participant in a direct chat
@@ -399,7 +400,7 @@ const ChatWindow = ({
   return (
     <div className="flex-grow flex flex-col h-full bg-white">
       {/* Chat Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white shadow-sm">
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white shadow-sm flex-shrink-0">
         <div className="flex items-center">
           <div className="relative">
             {participant?.profilePicture ? (
@@ -481,8 +482,12 @@ const ChatWindow = ({
         </div>
       </div>
       
-      {/* Messages List */}
-      <div className="flex-grow overflow-y-auto bg-gray-50 px-4 py-2">
+      {/* Messages List - overflow-y-auto applied here, height set to make it scrollable */}
+      <div 
+        ref={messagesContainerRef}
+        className="flex-grow overflow-y-auto bg-gray-50 px-4 py-2"
+        style={{ height: "0" }} // This forces the div to respect flex-grow while allowing scrolling
+      >
         {loading && messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
@@ -540,13 +545,13 @@ const ChatWindow = ({
       
       {/* Typing Indicator */}
       {getTypingIndicatorText() && (
-        <div className="px-4 py-1 text-xs text-gray-500 bg-white border-t border-gray-100">
+        <div className="px-4 py-1 text-xs text-gray-500 bg-white border-t border-gray-100 flex-shrink-0">
           {getTypingIndicatorText()}
         </div>
       )}
       
       {/* Message Input */}
-      <div className="border-t border-gray-200 p-3 bg-white">
+      <div className="border-t border-gray-200 p-3 bg-white flex-shrink-0">
         <MessageInput 
           onSendMessage={handleSendMessage}
           onTyping={sendTypingIndicator}
