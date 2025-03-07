@@ -10,7 +10,7 @@ import CreatePost from '../components/posts/CreatePost';
 import { PlusCircle, Check, Calendar, X, User } from 'lucide-react';
 import { useToast } from '../components/common/Toast';
 import LocationPermissionIcon from '../components/LocationPermissionIcon';
-
+import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss, Sidebar, Home, Bell, MessageCircle, Briefcase, Settings, LogOut } from 'lucide-react';
 // Add default profile picture
 import defaultProfilePic from '../assets/default-avatar.png';
 
