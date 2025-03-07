@@ -196,7 +196,7 @@ getProfile: async (userId) => {
     // Re-throw the error to be handled by the component
     throw error;
   }
-}
+},
   
   updateLocation: async (latitude, longitude) => {
     const response = await api.put('/api/location', { latitude, longitude });
