@@ -27,8 +27,8 @@ const ProfilePage = () => {
     // Memoized fetch function to avoid recreation on each render
     const fetchUserData = useCallback(async () => {
   try {
-    setLoading(true);
     console.log("Starting to fetch profile data...");
+    setLoading(true);
     
     // First, get the current user's info
     console.log("Fetching current user info...");
@@ -61,11 +61,31 @@ const ProfilePage = () => {
       return;
     }
     
-    // Update state with fetched data
-    setProfile(profileData.user);
-    setUserRelationship(profileData.relationshipStatus || {});
-    setPortfolio(profileData.portfolio || {});
-    setRecommendations(profileData.recommendations || []);
+    // Prepare all state updates to minimize React batching issues
+    const updatedProfile = profileData.user;
+    const updatedRelationship = profileData.relationshipStatus || {};
+    const updatedPortfolio = profileData.portfolio || {};
+    const updatedRecommendations = profileData.recommendations || [];
+    
+    // Use Promise.all to wait for all state updates
+    await Promise.all([
+      new Promise(resolve => {
+        setProfile(updatedProfile);
+        resolve();
+      }),
+      new Promise(resolve => {
+        setUserRelationship(updatedRelationship);
+        resolve();
+      }),
+      new Promise(resolve => {
+        setPortfolio(updatedPortfolio);
+        resolve();
+      }),
+      new Promise(resolve => {
+        setRecommendations(updatedRecommendations);
+        resolve();
+      })
+    ]);
     
     // Record view if not our own profile
     if (!isSelf) {
@@ -84,25 +104,26 @@ const ProfilePage = () => {
       }
     }
     
-    // Important: Make sure loading is set to false AFTER all state updates
-    console.log("Setting loading to false now");
-    setLoading(false);
-    
-    // Add a forced state update check 
+    // Use timeout to ensure state updates have processed
     setTimeout(() => {
-      if (loading) {
-        console.log("Forced loading state update to false");
-        setLoading(false);
-      }
-    }, 500);
+      console.log("Setting loading to false with timeout");
+      setLoading(false);
+    }, 0);
     
   } catch (err) {
     console.error('Error fetching profile:', err);
     setError('Failed to load profile data');
     setLoading(false);
   }
-}, [userId, navigate, loading]);
-  
+}, [userId, navigate]);
+
+// Add this effect outside the fetchUserData function
+useEffect(() => {
+  if (profile && loading) {
+    console.log("Profile loaded but still in loading state - forcing update");
+    setLoading(false);
+  }
+}, [profile, loading]);
     useEffect(() => {
       // If we're on the edit route, we should handle it differently
       if (location.pathname.endsWith('/edit')) {
