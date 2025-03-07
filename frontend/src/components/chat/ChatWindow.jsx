@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MessageInput from './MessageInput';
 import MessageList from './MessageList';
 import MessageReactions from './MessageReactions';
 import CallInterface from './CallInterface';
 import api from '../../services/api';
+import socketManager from '../../services/socketmanager';
 
 const ChatWindow = ({
   chat,
@@ -13,7 +14,9 @@ const ChatWindow = ({
   sendReadReceipt,
   typingUsers,
   onlineUsers,
-  socketStatus 
+  socketStatus,
+  showSidebarToggle = false,
+  onToggleSidebar = () => {}
 }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,10 +25,12 @@ const ChatWindow = ({
   const [nextCursor, setNextCursor] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
   const messageEndRef = useRef(null);
-  const lastMessageRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const isInitialLoad = useRef(true);
+  const handlersRef = useRef({});  // Store event handlers to avoid recreating them
 
   // Get the other participant in a direct chat
   const getParticipant = () => {
@@ -81,28 +86,242 @@ const ChatWindow = ({
       messageEndRef.current?.scrollIntoView({ behavior: 'auto' });
       isInitialLoad.current = false;
     } else if (!isInitialLoad.current && messages.length > 0) {
-      messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Check if we're already at the bottom
+      const container = messagesContainerRef.current;
+      if (container) {
+        const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        if (isAtBottom) {
+          messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
     }
   }, [messages]);
 
+  // Register socket event handlers for messages and calls
+  useEffect(() => {
+    // Create handlers if they don't exist
+    if (!handlersRef.current.newMessage) {
+      handlersRef.current.newMessage = (message) => {
+        // Only handle messages for this chat
+        if (message.chatRoom === chat._id) {
+          console.log('New message for current chat received:', message);
+          
+          // Update messages list
+          setMessages(prevMessages => {
+            // Check if message already exists (to avoid duplicates)
+            const exists = prevMessages.some(msg => msg._id === message._id);
+            if (exists) return prevMessages;
+            
+            // Mark as read if we're the receiver
+            if (message.sender._id !== currentUser._id) {
+              sendReadReceipt(message._id, chat._id);
+            }
+            
+            return [...prevMessages, message];
+          });
+        }
+      };
+      
+      handlersRef.current.messageUpdated = (data) => {
+        const { messageId, updateType, updatedData } = data;
+        
+        if (data.chatId !== chat._id) return;
+        
+        // Update the message in state
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg._id === messageId 
+              ? { ...msg, ...updatedData } 
+              : msg
+          )
+        );
+      };
+      
+      handlersRef.current.messageDeleted = (data) => {
+        if (data.chatId !== chat._id) return;
+        
+        // Mark message as deleted in state
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg._id === data.messageId 
+              ? { ...msg, deleted: true, content: 'This message was deleted' } 
+              : msg
+          )
+        );
+      };
+      
+      handlersRef.current.messageRead = (data) => {
+        if (data.chatId !== chat._id) return;
+        
+        // Update read status for message
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg._id === data.messageId 
+              ? { ...msg, read: true } 
+              : msg
+          )
+        );
+      };
+      
+      handlersRef.current.callStarted = (data) => {
+        console.log('Call started event received in ChatWindow:', data);
+        
+        // Only handle calls for this chat
+        if (chat._id !== data.chatId) return;
+        
+        // Only show incoming call UI if we're not the initiator
+        if (data.initiator._id !== currentUser._id) {
+          setActiveCall({
+            callId: data.callId,
+            type: data.type,
+            initiator: data.initiator,
+            participant: currentUser,
+            status: 'connecting'
+          });
+        }
+      };
+      
+      handlersRef.current.callAccepted = (data) => {
+        console.log('Call accepted event received:', data);
+        
+        // Update call status
+        if (activeCall && activeCall.callId === data.callId) {
+          setActiveCall(prev => ({
+            ...prev,
+            status: 'ongoing'
+          }));
+        }
+      };
+      
+      handlersRef.current.callDeclined = (data) => {
+        console.log('Call declined event received:', data);
+        
+        // End call if it matches our active call
+        if (activeCall && activeCall.callId === data.callId) {
+          setActiveCall(null);
+        }
+      };
+      
+      handlersRef.current.callEnded = (data) => {
+        console.log('Call ended event received:', data);
+        
+        // End call if it matches our active call
+        if (activeCall && activeCall.callId === data.callId) {
+          setActiveCall(null);
+        }
+      };
+      
+      handlersRef.current.messageReaction = (data) => {
+        if (data.chatId !== chat._id) return;
+        
+        // Update message reactions
+        setMessages(prevMessages => 
+          prevMessages.map(msg => {
+            if (msg._id === data.messageId) {
+              // Get current reactions or empty array
+              const currentReactions = msg.reactions || [];
+              
+              // Filter out any existing reaction from this user
+              const filteredReactions = currentReactions.filter(r => r.userId !== data.userId);
+              
+              // Add the new reaction
+              const updatedReactions = [
+                ...filteredReactions,
+                {
+                  userId: data.userId,
+                  type: data.reaction,
+                  createdAt: new Date().toISOString()
+                }
+              ];
+              
+              return {
+                ...msg,
+                reactions: updatedReactions
+              };
+            }
+            return msg;
+          })
+        );
+      };
+      
+      handlersRef.current.reactionRemoved = (data) => {
+        if (data.chatId !== chat._id) return;
+        
+        // Remove reaction from message
+        setMessages(prevMessages => 
+          prevMessages.map(msg => {
+            if (msg._id === data.messageId) {
+              return {
+                ...msg,
+                reactions: (msg.reactions || []).filter(r => r.userId !== data.userId)
+              };
+            }
+            return msg;
+          })
+        );
+      };
+    }
+
+    // Register event handlers with Socket.IO
+    const newMessageUnsub = socketManager.on('new_message', handlersRef.current.newMessage);
+    const messageUpdatedUnsub = socketManager.on('message_updated', handlersRef.current.messageUpdated);
+    const messageDeletedUnsub = socketManager.on('message_deleted', handlersRef.current.messageDeleted);
+    const messageReadUnsub = socketManager.on('message_read', handlersRef.current.messageRead);
+    const callStartedUnsub = socketManager.on('call_started', handlersRef.current.callStarted);
+    const callAcceptedUnsub = socketManager.on('call_accepted', handlersRef.current.callAccepted);
+    const callDeclinedUnsub = socketManager.on('call_declined', handlersRef.current.callDeclined);
+    const callEndedUnsub = socketManager.on('call_ended', handlersRef.current.callEnded);
+    const messageReactionUnsub = socketManager.on('message_reaction', handlersRef.current.messageReaction);
+    const reactionRemovedUnsub = socketManager.on('reaction_removed', handlersRef.current.reactionRemoved);
+  
+    // Cleanup event handlers
+    return () => {
+      newMessageUnsub();
+      messageUpdatedUnsub();
+      messageDeletedUnsub();
+      messageReadUnsub();
+      callStartedUnsub();
+      callAcceptedUnsub();
+      callDeclinedUnsub();
+      callEndedUnsub();
+      messageReactionUnsub();
+      reactionRemovedUnsub();
+    };
+  }, [chat._id, currentUser._id, activeCall, sendReadReceipt]);
+
   // Load more messages when scrolling to the top
   const loadMoreMessages = async () => {
-    if (!hasMore || loading) return;
+    if (!hasMore || loadingMore) return;
     
     try {
-      setLoading(true);
+      setLoadingMore(true);
       const response = await api.getMessages(chat._id, { before: nextCursor });
       
       setMessages(prevMessages => [...response.messages, ...prevMessages]);
       setHasMore(response.hasMore);
       setNextCursor(response.nextCursor);
-      setLoading(false);
+      setLoadingMore(false);
     } catch (error) {
       console.error('Error loading more messages:', error);
       setError('Failed to load more messages. Please try again.');
-      setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  // Detect scroll to load more messages
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    const handleScroll = () => {
+      if (container.scrollTop < 100 && hasMore && !loadingMore) {
+        loadMoreMessages();
+      }
+    };
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadingMore, loadMoreMessages]);
 
   // Handle sending a new message
   const handleSendMessage = async (content, messageType = 'text', attachment = null, replyToId = null, formData, config) => {
@@ -118,7 +337,7 @@ const ChatWindow = ({
         newMessage = await sendMessage(chat._id, content, messageType, attachment);
       }
       
-      // Update local messages list (if not already updated by Socket.IO)
+      // Update local messages list (if not already updated by Socket.IO event)
       setMessages(prevMessages => {
         // Check if message already exists (might have been added by Socket.IO event)
         const messageExists = prevMessages.some(msg => msg._id === newMessage._id);
@@ -176,31 +395,7 @@ const ChatWindow = ({
     try {
       await api.reactToMessage(chat._id, messageId, reaction);
       
-      // Update local message (typically would be handled by Socket.IO)
-      setMessages(prevMessages => 
-        prevMessages.map(msg => {
-          if (msg._id === messageId) {
-            // Remove existing reaction from this user if any
-            const updatedReactions = msg.reactions 
-              ? msg.reactions.filter(r => r.userId !== currentUser._id)
-              : [];
-            
-            // Add the new reaction
-            updatedReactions.push({
-              userId: currentUser._id,
-              type: reaction,
-              createdAt: new Date().toISOString()
-            });
-            
-            return {
-              ...msg,
-              reactions: updatedReactions
-            };
-          }
-          return msg;
-        })
-      );
-      
+      // Update local message (socket event handler should handle this)
       return true;
     } catch (error) {
       console.error('Error reacting to message:', error);
@@ -214,21 +409,7 @@ const ChatWindow = ({
     try {
       await api.removeReaction(chat._id, messageId);
       
-      // Update local message (typically would be handled by Socket.IO)
-      setMessages(prevMessages => 
-        prevMessages.map(msg => {
-          if (msg._id === messageId) {
-            return {
-              ...msg,
-              reactions: msg.reactions 
-                ? msg.reactions.filter(r => r.userId !== currentUser._id)
-                : []
-            };
-          }
-          return msg;
-        })
-      );
-      
+      // Update local message (socket event handler should handle this)
       return true;
     } catch (error) {
       console.error('Error removing reaction:', error);
@@ -283,6 +464,13 @@ const ChatWindow = ({
   const acceptCall = async (callId) => {
     try {
       await api.acceptCall(callId);
+      
+      // Update local call state
+      setActiveCall(prev => ({
+        ...prev,
+        status: 'ongoing'
+      }));
+      
       return true;
     } catch (error) {
       console.error('Error accepting call:', error);
@@ -402,6 +590,16 @@ const ChatWindow = ({
       {/* Chat Header */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white shadow-sm flex-shrink-0">
         <div className="flex items-center">
+          {showSidebarToggle && (
+            <button
+              onClick={onToggleSidebar}
+              className="mr-3 text-gray-500 hover:text-orange-500 focus:outline-none"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          )}
           <div className="relative">
             {participant?.profilePicture ? (
               <img
@@ -425,8 +623,8 @@ const ChatWindow = ({
           
           {/* Socket.IO connection status indicator */}
           {socketStatus !== 'CONNECTED' && (
-            <div className="bg-yellow-50 text-yellow-800 text-sm px-3 py-1 rounded flex items-center ml-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="hidden md:flex bg-yellow-50 text-yellow-800 text-xs px-2 py-1 rounded items-center ml-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               {socketStatus === 'CONNECTING' ? 'Connecting...' : 
@@ -436,7 +634,7 @@ const ChatWindow = ({
           )}
 
           <div className="ml-3">
-            <h3 className="text-base font-medium text-gray-900">
+            <h3 className="text-base font-medium text-gray-900 truncate max-w-[150px] md:max-w-xs">
               {chat.type === 'direct'
                 ? `${participant?.firstName} ${participant?.lastName}`
                 : chat.name}
@@ -454,6 +652,7 @@ const ChatWindow = ({
             onClick={startAudioCall}
             className="text-gray-500 hover:text-orange-500"
             title="Audio call"
+            disabled={socketStatus !== 'CONNECTED'}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
@@ -464,6 +663,7 @@ const ChatWindow = ({
             onClick={startVideoCall}
             className="text-gray-500 hover:text-orange-500"
             title="Video call"
+            disabled={socketStatus !== 'CONNECTED'}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
@@ -507,6 +707,11 @@ const ChatWindow = ({
         ) : messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center p-4">
+              <div className="text-orange-400 mb-4">
+                <svg className="mx-auto h-12 w-12" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
               <p className="text-gray-500">No messages yet.</p>
               <p className="text-gray-500 text-sm mt-1">Be the first to say hello!</p>
             </div>
@@ -518,9 +723,17 @@ const ChatWindow = ({
                 <button
                   onClick={loadMoreMessages}
                   className="text-orange-500 hover:underline text-sm"
-                  disabled={loading}
+                  disabled={loadingMore}
                 >
-                  {loading ? 'Loading...' : 'Load older messages'}
+                  {loadingMore ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Loading...
+                    </span>
+                  ) : 'Load older messages'}
                 </button>
               </div>
             )}
@@ -546,7 +759,10 @@ const ChatWindow = ({
       {/* Typing Indicator */}
       {getTypingIndicatorText() && (
         <div className="px-4 py-1 text-xs text-gray-500 bg-white border-t border-gray-100 flex-shrink-0">
-          {getTypingIndicatorText()}
+          <div className="flex items-center">
+            <span className="flex-shrink-0 w-3 h-3 bg-gray-400 rounded-full mr-2 animate-pulse"></span>
+            <span>{getTypingIndicatorText()}</span>
+          </div>
         </div>
       )}
       
@@ -571,6 +787,20 @@ const ChatWindow = ({
           onEnd={endCall}
           currentUser={currentUser}
         />
+      )}
+      
+      {/* Connection Status Modal - For mobile */}
+      {socketStatus !== 'CONNECTED' && (
+        <div className="md:hidden fixed bottom-4 left-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-md shadow-lg text-sm z-50">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
+            </svg>
+            <span>
+              {socketStatus === 'DISCONNECTED' ? 'Connection lost. Reconnecting...' : 'Connection error'}
+            </span>
+          </div>
+        </div>
       )}
     </div>
   );
