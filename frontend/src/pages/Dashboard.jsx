@@ -37,7 +37,30 @@ const Dashboard = () => {
   const [recentPosts, setRecentPosts] = useState([]);
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
+const [userLocation, setUserLocation] = useState(null);
+    useEffect(() => {
+    // Get user's location and fetch both types of users simultaneously
+    getUserLocation();
+  }, []);
 
+ const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ latitude, longitude });
+          fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          setLoading(prev => ({ ...prev, nearby: false }));
+        }
+      );
+    } else {
+      console.error('Geolocation is not supported by this browser.');
+      setLoading(prev => ({ ...prev, nearby: false }));
+    }
+  };
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
     try {
       const nearbyResponse = await api.getNearbyProfessionals(distance);
