@@ -898,8 +898,7 @@ const [userLocation, setUserLocation] = useState(null);
                       </div>
                     )}
                   </div>
-                  
-        {/* Improved Nearby Professionals Section - Shows ALL users and properly responsive */}
+               {/* Nearby Professionals with Improved Card Width for Laptops - All Styles Inline */}
 <div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
   {/* Header */}
   <div className="flex justify-between items-center mb-4">
@@ -912,19 +911,17 @@ const [userLocation, setUserLocation] = useState(null);
     </Link>
   </div>
 
-  {/* Loading State */}
+  {/* User Cards - Using pure Tailwind classes for all styles */}
   {loadingData ? (
     <div className="flex justify-center items-center h-40">
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
     </div>
   ) : nearbyUsers && nearbyUsers.length > 0 ? (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-      {/* Map ALL users, not filtering by online status */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 xl:gap-6">
       {nearbyUsers.map(user => (
-        <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100">
-          {/* Card Header with distance */}
-          <div className="h-16 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative">
-            {/* User distance badge */}
+        <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100 flex flex-col w-full sm:max-w-full md:min-w-[240px] lg:min-w-[260px] xl:min-w-[280px]">
+          {/* Card Header with gradient background and distance badge */}
+          <div className="h-16 sm:h-20 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative w-full">
             {user.distance !== undefined && (
               <div className="absolute top-2 right-2 bg-white px-2 py-0.5 md:py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
                 {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
@@ -932,54 +929,54 @@ const [userLocation, setUserLocation] = useState(null);
             )}
           </div>
           
-          {/* User Info */}
-          <div className="p-3 md:p-4 relative">
-            {/* Profile Picture */}
-            <div className="absolute -top-10 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
+          {/* User Info Section - Using min-height to ensure cards have consistent height */}
+          <div className="p-3 sm:p-4 md:p-5 relative flex-grow w-full">
+            {/* Profile Picture - Adjusted size and positioning */}
+            <div className="absolute -top-10 sm:-top-11 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
               {user.profilePicture ? (
                 <img 
                   src={user.profilePicture} 
                   alt={`${user.firstName} ${user.lastName}`}
-                  className="h-16 w-16 md:h-20 md:w-20 rounded-full object-cover"
+                  className="h-16 sm:h-18 md:h-20 w-16 sm:w-18 md:w-20 rounded-full object-cover"
                 />
               ) : (
-                <div className="h-16 w-16 md:h-20 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
+                <div className="h-16 sm:h-18 md:h-20 w-16 sm:w-18 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
                   <span className="text-lg md:text-xl font-medium text-orange-600">
                     {user.firstName?.charAt(0) || ''}
                     {user.lastName?.charAt(0) || ''}
                   </span>
                 </div>
               )}
-              {/* Online indicator - only if user is online */}
+              {/* Online indicator */}
               {user.online && (
                 <div className="absolute bottom-0 right-0 h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500 border-2 border-white"></div>
               )}
             </div>
             
-            {/* User Details */}
-            <div className="mt-8 md:mt-10">
+            {/* User Details - With min-height for better layout */}
+            <div className="mt-8 sm:mt-9 md:mt-10 min-h-[90px] sm:min-h-[100px] w-full">
               <h3 
-                className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate"
+                className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate w-full"
                 onClick={() => navigate(`/profile/${user._id}`)}
               >
                 {user.firstName || ''} {user.lastName || ''}
               </h3>
-              <p className="text-xs md:text-sm text-gray-600 truncate">
+              <p className="text-xs md:text-sm text-gray-600 truncate mb-1 w-full">
                 {user.headline || "Professional"}
               </p>
               
               {/* Industry - if available */}
               {user.industry && (
-                <div className="mt-1 md:mt-2 text-xs md:text-sm text-gray-600 truncate">
+                <div className="mt-1 text-xs md:text-sm text-gray-600 truncate w-full">
                   {user.industry}
                 </div>
               )}
               
               {/* Skills tags - if available */}
               {user.skills && user.skills.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2 md:mt-3">
+                <div className="flex flex-wrap gap-1 mt-2 w-full">
                   {user.skills.slice(0, 2).map((skill, index) => (
-                    <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate max-w-[100px]">
+                    <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate w-auto sm:max-w-[120px]">
                       {typeof skill === 'string' ? skill : skill.name}
                     </span>
                   ))}
@@ -988,51 +985,51 @@ const [userLocation, setUserLocation] = useState(null);
                   )}
                 </div>
               )}
+            </div>
+            
+            {/* Action Buttons - Fixed at bottom with consistent spacing */}
+            <div className="mt-3 sm:mt-4 flex space-x-2 w-full">
+              <button
+                onClick={() => handleConnect(user._id)}
+                disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                className={`flex-1 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-medium ${
+                  user.connectionStatus === 'pending' 
+                    ? 'bg-gray-100 text-gray-500'
+                    : user.connectionStatus === 'connected'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                <div className="flex items-center justify-center">
+                  <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                  {user.connectionStatus === 'pending' 
+                    ? 'Pending' 
+                    : user.connectionStatus === 'connected'
+                      ? 'Connected'
+                      : 'Connect'}
+                </div>
+              </button>
               
-              {/* Action Buttons */}
-              <div className="mt-3 md:mt-4 flex space-x-2">
-                <button
-                  onClick={() => handleConnect(user._id)}
-                  disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
-                  className={`flex-1 py-1 md:py-2 rounded-md text-xs md:text-sm font-medium ${
-                    user.connectionStatus === 'pending' 
-                      ? 'bg-gray-100 text-gray-500'
-                      : user.connectionStatus === 'connected'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-orange-500 text-white hover:bg-orange-600'
-                  }`}
-                >
-                  <div className="flex items-center justify-center">
-                    <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                    {user.connectionStatus === 'pending' 
-                      ? 'Pending' 
-                      : user.connectionStatus === 'connected'
-                        ? 'Connected'
-                        : 'Connect'}
-                  </div>
-                </button>
-                
-                <button
-                  onClick={() => handleFollow(user._id)}
-                  className={`flex-1 py-1 md:py-2 rounded-md text-xs md:text-sm font-medium ${
-                    user.isFollowing
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-center">
-                    <Rss className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                    {user.isFollowing ? 'Following' : 'Follow'}
-                  </div>
-                </button>
-              </div>
+              <button
+                onClick={() => handleFollow(user._id)}
+                className={`flex-1 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-medium ${
+                  user.isFollowing
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <div className="flex items-center justify-center">
+                  <Rss className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                  {user.isFollowing ? 'Following' : 'Follow'}
+                </div>
+              </button>
             </div>
           </div>
         </div>
       ))}
     </div>
   ) : (
-    // Empty state when no users found
+    // Empty state - unchanged
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-8 text-center">
       <div className="inline-flex h-12 w-12 md:h-16 md:w-16 rounded-full bg-orange-100 items-center justify-center mb-3 md:mb-4">
         <MapPin className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
@@ -1065,7 +1062,8 @@ const [userLocation, setUserLocation] = useState(null);
       </div>
     </div>
   )}
-</div>            </div>
+</div>   
+             </div>
               </div>
             )}
 
