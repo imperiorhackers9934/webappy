@@ -33,7 +33,7 @@ const MessageList = ({
           const message = messages.find(msg => msg._id === messageId);
           
           if (message && !message.read && message.sender._id !== currentUser._id) {
-            onMessageRead(messageId);
+            onMessageRead(messageId, message.chatId);
           }
         }
       });
@@ -93,7 +93,9 @@ const MessageList = ({
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const showDateSeparator = shouldShowDateSeparator(message, prevMessage);
         
-        const isCurrentUser = message.sender._id === currentUser._id;
+        // Make sure this comparison is correct - ensure message.sender._id is correctly compared to currentUser._id
+        const isCurrentUser = message.sender && currentUser && message.sender._id === currentUser._id;
+        
         const isConsecutive = prevMessage && 
                             prevMessage.sender._id === message.sender._id &&
                             !shouldShowDateSeparator(message, prevMessage);
@@ -124,7 +126,10 @@ const MessageList = ({
               data-message-id={message._id}
               className="relative group w-full"
             >
-              <div className="flex items-start w-full">
+              {/* Debug output to check isCurrentUser value - remove in production */}
+              {/* <div className="text-xs text-gray-400">{isCurrentUser ? 'Current User' : 'Other User'}</div> */}
+              
+              <div className={`flex items-start w-full ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                 <Message
                   message={message}
                   isCurrentUser={isCurrentUser}
@@ -183,9 +188,9 @@ const MessageList = ({
                 </div>
               )}
               
-              {/* Message reactions */}
-              {!message.deleted && (
-                <div className={`mt-1 ${isCurrentUser ? 'mr-10 text-right' : 'ml-10'}`}>
+              {/* Message reactions - only render if message has reactions */}
+              {!message.deleted && message.reactions && message.reactions.length > 0 && (
+                <div className={`mt-1 ${isCurrentUser ? 'mr-10 flex justify-end' : 'ml-10'}`}>
                   <MessageReactions
                     message={message}
                     currentUser={currentUser}
