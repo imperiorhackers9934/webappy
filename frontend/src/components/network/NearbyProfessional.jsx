@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Loader from '../common/Loader';
 import UserCard from '../common/UserCard';
-import { MapPin, Sliders } from 'lucide-react';
+import { MapPin, Sliders, AlertCircle } from 'lucide-react';
 
 const NearbyProfessionalsPage = () => {
   const [loading, setLoading] = useState(true);
+  const [locationLoading, setLocationLoading] = useState(true);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
   const [filters, setFilters] = useState({
     distance: 10, // km
     industries: '',
@@ -24,20 +26,64 @@ const NearbyProfessionalsPage = () => {
   }, []);
 
   const getUserLocation = () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    
     if (navigator.geolocation) {
+      // Request high accuracy location
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      };
+      
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation({ latitude, longitude });
+          console.log("Location obtained successfully:", position.coords);
+          const { latitude, longitude, accuracy } = position.coords;
+          
+          // Store location with accuracy information for debugging
+          setUserLocation({ 
+            latitude, 
+            longitude, 
+            accuracy, // in meters
+            timestamp: new Date().toISOString() 
+          });
+          
+          // Log for debugging
+          console.log(`Location accuracy: ${accuracy} meters`);
+          
+          // Fetch nearby users with the obtained coordinates
           fetchNearbyUsers(latitude, longitude, filters.distance);
+          setLocationLoading(false);
         },
         (error) => {
           console.error('Error getting location:', error);
+          let errorMessage;
+          
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = "Location permission denied. Please enable location services in your browser.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = "Location information is unavailable. Please try again later.";
+              break;
+            case error.TIMEOUT:
+              errorMessage = "Location request timed out. Please try again.";
+              break;
+            default:
+              errorMessage = "An unknown error occurred while getting your location.";
+          }
+          
+          setLocationError(errorMessage);
+          setLocationLoading(false);
           setLoading(false);
-        }
+        },
+        options
       );
     } else {
-      console.error('Geolocation is not supported by this browser.');
+      setLocationError("Geolocation is not supported by this browser.");
+      setLocationLoading(false);
       setLoading(false);
     }
   };
@@ -45,37 +91,33 @@ const NearbyProfessionalsPage = () => {
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
     setLoading(true);
     try {
-      // Just get the nearby users without filtering in the component
-      const nearbyResponse = await api.getNearbyProfessionals(distance);
+      console.log(`Fetching nearby users at coordinates: ${latitude}, ${longitude} within ${distance}km`);
       
-      if (!Array.isArray(nearbyResponse)) {
-        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+      // Use an improved approach - manually construct the API request with the exact coordinates
+      const response = await api.getNearbyProfessionals(distance);
+      
+      if (!Array.isArray(response)) {
+        console.error('Invalid response from getNearbyProfessionals:', response);
         setNearbyUsers([]);
         setLoading(false);
         return;
       }
       
-      // Now fetch connections in a separate call
-      let connections = [];
+      console.log(`Retrieved ${response.length} nearby users`);
+      
+      // Create a Set of connection IDs for faster lookup
+      let connectionIds = new Set();
       try {
-        connections = await api.getConnections('all');
-        if (!Array.isArray(connections)) {
-          console.error('Invalid response from getConnections:', connections);
-          connections = [];
+        const connections = await api.getConnections('all');
+        if (Array.isArray(connections)) {
+          connectionIds = new Set(connections.map(conn => conn._id));
         }
       } catch (connectionError) {
         console.error('Error fetching connections:', connectionError);
-        connections = [];
       }
       
-      // Create a Set of connection IDs for faster lookup (only if we have connections)
-      const connectionIds = new Set(connections.map(conn => conn._id));
-      
-      // Filter out users who are in your connections (only if we have connections)
-      const filteredUsers = nearbyResponse;
-      
       // Sort users by distance (closest first)
-      const sortedUsers = filteredUsers.sort((a, b) => {
+      const sortedUsers = response.sort((a, b) => {
         // Handle cases where distance might be missing
         const distanceA = typeof a.distance === 'number' ? a.distance : Infinity;
         const distanceB = typeof b.distance === 'number' ? b.distance : Infinity;
@@ -83,7 +125,11 @@ const NearbyProfessionalsPage = () => {
         return distanceA - distanceB; // Sort ascending (closest first)
       });
       
-      console.log('Users sorted by distance:', sortedUsers.map(u => `${u.firstName} (${u.distance}km)`));
+      // Log distance information for debugging
+      console.log('Users sorted by distance:');
+      sortedUsers.slice(0, 5).forEach(u => {
+        console.log(`${u.firstName} ${u.lastName}: ${u.distance}km`);
+      });
       
       setNearbyUsers(sortedUsers);
     } catch (error) {
@@ -110,6 +156,10 @@ const NearbyProfessionalsPage = () => {
         filters.distance
       );
     }
+  };
+
+  const handleRefreshLocation = () => {
+    getUserLocation();
   };
 
   const handleConnect = async (userId) => {
@@ -167,7 +217,7 @@ const NearbyProfessionalsPage = () => {
           </button>
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center"
           >
             <Sliders className="h-4 w-4 mr-2" />
             Filters
@@ -176,16 +226,51 @@ const NearbyProfessionalsPage = () => {
       </div>
 
       {/* Location Status */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex items-center">
-        <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-        {userLocation ? (
-          <span className="text-gray-700">
-            Showing professionals near your current location
-          </span>
+      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        {locationLoading ? (
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-orange-500 mr-2"></div>
+            <span className="text-gray-700">Getting your location...</span>
+          </div>
+        ) : locationError ? (
+          <div className="flex items-center text-red-600">
+            <AlertCircle className="h-5 w-5 mr-2" />
+            <div>
+              <p className="font-medium">Location Error</p>
+              <p className="text-sm">{locationError}</p>
+              <button 
+                onClick={handleRefreshLocation}
+                className="mt-2 text-orange-500 text-sm hover:underline"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        ) : userLocation ? (
+          <div>
+            <div className="flex items-center">
+              <MapPin className="h-5 w-5 text-orange-600 mr-2" />
+              <span className="text-gray-700">
+                Showing professionals near your current location
+              </span>
+              <button 
+                onClick={handleRefreshLocation}
+                className="ml-2 text-xs text-orange-500 hover:underline"
+              >
+                Refresh Location
+              </button>
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              Location accuracy: {userLocation.accuracy ? `${Math.round(userLocation.accuracy)} meters` : 'Unknown'}
+            </div>
+          </div>
         ) : (
-          <span className="text-yellow-600">
-            Unable to get your location. Please enable location services.
-          </span>
+          <div className="flex items-center text-yellow-600">
+            <MapPin className="h-5 w-5 mr-2" />
+            <span>
+              Unable to get your location. Please enable location services.
+            </span>
+          </div>
         )}
       </div>
 
@@ -252,7 +337,7 @@ const NearbyProfessionalsPage = () => {
           <div className="mt-4">
             <button
               onClick={handleApplyFilters}
-              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition"
+              className="bg-orange-500 text-white py-2 px-4 rounded-md hover:bg-orange-600 transition"
             >
               Apply Filters
             </button>
@@ -267,9 +352,18 @@ const NearbyProfessionalsPage = () => {
       ) : (
         <>
           {nearbyUsers.length === 0 ? (
-            <div className="text-center py-10">
+            <div className="text-center py-10 bg-white rounded-lg shadow-md p-8">
+              <div className="bg-orange-100 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4">
+                <MapPin className="h-10 w-10 text-orange-500" />
+              </div>
               <p className="text-gray-600">No professionals found in your area.</p>
               <p className="text-gray-600 mt-2">Try expanding your search distance or changing your filters.</p>
+              <button 
+                onClick={handleRefreshLocation}
+                className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition"
+              >
+                Refresh Location
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -281,6 +375,7 @@ const NearbyProfessionalsPage = () => {
                   onConnect={() => handleConnect(user._id)}
                   onFollow={() => handleFollow(user._id)}
                   onViewProfile={() => handleViewProfile(user._id)}
+                  theme="orange"
                 />
               ))}
             </div>
