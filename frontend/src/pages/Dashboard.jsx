@@ -899,7 +899,9 @@ const [userLocation, setUserLocation] = useState(null);
                     )}
                   </div>
                   
-                   <div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
+        {/* Improved Nearby Professionals Section - Shows ALL users and properly responsive */}
+<div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
+  {/* Header */}
   <div className="flex justify-between items-center mb-4">
     <div className="flex items-center">
       <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
@@ -910,19 +912,27 @@ const [userLocation, setUserLocation] = useState(null);
     </Link>
   </div>
 
-  {nearbyUsers.length > 0 ? (
+  {/* Loading State */}
+  {loadingData ? (
+    <div className="flex justify-center items-center h-40">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+    </div>
+  ) : nearbyUsers && nearbyUsers.length > 0 ? (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+      {/* Map ALL users, not filtering by online status */}
       {nearbyUsers.map(user => (
         <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100">
+          {/* Card Header with distance */}
           <div className="h-16 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative">
             {/* User distance badge */}
-            {user.distance && (
+            {user.distance !== undefined && (
               <div className="absolute top-2 right-2 bg-white px-2 py-0.5 md:py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
                 {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
               </div>
             )}
           </div>
           
+          {/* User Info */}
           <div className="p-3 md:p-4 relative">
             {/* Profile Picture */}
             <div className="absolute -top-10 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
@@ -935,34 +945,37 @@ const [userLocation, setUserLocation] = useState(null);
               ) : (
                 <div className="h-16 w-16 md:h-20 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
                   <span className="text-lg md:text-xl font-medium text-orange-600">
-                    {user.firstName?.charAt(0)}
-                    {user.lastName?.charAt(0)}
+                    {user.firstName?.charAt(0) || ''}
+                    {user.lastName?.charAt(0) || ''}
                   </span>
                 </div>
               )}
+              {/* Online indicator - only if user is online */}
               {user.online && (
                 <div className="absolute bottom-0 right-0 h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500 border-2 border-white"></div>
               )}
             </div>
             
+            {/* User Details */}
             <div className="mt-8 md:mt-10">
               <h3 
                 className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate"
                 onClick={() => navigate(`/profile/${user._id}`)}
               >
-                {user.firstName} {user.lastName}
+                {user.firstName || ''} {user.lastName || ''}
               </h3>
               <p className="text-xs md:text-sm text-gray-600 truncate">
                 {user.headline || "Professional"}
               </p>
               
+              {/* Industry - if available */}
               {user.industry && (
                 <div className="mt-1 md:mt-2 text-xs md:text-sm text-gray-600 truncate">
                   {user.industry}
                 </div>
               )}
               
-              {/* Skills tags */}
+              {/* Skills tags - if available */}
               {user.skills && user.skills.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2 md:mt-3">
                   {user.skills.slice(0, 2).map((skill, index) => (
@@ -976,6 +989,7 @@ const [userLocation, setUserLocation] = useState(null);
                 </div>
               )}
               
+              {/* Action Buttons */}
               <div className="mt-3 md:mt-4 flex space-x-2">
                 <button
                   onClick={() => handleConnect(user._id)}
@@ -1018,6 +1032,7 @@ const [userLocation, setUserLocation] = useState(null);
       ))}
     </div>
   ) : (
+    // Empty state when no users found
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-8 text-center">
       <div className="inline-flex h-12 w-12 md:h-16 md:w-16 rounded-full bg-orange-100 items-center justify-center mb-3 md:mb-4">
         <MapPin className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
@@ -1028,41 +1043,29 @@ const [userLocation, setUserLocation] = useState(null);
           ? "We couldn't find any professionals near your current location." 
           : "Please enable location services to see professionals near you."}
       </p>
-      <button 
-        onClick={getUserLocation}
-        className="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-      >
-        Retry
-      </button>
+      <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
+        <button 
+          onClick={getUserLocation}
+          className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+        >
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          Retry
+        </button>
+        <button 
+          onClick={() => navigate('/network/nearby')}
+          className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+        >
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+          Explore More
+        </button>
+      </div>
     </div>
   )}
-</div>
-
-{/* No Nearby Users Empty State - Responsive */}
-{nearbyUsers.length === 0 && (
-  <div className="text-center py-4 md:py-6 bg-white rounded-xl shadow-md p-4 md:p-8 mb-4">
-    <div className="bg-orange-100 rounded-full h-16 w-16 md:h-20 md:w-20 flex items-center justify-center mx-auto mb-3 md:mb-4">
-      <MapPin className="h-8 w-8 md:h-10 md:w-10 text-orange-500" />
-    </div>
-    <p className="text-sm md:text-base text-gray-600">No professionals found in your area.</p>
-    <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">Try expanding your search distance or changing your filters.</p>
-    <div className="mt-3 md:mt-4 flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
-      <button 
-        onClick={getUserLocation}
-        className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-      >
-        Refresh Location
-      </button>
-      <button 
-        onClick={() => navigate('/network/nearby')}
-        className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-      >
-        View All Nearby Users
-      </button>
-    </div>
-  </div>
-)}
-                </div>
+</div>           </div>
               </div>
             )}
 
