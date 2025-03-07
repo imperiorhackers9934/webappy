@@ -88,7 +88,7 @@ const MessageList = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 w-full">
       {messages.map((message, index) => {
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const showDateSeparator = shouldShowDateSeparator(message, prevMessage);
@@ -122,9 +122,9 @@ const MessageList = ({
                 }
               }}
               data-message-id={message._id}
-              className="relative group"
+              className="relative group w-full"
             >
-              <div className="flex items-start">
+              <div className="flex items-start w-full">
                 <Message
                   message={message}
                   isCurrentUser={isCurrentUser}
@@ -155,7 +155,7 @@ const MessageList = ({
               {activeMessageActions === message._id && !message.deleted && (
                 <div 
                   id={`message-actions-${message._id}`}
-                  className="absolute top-0 right-0 mt-6 bg-white shadow-lg rounded-md z-10 overflow-hidden"
+                  className={`absolute top-0 ${isCurrentUser ? 'right-0' : 'left-0'} mt-6 bg-white shadow-lg rounded-md z-10 overflow-hidden`}
                 >
                   <div className="py-1 min-w-32">
                     <button
@@ -185,7 +185,7 @@ const MessageList = ({
               
               {/* Message reactions */}
               {!message.deleted && (
-                <div className="mt-1 ml-10">
+                <div className={`mt-1 ${isCurrentUser ? 'mr-10 text-right' : 'ml-10'}`}>
                   <MessageReactions
                     message={message}
                     currentUser={currentUser}
