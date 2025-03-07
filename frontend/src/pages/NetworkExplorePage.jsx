@@ -41,40 +41,85 @@ const NetworkExplorePage = () => {
     }
   };
 
-  const fetchNearbyUsers = async (latitude, longitude, distance) => {
-    try {
-      const response = await api.getNearbyProfessionals(distance);
-      api.getConnections('all')
-      
-      const connectionIds = new Set(connectionsResponse.map(conn => conn._id));
-      
-      // Filter out users who are in your connections
-      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
-      
-      setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-      setLoading(prev => ({ ...prev, nearby: false }));
-    } catch (error) {
-      console.error('Error fetching nearby professionals:', error);
-      setLoading(prev => ({ ...prev, nearby: false }));
-    }
-  };
+// Fix for the fetchNearbyUsers function:
 
-  const fetchSuggestedUsers = async () => {
-    try {
-      const response = await api.getProfessionalSuggestions({ limit: 3 });
-      api.getConnections('all')
-      
-      const connectionIds = new Set(connectionsResponse.map(conn => conn._id));
-      
-      // Filter out users who are in your connections
-      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
-      setSuggestedUsers(filteredUsers);
-      setLoading(prev => ({ ...prev, suggested: false }));
-    } catch (error) {
-      console.error('Error fetching suggested users:', error);
-      setLoading(prev => ({ ...prev, suggested: false }));
+const fetchNearbyUsers = async (latitude, longitude, distance) => {
+  try {
+    const nearbyResponse = await api.getNearbyProfessionals(distance);
+    
+    if (!Array.isArray(nearbyResponse)) {
+      console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+      setNearbyUsers([]);
+      setLoading(prev => ({ ...prev, nearby: false }));
+      return;
     }
-  };
+    
+    // Now fetch connections in a separate call
+    let connections = [];
+    try {
+      connections = await api.getConnections('all');
+      if (!Array.isArray(connections)) {
+        console.error('Invalid response from getConnections:', connections);
+        connections = [];
+      }
+    } catch (connectionError) {
+      console.error('Error fetching connections:', connectionError);
+      connections = [];
+    }
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(connections.map(conn => conn._id));
+    
+    // Filter out users who are in your connections
+    const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
+    
+    setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
+    setLoading(prev => ({ ...prev, nearby: false }));
+  } catch (error) {
+    console.error('Error fetching nearby professionals:', error);
+    setLoading(prev => ({ ...prev, nearby: false }));
+  }
+};
+
+// Fix for the fetchSuggestedUsers function:
+
+const fetchSuggestedUsers = async () => {
+  try {
+    const suggestedResponse = await api.getProfessionalSuggestions({ limit: 3 });
+    
+    if (!Array.isArray(suggestedResponse)) {
+      console.error('Invalid response from getProfessionalSuggestions:', suggestedResponse);
+      setSuggestedUsers([]);
+      setLoading(prev => ({ ...prev, suggested: false }));
+      return;
+    }
+    
+    // Now fetch connections in a separate call
+    let connections = [];
+    try {
+      connections = await api.getConnections('all');
+      if (!Array.isArray(connections)) {
+        console.error('Invalid response from getConnections:', connections);
+        connections = [];
+      }
+    } catch (connectionError) {
+      console.error('Error fetching connections:', connectionError);
+      connections = [];
+    }
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(connections.map(conn => conn._id));
+    
+    // Filter out users who are in your connections
+    const filteredUsers = suggestedResponse.filter(user => !connectionIds.has(user._id));
+    
+    setSuggestedUsers(filteredUsers);
+    setLoading(prev => ({ ...prev, suggested: false }));
+  } catch (error) {
+    console.error('Error fetching suggested users:', error);
+    setLoading(prev => ({ ...prev, suggested: false }));
+  }
+};
 
   const handleConnect = async (userId, userType) => {
     try {
