@@ -810,7 +810,7 @@ getNearbyProfessionals: async (distance = 10, latitude = null, longitude = null)
     
     return [];
   }
-}
+},
 
   getProfessionalSuggestions: async (options = {}) => {
     try {
