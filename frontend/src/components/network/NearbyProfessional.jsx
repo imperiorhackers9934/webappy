@@ -34,25 +34,29 @@ const NearbyProfessionalsPage = () => {
     }
 
     const loadGoogleMapsApi = () => {
-  const googleMapScript = document.createElement('script');
-  googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async&callback=initMap`;
-  googleMapScript.async = true;
-  googleMapScript.defer = true;
-  
-  // Define initMap globally so Google Maps can call it when loaded
-  window.initMap = () => {
-    console.log('Google Maps API loaded');
-    setMapLoaded(true);
-  };
-  
-  googleMapScript.addEventListener('error', (e) => {
-    console.error('Error loading Google Maps API:', e);
-    setLocationError('Failed to load maps. Please try again later.');
-    setLocationLoading(false);
-  });
-  
-  document.body.appendChild(googleMapScript);
-};
+      // Define initMap globally so Google Maps can call it when loaded
+      window.initMap = () => {
+        console.log('Google Maps API loaded');
+        setMapLoaded(true);
+      };
+      
+      const googleMapScript = document.createElement('script');
+      googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places&callback=initMap`;
+      googleMapScript.async = true;
+      googleMapScript.defer = true;
+      
+      googleMapScript.addEventListener('error', (e) => {
+        console.error('Error loading Google Maps API:', e);
+        setLocationError('Failed to load maps. Please try again later.');
+        setLocationLoading(false);
+      });
+      
+      document.body.appendChild(googleMapScript);
+    };
+
+    loadGoogleMapsApi();
+  }, []);
+
   // Initialize map when it's shown and API is loaded
   useEffect(() => {
     if (showMap && mapLoaded && mapRef.current && !googleMapRef.current) {
@@ -115,20 +119,20 @@ const NearbyProfessionalsPage = () => {
           const newLat = position.lat();
           const newLng = position.lng();
           
-          console.log(`New location selected: ${newLat}, ${newLng}`);
+          // Use more decimal places for higher precision
+          const preciseLatitude = parseFloat(newLat.toFixed(7));
+          const preciseLongitude = parseFloat(newLng.toFixed(7));
+          
+          console.log(`Exact location selected: ${preciseLatitude}, ${preciseLongitude}`);
           
           // Update location with high accuracy (manual selection)
           setUserLocation({
-            latitude: newLat,
-            longitude: newLng,
-            accuracy: 10, // Very high accuracy since it's manually placed
+            latitude: preciseLatitude,
+            longitude: preciseLongitude,
+            accuracy: 1, // Set to 1 meter for pinpoint accuracy
             isManual: true,
             timestamp: new Date().toISOString()
           });
-          
-          // Close map and fetch with new coordinates
-          setShowMap(false);
-          fetchNearbyUsers(newLat, newLng, filters.distance);
         });
       } else {
         // If no location yet, use geolocation API to get current position
@@ -149,10 +153,10 @@ const NearbyProfessionalsPage = () => {
               });
               markerRef.current = marker;
               
-              // Update location state
+              // Update location state with precision
               setUserLocation({
-                latitude,
-                longitude,
+                latitude: parseFloat(latitude.toFixed(7)),
+                longitude: parseFloat(longitude.toFixed(7)),
                 accuracy: position.coords.accuracy,
                 timestamp: new Date().toISOString()
               });
@@ -163,13 +167,17 @@ const NearbyProfessionalsPage = () => {
                 const newLat = position.lat();
                 const newLng = position.lng();
                 
-                console.log(`New location selected: ${newLat}, ${newLng}`);
+                // Use more decimal places for higher precision
+                const preciseLatitude = parseFloat(newLat.toFixed(7));
+                const preciseLongitude = parseFloat(newLng.toFixed(7));
+                
+                console.log(`Exact location selected: ${preciseLatitude}, ${preciseLongitude}`);
                 
                 // Update location
                 setUserLocation({
-                  latitude: newLat,
-                  longitude: newLng,
-                  accuracy: 10, // High accuracy for manual selection
+                  latitude: preciseLatitude,
+                  longitude: preciseLongitude,
+                  accuracy: 1, // High accuracy for manual selection
                   isManual: true,
                   timestamp: new Date().toISOString()
                 });
@@ -225,25 +233,32 @@ const NearbyProfessionalsPage = () => {
             const newLat = position.lat();
             const newLng = position.lng();
             
+            // Use more decimal places for higher precision
+            const preciseLatitude = parseFloat(newLat.toFixed(7));
+            const preciseLongitude = parseFloat(newLng.toFixed(7));
+            
             // Update location
             setUserLocation({
-              latitude: newLat,
-              longitude: newLng,
-              accuracy: 10, // High accuracy for manual selection
+              latitude: preciseLatitude,
+              longitude: preciseLongitude,
+              accuracy: 1, // High accuracy for manual selection
               isManual: true,
               timestamp: new Date().toISOString()
             });
           });
         }
         
-        // Update location
+        // Update location with precision
         const newLat = place.geometry.location.lat();
         const newLng = place.geometry.location.lng();
         
+        const preciseLatitude = parseFloat(newLat.toFixed(7));
+        const preciseLongitude = parseFloat(newLng.toFixed(7));
+        
         setUserLocation({
-          latitude: newLat,
-          longitude: newLng,
-          accuracy: 10, // High accuracy for search results
+          latitude: preciseLatitude,
+          longitude: preciseLongitude,
+          accuracy: 1, // High accuracy for search results
           isManual: true,
           timestamp: new Date().toISOString()
         });
@@ -273,8 +288,8 @@ const NearbyProfessionalsPage = () => {
           
           // Store location with accuracy information for debugging
           setUserLocation({ 
-            latitude, 
-            longitude, 
+            latitude: parseFloat(latitude.toFixed(7)), 
+            longitude: parseFloat(longitude.toFixed(7)), 
             accuracy, // in meters
             timestamp: new Date().toISOString() 
           });
@@ -283,7 +298,7 @@ const NearbyProfessionalsPage = () => {
           console.log(`Location accuracy: ${accuracy} meters`);
           
           // Fetch nearby users with the obtained coordinates
-          fetchNearbyUsers(latitude, longitude, filters.distance);
+          fetchNearbyUsers(parseFloat(latitude.toFixed(7)), parseFloat(longitude.toFixed(7)), filters.distance);
           setLocationLoading(false);
         },
         (error) => {
