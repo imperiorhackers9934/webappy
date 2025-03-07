@@ -31,7 +31,51 @@ const ChatWindow = ({
   const messagesContainerRef = useRef(null);
   const isInitialLoad = useRef(true);
   const handlersRef = useRef({});  // Store event handlers to avoid recreating them
+// Add this to the top of your ChatWindow.jsx file, inside the component:
 
+// Add direct socket event handling
+useEffect(() => {
+  if (!socketManager.socket || !chat) return;
+  
+  console.log('Setting up direct socket handlers for ChatWindow');
+  
+  // Direct handler for new messages
+  const directMessageHandler = (data) => {
+    console.log('DIRECT: New message received:', data);
+    
+    // Skip if not for this chat
+    if (data.chatRoom !== chat._id) {
+      console.log('Message is for a different chat, ignoring');
+      return;
+    }
+    
+    // Update messages state
+    setMessages(prevMessages => {
+      // Check if message already exists
+      const messageExists = prevMessages.some(msg => msg._id === data._id);
+      
+      if (messageExists) {
+        console.log('Message already exists in state, not adding duplicate');
+        return prevMessages;
+      }
+      
+      console.log('Adding new message to state');
+      const newMessages = [...prevMessages, data];
+      
+      // Mark as read if not from current user
+      if (data.sender._id !== currentUser._id) {
+        sendReadReceipt(data._id, chat._id);
+      }
+      
+      return newMessages;
+    });
+  };
+  
+  // Register direct handler with socket.io
+  const cleanup = socketManager.rawOn('new_message', directMessageHandler);
+  
+  return cleanup;
+}, [socketManager.socket, chat, currentUser._id, sendReadReceipt]);
   // Get the other participant in a direct chat
   const getParticipant = () => {
     if (chat.type === 'direct') {
