@@ -78,6 +78,22 @@ class SocketManager {
         console.log('Socket.IO: Connected successfully with ID:', this.socket.id);
       }
       
+      // Re-register all event handlers
+      for (const [event, handlers] of Object.entries(this.eventHandlers)) {
+        for (const handler of handlers) {
+          const wrappedHandler = (data) => {
+            this.lastMessages[event] = data;
+            handler(data);
+          };
+          
+          // Store the reference to the wrapper
+          handler._wrappedHandler = wrappedHandler;
+          
+          // Add event listener to socket
+          this.socket.on(event, wrappedHandler);
+        }
+      }
+      
       // Request initial data from server
       this.emit('client_ready', { timestamp: new Date().toISOString() });
     });
@@ -140,26 +156,43 @@ class SocketManager {
 
   // Register an event handler
   on(event, handler) {
-    if (this.eventHandlers[event]) {
-      this.eventHandlers[event].push(handler);
-    } else {
-      this.eventHandlers[event] = [handler];
+    if (!this.eventHandlers[event]) {
+      this.eventHandlers[event] = [];
     }
     
-    // If socket exists, register the handler directly
+    this.eventHandlers[event].push(handler);
+    
+    // If socket exists, add the handler
     if (this.socket) {
-      this.socket.on(event, (data) => {
+      // We need to create a wrapper that will call our handler
+      const wrappedHandler = (data) => {
         this.lastMessages[event] = data;
         handler(data);
-      });
+      };
+      
+      // Store the reference to the wrapper
+      handler._wrappedHandler = wrappedHandler;
+      
+      this.socket.on(event, wrappedHandler);
     }
     
     // Return unsubscribe function
-    return () => {
-      if (this.eventHandlers[event]) {
-        this.eventHandlers[event] = this.eventHandlers[event].filter(h => h !== handler);
-      }
-    };
+    return () => this.off(event, handler);
+  }
+
+  // Remove an event handler
+  off(event, handler) {
+    if (!this.eventHandlers[event]) {
+      return;
+    }
+    
+    // Remove from our handler list
+    this.eventHandlers[event] = this.eventHandlers[event].filter(h => h !== handler);
+    
+    // Remove from socket if it exists
+    if (this.socket && handler._wrappedHandler) {
+      this.socket.off(event, handler._wrappedHandler);
+    }
   }
 
   // Emit an event
@@ -217,20 +250,15 @@ class SocketManager {
   }
   
   // Get current connection status
- getStatus() {
-  return this.connectionStatus;
-}
+  getStatus() {
+    return this.connectionStatus;
+  }
 
-// Check if socket is currently connected
-isConnected() {
-  return this.socket !== null && this.socket.connected && this.connectionStatus === 'CONNECTED';
-}
+  // Check if socket is currently connected
+  isConnected() {
+    return this.socket !== null && this.socket.connected && this.connectionStatus === 'CONNECTED';
+  }
 
-// Get the last received message for an event
-getLastMessage(event) {
-  return this.lastMessages[event] || null;
-}
-  
   // Get the last received message for an event
   getLastMessage(event) {
     return this.lastMessages[event] || null;
