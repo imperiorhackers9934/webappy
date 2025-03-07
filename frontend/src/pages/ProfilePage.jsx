@@ -26,65 +26,28 @@ const ProfilePage = () => {
   
     // Memoized fetch function to avoid recreation on each render
     const fetchUserData = useCallback(async () => {
-      try {
-        setLoading(true);
-        console.log("Starting to fetch profile data...");
-        
-        // First, get the current user's info
-        console.log("Fetching current user info...");
-        const userInfo = await api.getUserInfo();
-        console.log("Current user info fetched:", userInfo);
-        setCurrentUserInfo(userInfo);
-        
-        // If no userId is provided or it's "undefined", redirect to the current user's profile
-        if (!userId) {
-          console.log("No userId provided, redirecting to current user profile");
-          navigate(`/profile/${userInfo._id}`, { replace: true });
-          return;
-        }
-        
-        // Check if we're viewing our own profile
-        const isSelf = userInfo._id === userId;
-        console.log(`Viewing profile ${userId}, is self: ${isSelf}`);
-        setIsCurrentUser(isSelf);
-        
-        // Fetch the requested profile
-        console.log(`Fetching profile data for user ${userId}...`);
-        const profileData = await api.getProfile(userId);
-        console.log("Profile data fetched:", profileData);
-        
-        // Make sure we have valid data before setting state
-        if (!profileData || !profileData.user) {
-          console.error("Invalid profile data received:", profileData);
-          setError('Received invalid profile data');
-          setLoading(false);
-          return;
-        }
-        
-        // Update state with fetched data
-        setProfile(profileData.user);
-        setUserRelationship(profileData.relationshipStatus || {});
-        setPortfolio(profileData.portfolio || {});
-        setRecommendations(profileData.recommendations || []);
-        
-        // Record view if not our own profile
-        if (!isSelf) {
-          try {
-            await api.recordProfileView(userId);
-          } catch (viewError) {
-            console.error('Failed to record profile view:', viewError);
-            // Continue regardless of profile view recording
-          }
-        } else {
-          // Get our own view analytics
-          try {
-            const analytics = await api.getProfileViewAnalytics('month');
-            setViewsAnalytics(analytics);
-          } catch (analyticsError) {
-            console.error('Failed to get view analytics:', analyticsError);
-            // Continue regardless of analytics error
-          }
-        }
+      // In the fetchUserData function
+try {
+  setLoading(true);
+  
+  // Fetch data...
+  console.log("Profile data fetched:", profileData);
+  
+  // Update state with fetched data
+  setProfile(profileData.user);
+  setUserRelationship(profileData.relationshipStatus || {});
+  setPortfolio(profileData.portfolio || {});
+  setRecommendations(profileData.recommendations || []);
+  
+  // Important: Make sure loading is set to false AFTER all state updates
+  console.log("Setting loading to false");
+  setLoading(false);
+} catch (err) {
+  console.error('Error fetching profile:', err);
+  setError('Failed to load profile data');
+  setLoading(false);
+}
+    }
         
         // Finally, set loading to false
         console.log("Profile data successfully loaded, setting loading=false");
