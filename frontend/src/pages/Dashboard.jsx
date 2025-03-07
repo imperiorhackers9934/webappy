@@ -911,15 +911,15 @@ const [userLocation, setUserLocation] = useState(null);
     </Link>
   </div>
 
-  {/* User Cards - Using pure Tailwind classes for all styles */}
+  {/* User Cards - Fixed overlapping issue */}
   {loadingData ? (
     <div className="flex justify-center items-center h-40">
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
     </div>
   ) : nearbyUsers && nearbyUsers.length > 0 ? (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 xl:gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       {nearbyUsers.map(user => (
-        <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100 flex flex-col w-full sm:max-w-full md:min-w-[240px] lg:min-w-[260px] xl:min-w-[280px]">
+        <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100 flex flex-col w-full">
           {/* Card Header with gradient background and distance badge */}
           <div className="h-16 sm:h-20 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative w-full">
             {user.distance !== undefined && (
@@ -929,7 +929,7 @@ const [userLocation, setUserLocation] = useState(null);
             )}
           </div>
           
-          {/* User Info Section - Using min-height to ensure cards have consistent height */}
+          {/* User Info Section - Fixed overlapping issues */}
           <div className="p-3 sm:p-4 md:p-5 relative flex-grow w-full">
             {/* Profile Picture - Adjusted size and positioning */}
             <div className="absolute -top-10 sm:-top-11 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
@@ -937,10 +937,10 @@ const [userLocation, setUserLocation] = useState(null);
                 <img 
                   src={user.profilePicture} 
                   alt={`${user.firstName} ${user.lastName}`}
-                  className="h-16 sm:h-18 md:h-20 w-16 sm:w-18 md:w-20 rounded-full object-cover"
+                  className="h-16 sm:h-16 md:h-20 w-16 sm:w-16 md:w-20 rounded-full object-cover"
                 />
               ) : (
-                <div className="h-16 sm:h-18 md:h-20 w-16 sm:w-18 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
+                <div className="h-16 sm:h-16 md:h-20 w-16 sm:w-16 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
                   <span className="text-lg md:text-xl font-medium text-orange-600">
                     {user.firstName?.charAt(0) || ''}
                     {user.lastName?.charAt(0) || ''}
@@ -953,8 +953,8 @@ const [userLocation, setUserLocation] = useState(null);
               )}
             </div>
             
-            {/* User Details - With min-height for better layout */}
-            <div className="mt-8 sm:mt-9 md:mt-10 min-h-[90px] sm:min-h-[100px] w-full">
+            {/* User Details - Fixed min-height causing overlap */}
+            <div className="mt-8 sm:mt-9 md:mt-10 w-full" style={{ minHeight: '100px' }}>
               <h3 
                 className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate w-full"
                 onClick={() => navigate(`/profile/${user._id}`)}
@@ -976,7 +976,7 @@ const [userLocation, setUserLocation] = useState(null);
               {user.skills && user.skills.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2 w-full">
                   {user.skills.slice(0, 2).map((skill, index) => (
-                    <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate w-auto sm:max-w-[120px]">
+                    <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate" style={{ maxWidth: '120px' }}>
                       {typeof skill === 'string' ? skill : skill.name}
                     </span>
                   ))}
@@ -987,7 +987,7 @@ const [userLocation, setUserLocation] = useState(null);
               )}
             </div>
             
-            {/* Action Buttons - Fixed at bottom with consistent spacing */}
+            {/* Action Buttons - Fixed positioning */}
             <div className="mt-3 sm:mt-4 flex space-x-2 w-full">
               <button
                 onClick={() => handleConnect(user._id)}
@@ -1062,7 +1062,7 @@ const [userLocation, setUserLocation] = useState(null);
       </div>
     </div>
   )}
-</div>   
+</div>
              </div>
               </div>
             )}
