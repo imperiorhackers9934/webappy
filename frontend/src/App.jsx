@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './components/common/Toast'
 // Pages
 import AuthPage from './pages/AuthPage';
+import Discover from './pages/DiscoverPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
@@ -71,6 +72,7 @@ const App = () => {
           <Route path="/portfolio/streak/new" element={<StreakCreationPage/>}/>
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
           <Route path="/connections" element={<ConnectionRequestPage/>}/>
+          <Route path="/discover" element={<Discover/>}/>
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           {/* 404 Page */}
