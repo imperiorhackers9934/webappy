@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
-import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss, Sidebar } from 'lucide-react';
+import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss, Sidebar, Home, Bell, MessageCircle, Briefcase, Settings, LogOut } from 'lucide-react';
 import Loader from '../components/common/Loader';
 import UserCard from '../components/common/UserCard';
 
@@ -14,6 +14,7 @@ const NetworkExplorePage = () => {
   const [suggestedUsers, setSuggestedUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [activeSection, setActiveSection] = useState('all');
+  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,85 +42,81 @@ const NetworkExplorePage = () => {
     }
   };
 
-// Fix for the fetchNearbyUsers function:
-
-const fetchNearbyUsers = async (latitude, longitude, distance) => {
-  try {
-    const nearbyResponse = await api.getNearbyProfessionals(distance);
-    
-    if (!Array.isArray(nearbyResponse)) {
-      console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
-      setNearbyUsers([]);
+  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+    try {
+      const nearbyResponse = await api.getNearbyProfessionals(distance);
+      
+      if (!Array.isArray(nearbyResponse)) {
+        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+        setNearbyUsers([]);
+        setLoading(prev => ({ ...prev, nearby: false }));
+        return;
+      }
+      
+      // Now fetch connections in a separate call
+      let connections = [];
+      try {
+        connections = await api.getConnections('all');
+        if (!Array.isArray(connections)) {
+          console.error('Invalid response from getConnections:', connections);
+          connections = [];
+        }
+      } catch (connectionError) {
+        console.error('Error fetching connections:', connectionError);
+        connections = [];
+      }
+      
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set(connections.map(conn => conn._id));
+      
+      // Filter out users who are in your connections
+      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
+      
+      setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
       setLoading(prev => ({ ...prev, nearby: false }));
-      return;
+    } catch (error) {
+      console.error('Error fetching nearby professionals:', error);
+      setLoading(prev => ({ ...prev, nearby: false }));
     }
-    
-    // Now fetch connections in a separate call
-    let connections = [];
+  };
+
+  const fetchSuggestedUsers = async () => {
     try {
-      connections = await api.getConnections('all');
-      if (!Array.isArray(connections)) {
-        console.error('Invalid response from getConnections:', connections);
+      const suggestedResponse = await api.getProfessionalSuggestions({ limit: 3 });
+      
+      if (!Array.isArray(suggestedResponse)) {
+        console.error('Invalid response from getProfessionalSuggestions:', suggestedResponse);
+        setSuggestedUsers([]);
+        setLoading(prev => ({ ...prev, suggested: false }));
+        return;
+      }
+      
+      // Now fetch connections in a separate call
+      let connections = [];
+      try {
+        connections = await api.getConnections('all');
+        if (!Array.isArray(connections)) {
+          console.error('Invalid response from getConnections:', connections);
+          connections = [];
+        }
+      } catch (connectionError) {
+        console.error('Error fetching connections:', connectionError);
         connections = [];
       }
-    } catch (connectionError) {
-      console.error('Error fetching connections:', connectionError);
-      connections = [];
-    }
-    
-    // Create a Set of connection IDs for faster lookup
-    const connectionIds = new Set(connections.map(conn => conn._id));
-    
-    // Filter out users who are in your connections
-    const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
-    
-    setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-    setLoading(prev => ({ ...prev, nearby: false }));
-  } catch (error) {
-    console.error('Error fetching nearby professionals:', error);
-    setLoading(prev => ({ ...prev, nearby: false }));
-  }
-};
-
-// Fix for the fetchSuggestedUsers function:
-
-const fetchSuggestedUsers = async () => {
-  try {
-    const suggestedResponse = await api.getProfessionalSuggestions({ limit: 3 });
-    
-    if (!Array.isArray(suggestedResponse)) {
-      console.error('Invalid response from getProfessionalSuggestions:', suggestedResponse);
-      setSuggestedUsers([]);
+      
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set(connections.map(conn => conn._id));
+      
+      // Filter out users who are in your connections
+      const filteredUsers = suggestedResponse.filter(user => !connectionIds.has(user._id));
+      
+      setSuggestedUsers(filteredUsers);
       setLoading(prev => ({ ...prev, suggested: false }));
-      return;
+    } catch (error) {
+      console.error('Error fetching suggested users:', error);
+      setLoading(prev => ({ ...prev, suggested: false }));
     }
-    
-    // Now fetch connections in a separate call
-    let connections = [];
-    try {
-      connections = await api.getConnections('all');
-      if (!Array.isArray(connections)) {
-        console.error('Invalid response from getConnections:', connections);
-        connections = [];
-      }
-    } catch (connectionError) {
-      console.error('Error fetching connections:', connectionError);
-      connections = [];
-    }
-    
-    // Create a Set of connection IDs for faster lookup
-    const connectionIds = new Set(connections.map(conn => conn._id));
-    
-    // Filter out users who are in your connections
-    const filteredUsers = suggestedResponse.filter(user => !connectionIds.has(user._id));
-    
-    setSuggestedUsers(filteredUsers);
-    setLoading(prev => ({ ...prev, suggested: false }));
-  } catch (error) {
-    console.error('Error fetching suggested users:', error);
-    setLoading(prev => ({ ...prev, suggested: false }));
-  }
-};
+  };
 
   const handleConnect = async (userId, userType) => {
     try {
@@ -173,12 +170,94 @@ const fetchSuggestedUsers = async () => {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!isSidebarCollapsed);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-auto bg-gray-100">
-       
-      <div className="ml-12 md:pt-0 pt-16">
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      <div className={`fixed h-full bg-white shadow-md transition-all duration-300 z-10 ${isSidebarCollapsed ? 'w-16' : 'w-60'}`}>
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex justify-between items-center py-4 px-4 border-b">
+            {!isSidebarCollapsed && <div className="text-xl font-bold text-orange-600">MeetKats</div>}
+            <button onClick={toggleSidebar} className="p-1 rounded-full hover:bg-gray-100">
+              <Sidebar className="h-5 w-5 text-gray-600" />
+            </button>
+          </div>
+          
+          {/* Menu Items */}
+          <nav className="flex-1 overflow-y-auto py-4">
+            <ul className="space-y-2">
+              <li>
+                <Link to="/dashboard" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
+                  <Home className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Home</span>}
+                </Link>
+              </li>
+              <li>
+                <Link to="/network" className="flex items-center px-4 py-3 bg-orange-50 text-orange-600 rounded-lg">
+                  <Users className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Network</span>}
+                </Link>
+              </li>
+              <li>
+                <Link to="/notifications" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
+                  <Bell className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Notifications</span>}
+                </Link>
+              </li>
+              <li>
+                <Link to="/messages" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
+                  <MessageCircle className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Messages</span>}
+                </Link>
+              </li>
+              <li>
+                <Link to="/jobs" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
+                  <Briefcase className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Jobs</span>}
+                </Link>
+              </li>
+            </ul>
+          </nav>
+          
+          {/* Bottom Menu */}
+          <div className="border-t py-4">
+            <ul className="space-y-2">
+              <li>
+                <Link to="/settings" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
+                  <Settings className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Settings</span>}
+                </Link>
+              </li>
+              <li>
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors"
+                >
+                  <LogOut className="h-5 w-5" />
+                  {!isSidebarCollapsed && <span className="ml-3">Logout</span>}
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      {/* Main Content */}
+      <div className={`flex-1 overflow-auto transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-60'}`}>
         <main className="max-w-7xl mx-auto p-4 md:p-6">
-        
           {/* Dashboard Header */}
           <div className="bg-white rounded-xl shadow-md mb-6 p-4 md:p-6 border-l-4 border-orange-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
