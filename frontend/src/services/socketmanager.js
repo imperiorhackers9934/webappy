@@ -60,7 +60,7 @@ class SocketManager {
     // Try to use the current API URL without the path
     try {
       // Get the base URL from your API
-      const apiBase = "https://myapp-uc9m.onrender.com"; // Replace with your actual API base URL
+      const apiBase = "https://myapp-nt8s.onrender.com"; // Replace with your actual API base URL
       return apiBase;
     } catch (e) {
       console.error('Error constructing socket URL:', e);
@@ -280,6 +280,38 @@ class SocketManager {
   getLastMessage(event) {
     return this.lastMessages[event] || null;
   }
+  // Add these methods to your SocketManager class
+startCall(chatId, callType, recipient) {
+  return this.emit('call_started', {
+    chatId,
+    callType,
+    recipient
+  });
+}
+
+sendIceCandidate(callId, candidate, targetUserId) {
+  return this.emit('call_ice_candidate', {
+    callId,
+    candidate,
+    targetUserId
+  });
+}
+
+sendSdpOffer(callId, sdp, targetUserId) {
+  return this.emit('call_sdp_offer', {
+    callId,
+    sdp,
+    targetUserId
+  });
+}
+
+sendSdpAnswer(callId, sdp, targetUserId) {
+  return this.emit('call_sdp_answer', {
+    callId,
+    sdp,
+    targetUserId
+  });
+}
   
   // Force a reconnection
   forceReconnect() {
