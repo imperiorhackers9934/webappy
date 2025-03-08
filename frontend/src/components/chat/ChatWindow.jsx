@@ -4,7 +4,7 @@ import MessageInput from './MessageInput';
 import MessageList from './MessageList';
 import CallInterface from './CallInterface';
 import api from '../../services/api';
-import enhancedSocketManager from '../../services/socketManager';
+import enhancedSocketManager from '../../services/socketmanager';
 
 const EnhancedChatWindow = ({
   chat,
