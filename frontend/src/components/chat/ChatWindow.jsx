@@ -1,12 +1,12 @@
+// frontend/src/components/chat/EnhancedChatWindow.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MessageInput from './MessageInput';
 import MessageList from './MessageList';
-import MessageReactions from './MessageReactions';
 import CallInterface from './CallInterface';
 import api from '../../services/api';
-import socketManager from '../../services/socketmanager';
+import enhancedSocketManager from '../../services/enhancedSocketManager';
 
-const ChatWindow = ({
+const EnhancedChatWindow = ({
   chat,
   currentUser,
   sendMessage,
@@ -26,59 +26,31 @@ const ChatWindow = ({
   const [replyingTo, setReplyingTo] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [messageSending, setMessageSending] = useState({});
+  const [messageRetries, setMessageRetries] = useState({});
+  const [unreadMessages, setUnreadMessages] = useState([]);
+  const [newMessageNotification, setNewMessageNotification] = useState(null);
+  const [lastReadIndex, setLastReadIndex] = useState(-1);
+  const [imageLoading, setImageLoading] = useState({});
   
   const messageEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const isInitialLoad = useRef(true);
-  const handlersRef = useRef({});  // Store event handlers to avoid recreating them
-// Add this to the top of your ChatWindow.jsx file, inside the component:
-
-// Add direct socket event handling
-useEffect(() => {
-  if (!socketManager.socket || !chat) return;
+  const previousScrollHeightRef = useRef(0);
+  const observedMessagesRef = useRef(new Set());
+  const chatIdRef = useRef(chat?._id);
   
-  console.log('Setting up direct socket handlers for ChatWindow');
-  
-  // Direct handler for new messages
-  const directMessageHandler = (data) => {
-    console.log('DIRECT: New message received:', data);
-    
-    // Skip if not for this chat
-    if (data.chatRoom !== chat._id) {
-      console.log('Message is for a different chat, ignoring');
-      return;
+  // Handle chat change
+  useEffect(() => {
+    if (chatIdRef.current !== chat?._id) {
+      observedMessagesRef.current = new Set();
+      chatIdRef.current = chat?._id;
     }
-    
-    // Update messages state
-    setMessages(prevMessages => {
-      // Check if message already exists
-      const messageExists = prevMessages.some(msg => msg._id === data._id);
-      
-      if (messageExists) {
-        console.log('Message already exists in state, not adding duplicate');
-        return prevMessages;
-      }
-      
-      console.log('Adding new message to state');
-      const newMessages = [...prevMessages, data];
-      
-      // Mark as read if not from current user
-      if (data.sender._id !== currentUser._id) {
-        sendReadReceipt(data._id, chat._id);
-      }
-      
-      return newMessages;
-    });
-  };
-  
-  // Register direct handler with socket.io
-  const cleanup = socketManager.rawOn('new_message', directMessageHandler);
-  
-  return cleanup;
-}, [socketManager.socket, chat, currentUser._id, sendReadReceipt]);
+  }, [chat?._id]);
+
   // Get the other participant in a direct chat
   const getParticipant = () => {
-    if (chat.type === 'direct') {
+    if (chat?.type === 'direct') {
       return chat.participants.find(p => p._id !== currentUser._id);
     }
     return null;
@@ -86,6 +58,69 @@ useEffect(() => {
 
   const participant = getParticipant();
   const isOnline = participant && onlineUsers[participant._id];
+  
+  // Setup intersection observer for read receipts
+  useEffect(() => {
+    if (!messagesContainerRef.current) return;
+    
+    const options = {
+      root: messagesContainerRef.current,
+      rootMargin: '0px',
+      threshold: 0.5
+    };
+
+    const handleIntersection = (entries) => {
+      const newlyReadMessages = [];
+      
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const messageId = entry.target.dataset.messageId;
+          const message = messages.find(msg => msg._id === messageId);
+          
+          if (message && 
+              !message.read && 
+              message.sender._id !== currentUser._id && 
+              !observedMessagesRef.current.has(messageId)) {
+            
+            observedMessagesRef.current.add(messageId);
+            newlyReadMessages.push({
+              messageId,
+              chatId: chat._id
+            });
+          }
+        }
+      });
+      
+      // Send batch read receipts
+      if (newlyReadMessages.length > 0 && socketStatus === 'CONNECTED') {
+        newlyReadMessages.forEach(data => {
+          sendReadReceipt(data.messageId, data.chatId);
+        });
+      }
+    };
+
+    const observer = new IntersectionObserver(handleIntersection, options);
+    
+    // Observe unread messages from other users
+    const messageElements = document.querySelectorAll('[data-message-id]');
+    messageElements.forEach(element => {
+      const messageId = element.dataset.messageId;
+      const message = messages.find(msg => msg._id === messageId);
+      
+      if (message && 
+          !message.read && 
+          message.sender._id !== currentUser._id && 
+          !observedMessagesRef.current.has(messageId)) {
+        observer.observe(element);
+      }
+    });
+
+    return () => {
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, [messages, currentUser._id, sendReadReceipt, chat, socketStatus]);
 
   // Load initial messages
   useEffect(() => {
@@ -108,9 +143,22 @@ useEffect(() => {
             msg => !msg.read && msg.sender._id !== currentUser._id
           );
           
-          unreadMessages.forEach(message => {
-            sendReadReceipt(message._id, chat._id);
-          });
+          if (unreadMessages.length > 0) {
+            setUnreadMessages(unreadMessages.map(msg => msg._id));
+            
+            // Send read receipts for visible messages
+            const visibleUnreadMessages = unreadMessages.filter(msg => {
+              // Logic to determine if message is visible in the viewport
+              // For simplicity, we'll consider last 5 messages as visible
+              const index = response.messages.findIndex(m => m._id === msg._id);
+              return index >= response.messages.length - 5;
+            });
+            
+            visibleUnreadMessages.forEach(message => {
+              sendReadReceipt(message._id, chat._id);
+              observedMessagesRef.current.add(message._id);
+            });
+          }
         }
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -122,7 +170,30 @@ useEffect(() => {
     if (chat?._id) {
       fetchMessages();
     }
-  }, [chat._id, currentUser._id, sendReadReceipt]);
+  }, [chat?._id, currentUser._id, sendReadReceipt]);
+
+  // Manage scroll position when loading more messages
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      
+      // Save current scroll height before messages are updated
+      previousScrollHeightRef.current = container.scrollHeight;
+    }
+  }, [loadingMore]);
+
+  // Restore scroll position after loading more messages
+  useEffect(() => {
+    if (loadingMore && messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const newScrollHeight = container.scrollHeight;
+      const scrollDifference = newScrollHeight - previousScrollHeightRef.current;
+      
+      // Adjust scroll position to maintain relative position
+      container.scrollTop = scrollDifference;
+      setLoadingMore(false);
+    }
+  }, [messages, loadingMore]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -136,202 +207,249 @@ useEffect(() => {
         const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
         if (isAtBottom) {
           messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          // If not at bottom and it's a new message not from current user,
+          // show a "new message" notification
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage && lastMessage.sender._id !== currentUser._id) {
+            setNewMessageNotification(lastMessage);
+          }
         }
       }
     }
-  }, [messages]);
+  }, [messages, currentUser._id]);
 
-  // Register socket event handlers for messages and calls
+  // Handle socket events for new messages and other updates
   useEffect(() => {
-    // Create handlers if they don't exist
-    if (!handlersRef.current.newMessage) {
-      handlersRef.current.newMessage = (message) => {
-        // Only handle messages for this chat
-        if (message.chatRoom === chat._id) {
-          console.log('New message for current chat received:', message);
-          
-          // Update messages list
-          setMessages(prevMessages => {
-            // Check if message already exists (to avoid duplicates)
-            const exists = prevMessages.some(msg => msg._id === message._id);
-            if (exists) return prevMessages;
-            
-            // Mark as read if we're the receiver
-            if (message.sender._id !== currentUser._id) {
-              sendReadReceipt(message._id, chat._id);
-            }
-            
-            return [...prevMessages, message];
-          });
+    if (!chat) return;
+    
+    // Direct handler for new messages
+    const directMessageHandler = (data) => {
+      // Skip if not for this chat
+      if (data.chatRoom !== chat._id) {
+        return;
+      }
+      
+      // Update messages state
+      setMessages(prevMessages => {
+        // Check if message already exists
+        const messageExists = prevMessages.some(msg => msg._id === data._id);
+        
+        if (messageExists) {
+          return prevMessages;
         }
-      };
-      
-      handlersRef.current.messageUpdated = (data) => {
-        const { messageId, updateType, updatedData } = data;
         
-        if (data.chatId !== chat._id) return;
+        // Add new message
+        const newMessages = [...prevMessages, data];
         
-        // Update the message in state
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg._id === messageId 
-              ? { ...msg, ...updatedData } 
-              : msg
-          )
-        );
-      };
-      
-      handlersRef.current.messageDeleted = (data) => {
-        if (data.chatId !== chat._id) return;
-        
-        // Mark message as deleted in state
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg._id === data.messageId 
-              ? { ...msg, deleted: true, content: 'This message was deleted' } 
-              : msg
-          )
-        );
-      };
-      
-      handlersRef.current.messageRead = (data) => {
-        if (data.chatId !== chat._id) return;
-        
-        // Update read status for message
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg._id === data.messageId 
-              ? { ...msg, read: true } 
-              : msg
-          )
-        );
-      };
-      
-      handlersRef.current.callStarted = (data) => {
-        console.log('Call started event received in ChatWindow:', data);
-        
-        // Only handle calls for this chat
-        if (chat._id !== data.chatId) return;
-        
-        // Only show incoming call UI if we're not the initiator
-        if (data.initiator._id !== currentUser._id) {
-          setActiveCall({
-            callId: data.callId,
-            type: data.type,
-            initiator: data.initiator,
-            participant: currentUser,
-            status: 'connecting'
-          });
+        // Mark as read if not from current user and user is active
+        if (data.sender._id !== currentUser._id && document.visibilityState === 'visible') {
+          sendReadReceipt(data._id, chat._id);
+          observedMessagesRef.current.add(data._id);
         }
-      };
-      
-      handlersRef.current.callAccepted = (data) => {
-        console.log('Call accepted event received:', data);
         
-        // Update call status
-        if (activeCall && activeCall.callId === data.callId) {
-          setActiveCall(prev => ({
-            ...prev,
-            status: 'ongoing'
-          }));
-        }
-      };
-      
-      handlersRef.current.callDeclined = (data) => {
-        console.log('Call declined event received:', data);
-        
-        // End call if it matches our active call
-        if (activeCall && activeCall.callId === data.callId) {
-          setActiveCall(null);
-        }
-      };
-      
-      handlersRef.current.callEnded = (data) => {
-        console.log('Call ended event received:', data);
-        
-        // End call if it matches our active call
-        if (activeCall && activeCall.callId === data.callId) {
-          setActiveCall(null);
-        }
-      };
-      
-      handlersRef.current.messageReaction = (data) => {
-        if (data.chatId !== chat._id) return;
-        
-        // Update message reactions
-        setMessages(prevMessages => 
-          prevMessages.map(msg => {
-            if (msg._id === data.messageId) {
-              // Get current reactions or empty array
-              const currentReactions = msg.reactions || [];
-              
-              // Filter out any existing reaction from this user
-              const filteredReactions = currentReactions.filter(r => r.userId !== data.userId);
-              
-              // Add the new reaction
-              const updatedReactions = [
-                ...filteredReactions,
-                {
-                  userId: data.userId,
-                  type: data.reaction,
-                  createdAt: new Date().toISOString()
-                }
-              ];
-              
-              return {
-                ...msg,
-                reactions: updatedReactions
-              };
-            }
-            return msg;
-          })
-        );
-      };
-      
-      handlersRef.current.reactionRemoved = (data) => {
-        if (data.chatId !== chat._id) return;
-        
-        // Remove reaction from message
-        setMessages(prevMessages => 
-          prevMessages.map(msg => {
-            if (msg._id === data.messageId) {
-              return {
-                ...msg,
-                reactions: (msg.reactions || []).filter(r => r.userId !== data.userId)
-              };
-            }
-            return msg;
-          })
-        );
-      };
-    }
+        return newMessages;
+      });
+    };
 
-    // Register event handlers with Socket.IO
-    const newMessageUnsub = socketManager.on('new_message', handlersRef.current.newMessage);
-    const messageUpdatedUnsub = socketManager.on('message_updated', handlersRef.current.messageUpdated);
-    const messageDeletedUnsub = socketManager.on('message_deleted', handlersRef.current.messageDeleted);
-    const messageReadUnsub = socketManager.on('message_read', handlersRef.current.messageRead);
-    const callStartedUnsub = socketManager.on('call_started', handlersRef.current.callStarted);
-    const callAcceptedUnsub = socketManager.on('call_accepted', handlersRef.current.callAccepted);
-    const callDeclinedUnsub = socketManager.on('call_declined', handlersRef.current.callDeclined);
-    const callEndedUnsub = socketManager.on('call_ended', handlersRef.current.callEnded);
-    const messageReactionUnsub = socketManager.on('message_reaction', handlersRef.current.messageReaction);
-    const reactionRemovedUnsub = socketManager.on('reaction_removed', handlersRef.current.reactionRemoved);
-  
+    // Handler for message updates
+    const messageUpdatedHandler = (data) => {
+      const { messageId, updateType, updatedData } = data;
+      
+      if (data.chatId !== chat._id) return;
+      
+      // Update the message in state
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, ...updatedData } 
+            : msg
+        )
+      );
+    };
+
+    // Handler for message deletions
+    const messageDeletedHandler = (data) => {
+      if (data.chatId !== chat._id) return;
+      
+      // Mark message as deleted in state
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg._id === data.messageId 
+            ? { ...msg, deleted: true, content: 'This message was deleted' } 
+            : msg
+        )
+      );
+    };
+
+    // Handler for messages being marked as read
+    const messageReadHandler = (data) => {
+      if (data.chatId !== chat._id) return;
+      
+      // Update read status for message
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg._id === data.messageId 
+            ? { ...msg, read: true } 
+            : msg
+        )
+      );
+    };
+
+    // Handler for incoming calls
+    const callStartedHandler = (data) => {
+      // Only handle calls for this chat
+      if (chat._id !== data.chatId) return;
+      
+      // Only show incoming call UI if we're not the initiator
+      if (data.initiator._id !== currentUser._id) {
+        setActiveCall({
+          callId: data.callId,
+          type: data.type,
+          initiator: data.initiator,
+          participant: currentUser,
+          status: 'connecting'
+        });
+      }
+    };
+
+    // Handler for call status updates
+    const callAcceptedHandler = (data) => {
+      // Update call status
+      if (activeCall && activeCall.callId === data.callId) {
+        setActiveCall(prev => ({
+          ...prev,
+          status: 'ongoing'
+        }));
+      }
+    };
+
+    const callDeclinedHandler = (data) => {
+      // End call if it matches our active call
+      if (activeCall && activeCall.callId === data.callId) {
+        setActiveCall(null);
+      }
+    };
+
+    const callEndedHandler = (data) => {
+      // End call if it matches our active call
+      if (activeCall && activeCall.callId === data.callId) {
+        setActiveCall(null);
+      }
+    };
+
+    // Handler for message reactions
+    const messageReactionHandler = (data) => {
+      if (data.chatId !== chat._id) return;
+      
+      // Update message reactions
+      setMessages(prevMessages => 
+        prevMessages.map(msg => {
+          if (msg._id === data.messageId) {
+            // Get current reactions or empty array
+            const currentReactions = msg.reactions || [];
+            
+            // Filter out any existing reaction from this user
+            const filteredReactions = currentReactions.filter(r => r.userId !== data.userId);
+            
+            // Add the new reaction
+            const updatedReactions = [
+              ...filteredReactions,
+              {
+                userId: data.userId,
+                type: data.reaction,
+                createdAt: new Date().toISOString()
+              }
+            ];
+            
+            return {
+              ...msg,
+              reactions: updatedReactions
+            };
+          }
+          return msg;
+        })
+      );
+    };
+
+    const reactionRemovedHandler = (data) => {
+      if (data.chatId !== chat._id) return;
+      
+      // Remove reaction from message
+      setMessages(prevMessages => 
+        prevMessages.map(msg => {
+          if (msg._id === data.messageId) {
+            return {
+              ...msg,
+              reactions: (msg.reactions || []).filter(r => r.userId !== data.userId)
+            };
+          }
+          return msg;
+        })
+      );
+    };
+// Continuing from the previous file...
+
+    // Handler for message delivery confirmations
+    const messageDeliveredHandler = (data) => {
+      if (data.chatId !== chat._id) return;
+      
+      // Update message status
+      setMessageSending(prev => ({
+        ...prev,
+        [data.messageId]: false
+      }));
+      
+      // Update message in state with server-assigned ID if needed
+      if (data.clientMessageId && data.messageId !== data.clientMessageId) {
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg._id === data.clientMessageId 
+              ? { ...msg, _id: data.messageId } 
+              : msg
+          )
+        );
+      }
+    };
+
+    // Handler for message delivery errors
+    const messageErrorHandler = (data) => {
+      if (data.chatId !== chat._id) return;
+      
+      // Update message sending status
+      setMessageSending(prev => ({
+        ...prev,
+        [data.messageId]: false
+      }));
+      
+      // Increment retry count
+      setMessageRetries(prev => ({
+        ...prev,
+        [data.messageId]: (prev[data.messageId] || 0) + 1
+      }));
+    };
+
+    // Register socket handlers
+    const handlers = [
+      enhancedSocketManager.on('new_message', directMessageHandler),
+      enhancedSocketManager.on('message_updated', messageUpdatedHandler),
+      enhancedSocketManager.on('message_deleted', messageDeletedHandler),
+      enhancedSocketManager.on('message_read', messageReadHandler),
+      enhancedSocketManager.on('call_started', callStartedHandler),
+      enhancedSocketManager.on('call_accepted', callAcceptedHandler),
+      enhancedSocketManager.on('call_declined', callDeclinedHandler),
+      enhancedSocketManager.on('call_ended', callEndedHandler),
+      enhancedSocketManager.on('message_reaction', messageReactionHandler),
+      enhancedSocketManager.on('reaction_removed', reactionRemovedHandler),
+      enhancedSocketManager.on('message_delivered', messageDeliveredHandler),
+      enhancedSocketManager.on('message_error', messageErrorHandler)
+    ];
+    
     // Cleanup event handlers
     return () => {
-      newMessageUnsub();
-      messageUpdatedUnsub();
-      messageDeletedUnsub();
-      messageReadUnsub();
-      callStartedUnsub();
-      callAcceptedUnsub();
-      callDeclinedUnsub();
-      callEndedUnsub();
-      messageReactionUnsub();
-      reactionRemovedUnsub();
+      handlers.forEach(unsubscribe => unsubscribe());
     };
-  }, [chat._id, currentUser._id, activeCall, sendReadReceipt]);
+  }, [chat, currentUser._id, activeCall, sendReadReceipt]);
 
   // Load more messages when scrolling to the top
   const loadMoreMessages = async () => {
@@ -344,11 +462,9 @@ useEffect(() => {
       setMessages(prevMessages => [...response.messages, ...prevMessages]);
       setHasMore(response.hasMore);
       setNextCursor(response.nextCursor);
-      setLoadingMore(false);
     } catch (error) {
       console.error('Error loading more messages:', error);
       setError('Failed to load more messages. Please try again.');
-      setLoadingMore(false);
     }
   };
 
@@ -365,15 +481,54 @@ useEffect(() => {
     
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasMore, loadingMore, loadMoreMessages]);
+  }, [hasMore, loadingMore]);
 
   // Handle sending a new message
   const handleSendMessage = async (content, messageType = 'text', attachment = null, replyToId = null, formData, config) => {
     try {
+      // Generate a temporary client-side ID for this message
+      const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create optimistic message for immediate display
+      const optimisticMessage = {
+        _id: tempId,
+        sender: currentUser,
+        recipient: participant,
+        chatRoom: chat._id,
+        content,
+        messageType,
+        createdAt: new Date().toISOString(),
+        read: false,
+        sending: true,
+        replyTo: replyToId ? { _id: replyToId } : null
+      };
+      
+      // Add to messages state immediately
+      setMessages(prev => [...prev, optimisticMessage]);
+      
+      // Mark as sending
+      setMessageSending(prev => ({
+        ...prev,
+        [tempId]: true
+      }));
+      
+      // Scroll to bottom for new message
+      setTimeout(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+      
       let newMessage;
       
-      // If we have form data (for attachments or replies), use it
+      // If we have form data (for attachments), use it
       if (formData) {
+        // For attachment messages, track image loading
+        if (messageType === 'image') {
+          setImageLoading(prev => ({
+            ...prev,
+            [tempId]: true
+          }));
+        }
+        
         newMessage = await api.sendMessageWithAttachment(chat._id, formData, config);
       } else if (replyToId) {
         newMessage = await api.replyToMessage(chat._id, replyToId, content, messageType, attachment);
@@ -381,14 +536,17 @@ useEffect(() => {
         newMessage = await sendMessage(chat._id, content, messageType, attachment);
       }
       
-      // Update local messages list (if not already updated by Socket.IO event)
+      // Mark as no longer sending
+      setMessageSending(prev => ({
+        ...prev,
+        [tempId]: false
+      }));
+      
+      // Update the optimistic message with the real one
       setMessages(prevMessages => {
-        // Check if message already exists (might have been added by Socket.IO event)
-        const messageExists = prevMessages.some(msg => msg._id === newMessage._id);
-        if (messageExists) {
-          return prevMessages;
-        }
-        return [...prevMessages, newMessage];
+        return prevMessages.map(msg => 
+          msg._id === tempId ? { ...newMessage, sending: false } : msg
+        );
       });
       
       // Clear reply state
@@ -397,9 +555,39 @@ useEffect(() => {
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
+      
+      // Mark the message as failed
+      setMessages(prevMessages => {
+        return prevMessages.map(msg => 
+          msg._id.startsWith('temp_') && msg.sending ? { ...msg, sending: false, failed: true } : msg
+        );
+      });
+      
       setError('Failed to send message. Please try again.');
       return false;
     }
+  };
+
+  // Handle image load completion
+  const handleImageLoaded = (messageId) => {
+    setImageLoading(prev => ({
+      ...prev,
+      [messageId]: false
+    }));
+  };
+
+  // Handle retry sending a failed message
+  const handleRetryMessage = async (message) => {
+    // Remove the failed message
+    setMessages(prev => prev.filter(msg => msg._id !== message._id));
+    
+    // Re-send the message
+    await handleSendMessage(
+      message.content, 
+      message.messageType, 
+      message.mediaUrl ? { url: message.mediaUrl } : null, 
+      message.replyTo?._id
+    );
   };
 
   // Handle reply to message
@@ -439,7 +627,7 @@ useEffect(() => {
     try {
       await api.reactToMessage(chat._id, messageId, reaction);
       
-      // Update local message (socket event handler should handle this)
+      // Update is handled by socket event
       return true;
     } catch (error) {
       console.error('Error reacting to message:', error);
@@ -453,7 +641,7 @@ useEffect(() => {
     try {
       await api.removeReaction(chat._id, messageId);
       
-      // Update local message (socket event handler should handle this)
+      // Update is handled by socket event
       return true;
     } catch (error) {
       console.error('Error removing reaction:', error);
@@ -464,6 +652,11 @@ useEffect(() => {
 
   // Start an audio call
   const startAudioCall = async () => {
+    if (socketStatus !== 'CONNECTED') {
+      setError('Cannot start call. Connection not available.');
+      return false;
+    }
+    
     try {
       const callData = await api.startAudioCall(chat._id);
       
@@ -485,6 +678,11 @@ useEffect(() => {
 
   // Start a video call
   const startVideoCall = async () => {
+    if (socketStatus !== 'CONNECTED') {
+      setError('Cannot start call. Connection not available.');
+      return false;
+    }
+    
     try {
       const callData = await api.startVideoCall(chat._id);
       
@@ -629,6 +827,14 @@ useEffect(() => {
     return lastActive.toLocaleDateString();
   };
 
+  // Scroll to the latest message
+  const scrollToBottom = () => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    
+    // Clear new message notification when scrolling to bottom
+    setNewMessageNotification(null);
+  };
+
   return (
     <div className="flex-grow flex flex-col h-full bg-white">
       {/* Chat Header */}
@@ -694,7 +900,7 @@ useEffect(() => {
         <div className="flex space-x-3">
           <button 
             onClick={startAudioCall}
-            className="text-gray-500 hover:text-orange-500"
+            className={`text-gray-500 hover:text-orange-500 ${socketStatus !== 'CONNECTED' ? 'opacity-50 cursor-not-allowed' : ''}`}
             title="Audio call"
             disabled={socketStatus !== 'CONNECTED'}
           >
@@ -705,7 +911,7 @@ useEffect(() => {
           
           <button 
             onClick={startVideoCall}
-            className="text-gray-500 hover:text-orange-500"
+            className={`text-gray-500 hover:text-orange-500 ${socketStatus !== 'CONNECTED' ? 'opacity-50 cursor-not-allowed' : ''}`}
             title="Video call"
             disabled={socketStatus !== 'CONNECTED'}
           >
@@ -729,7 +935,7 @@ useEffect(() => {
       {/* Messages List - overflow-y-auto applied here, height set to make it scrollable */}
       <div 
         ref={messagesContainerRef}
-        className="flex-grow overflow-y-auto bg-gray-50 px-4 py-2"
+        className="flex-grow overflow-y-auto bg-gray-50 px-4 py-2 relative"
         style={{ height: "0" }} // This forces the div to respect flex-grow while allowing scrolling
       >
         {loading && messages.length === 0 ? (
@@ -793,9 +999,27 @@ useEffect(() => {
               onDelete={handleDeleteMessage}
               onReact={handleReactToMessage}
               onRemoveReaction={handleRemoveReaction}
+              onRetry={handleRetryMessage}
+              messageSending={messageSending}
+              messageRetries={messageRetries}
+              onImageLoaded={handleImageLoaded}
+              imageLoading={imageLoading}
             />
             
             <div ref={messageEndRef} />
+          </div>
+        )}
+        
+        {/* New message notification */}
+        {newMessageNotification && (
+          <div 
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg cursor-pointer flex items-center"
+            onClick={scrollToBottom}
+          >
+            <span className="mr-2">New message</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         )}
       </div>
@@ -850,4 +1074,4 @@ useEffect(() => {
   );
 };
 
-export default ChatWindow;
+export default EnhancedChatWindow;
