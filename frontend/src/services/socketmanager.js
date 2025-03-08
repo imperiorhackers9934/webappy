@@ -1,7 +1,7 @@
-// frontend/src/services/socketManager.js
+// frontend/src/services/enhancedSocketManager.js
 import { io } from 'socket.io-client';
 
-class SocketManager {
+class EnhancedSocketManager {
   constructor() {
     this.socket = null;
     this.eventHandlers = {};
@@ -10,7 +10,11 @@ class SocketManager {
     this.maxReconnectAttempts = 5;
     this.statusListeners = [];
     this.lastMessages = {};
-    this.debug = true; // Always log for debugging
+    this.debugMode = process.env.NODE_ENV === 'development';
+    this.messageQueue = [];  // For storing messages when offline
+    this.messageDeliveryCallbacks = new Map(); // For tracking message delivery
+    this.typingTimeouts = {};  // For debouncing typing events
+    this.pendingReadReceipts = new Set(); // Track read receipts that need to be sent
   }
 
   connect(token, url) {
@@ -22,7 +26,9 @@ class SocketManager {
     // Determine server URL
     const serverUrl = url || this._getDefaultServerUrl();
     
-    console.log(`Socket.IO: Connecting to ${serverUrl} with token: ${token.substring(0, 10)}...`);
+    if (this.debugMode) {
+      console.log(`Socket.IO: Connecting to ${serverUrl} with token: ${token.substring(0, 10)}...`);
+    }
 
     // Close existing connection if any
     this._cleanup();
@@ -40,7 +46,7 @@ class SocketManager {
         transports: ['websocket', 'polling']
       });
 
-      // Setup basic event handlers
+      // Setup event handlers
       this._setupEventHandlers();
 
       return this.socket;
@@ -94,6 +100,12 @@ class SocketManager {
       
       // Request initial data from server
       this.emit('client_ready', { timestamp: new Date().toISOString() });
+      
+      // Process any queued messages
+      this._processQueuedMessages();
+      
+      // Send any pending read receipts
+      this._processPendingReadReceipts();
     });
 
     this.socket.on('connect_error', (error) => {
@@ -112,10 +124,27 @@ class SocketManager {
       console.log(`Socket.IO: Disconnected (${reason})`);
     });
 
-    // Setup debug event for development
-    this.socket.onAny((event, ...args) => {
-      console.log(`Socket.IO [Event]: ${event}`, args);
+    // Setup delivery confirmations
+    this.socket.on('message_delivered', (data) => {
+      if (this.debugMode) {
+        console.log('Socket.IO: Message delivery confirmation received', data);
+      }
+      
+      const { messageId, status } = data;
+      
+      // Call any registered delivery callbacks
+      if (this.messageDeliveryCallbacks.has(messageId)) {
+        this.messageDeliveryCallbacks.get(messageId)(status);
+        this.messageDeliveryCallbacks.delete(messageId);
+      }
     });
+
+    // Debug events in development mode
+    if (this.debugMode) {
+      this.socket.onAny((event, ...args) => {
+        console.log(`Socket.IO [Event]: ${event}`, args);
+      });
+    }
   }
 
   disconnect() {
@@ -147,7 +176,51 @@ class SocketManager {
     });
   }
 
-  // Register an event handler
+  // Process messages that were queued while offline
+  _processQueuedMessages() {
+    if (this.messageQueue.length > 0 && this.connectionStatus === 'CONNECTED') {
+      console.log(`Socket.IO: Processing ${this.messageQueue.length} queued messages`);
+      
+      // Process each queued message
+      while (this.messageQueue.length > 0) {
+        const { event, data, resolve, reject } = this.messageQueue.shift();
+        
+        try {
+          this.socket.emit(event, data, (response) => {
+            if (response && response.error) {
+              reject && reject(new Error(response.error));
+            } else {
+              resolve && resolve(response);
+            }
+          });
+        } catch (error) {
+          console.error(`Socket.IO: Error sending queued message (${event})`, error);
+          reject && reject(error);
+        }
+      }
+    }
+  }
+
+  // Process pending read receipts
+  _processPendingReadReceipts() {
+    if (this.pendingReadReceipts.size > 0 && this.connectionStatus === 'CONNECTED') {
+      console.log(`Socket.IO: Processing ${this.pendingReadReceipts.size} pending read receipts`);
+      
+      // Process each pending read receipt
+      for (const data of this.pendingReadReceipts) {
+        try {
+          this.socket.emit('read_message', data);
+        } catch (error) {
+          console.error('Socket.IO: Error sending pending read receipt', error);
+        }
+      }
+      
+      // Clear the pending read receipts
+      this.pendingReadReceipts.clear();
+    }
+  }
+
+  // Register an event handler with improved error handling
   on(event, handler) {
     if (!this.eventHandlers[event]) {
       this.eventHandlers[event] = [];
@@ -155,9 +228,15 @@ class SocketManager {
     
     // Create a wrapper function that will update lastMessages and call the handler
     const wrappedHandler = (data) => {
-      console.log(`Socket.IO: Event ${event} received`, data);
-      this.lastMessages[event] = data;
-      handler(data);
+      try {
+        if (this.debugMode) {
+          console.log(`Socket.IO: Event ${event} received`, data);
+        }
+        this.lastMessages[event] = data;
+        handler(data);
+      } catch (error) {
+        console.error(`Socket.IO: Error in event handler for ${event}`, error);
+      }
     };
     
     // Store the original handler for reconnection
@@ -168,7 +247,9 @@ class SocketManager {
     
     // If socket exists, register with the socket
     if (this.socket) {
-      console.log(`Socket.IO: Registering handler for ${event}`);
+      if (this.debugMode) {
+        console.log(`Socket.IO: Registering handler for ${event}`);
+      }
       this.socket.on(event, wrappedHandler);
     }
     
@@ -177,10 +258,11 @@ class SocketManager {
   }
 
   // Register a handler that directly uses socket.io's API
-  // This is helpful for debugging
   rawOn(event, handler) {
     if (this.socket) {
-      console.log(`Socket.IO: Directly registering raw handler for ${event}`);
+      if (this.debugMode) {
+        console.log(`Socket.IO: Directly registering raw handler for ${event}`);
+      }
       this.socket.on(event, handler);
       
       // Return function to remove listener
@@ -209,21 +291,69 @@ class SocketManager {
     }
   }
 
-  // Emit an event
-  emit(event, data) {
-    if (!this.socket || !this.socket.connected) {
-      console.warn(`Socket.IO: Cannot emit "${event}" - not connected`);
-      return false;
-    }
+  // Emit an event with improved offline handling and delivery confirmation
+  emit(event, data, options = {}) {
+    const { waitForDelivery = false, timeout = 10000 } = options;
     
-    try {
-      console.log(`Socket.IO: Emitting event ${event}`, data);
-      this.socket.emit(event, data);
-      return true;
-    } catch (error) {
-      console.error(`Socket.IO: Error emitting "${event}"`, error);
-      return false;
-    }
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.socket.connected) {
+        if (this.debugMode) {
+          console.warn(`Socket.IO: Cannot emit "${event}" - not connected, queueing message`);
+        }
+        
+        // Add message to queue if it's important
+        if (event === 'send_message' || event === 'read_message') {
+          this.messageQueue.push({ event, data, resolve, reject });
+        } else {
+          reject(new Error('Socket not connected'));
+        }
+        
+        return;
+      }
+      
+      try {
+        if (this.debugMode) {
+          console.log(`Socket.IO: Emitting event ${event}`, data);
+        }
+        
+        // For messages that need delivery confirmation
+        if (waitForDelivery && data.messageId) {
+          const messageId = data.messageId;
+          
+          // Set up timeout for delivery confirmation
+          const timeoutId = setTimeout(() => {
+            if (this.messageDeliveryCallbacks.has(messageId)) {
+              this.messageDeliveryCallbacks.delete(messageId);
+              reject(new Error('Message delivery confirmation timeout'));
+            }
+          }, timeout);
+          
+          // Set up delivery callback
+          this.messageDeliveryCallbacks.set(messageId, (status) => {
+            clearTimeout(timeoutId);
+            if (status === 'delivered') {
+              resolve(status);
+            } else {
+              reject(new Error(`Message delivery failed: ${status}`));
+            }
+          });
+        }
+        
+        // Emit the event
+        this.socket.emit(event, data, (response) => {
+          if (!waitForDelivery) {
+            if (response && response.error) {
+              reject(new Error(response.error));
+            } else {
+              resolve(response);
+            }
+          }
+        });
+      } catch (error) {
+        console.error(`Socket.IO: Error emitting "${event}"`, error);
+        reject(error);
+      }
+    });
   }
 
   // Subscribe to status changes
@@ -239,31 +369,70 @@ class SocketManager {
     };
   }
 
-  // Join a chat room
+  // Join a chat room with confirmation
   joinChat(chatId) {
-    console.log(`Socket.IO: Joining chat ${chatId}`);
+    if (this.debugMode) {
+      console.log(`Socket.IO: Joining chat ${chatId}`);
+    }
     return this.emit('join_chat', { chatId });
   }
   
-  // Leave a chat room
+  // Leave a chat room with confirmation
   leaveChat(chatId) {
-    console.log(`Socket.IO: Leaving chat ${chatId}`);
+    if (this.debugMode) {
+      console.log(`Socket.IO: Leaving chat ${chatId}`);
+    }
     return this.emit('leave_chat', { chatId });
   }
   
-  // Send a new message
+  // Send a new message with delivery confirmation
   sendMessage(chatId, message) {
-    return this.emit('send_message', { chatId, ...message });
+    // Generate a client-side ID to track this message
+    const clientMessageId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const enhancedMessage = { 
+      ...message, 
+      chatId,
+      clientMessageId,
+      sentAt: new Date().toISOString()
+    };
+    
+    return this.emit('send_message', enhancedMessage, { waitForDelivery: true });
   }
   
-  // Mark a message as read
+  // Mark a message as read with improved offline handling
   markMessageRead(messageId, chatId) {
-    return this.emit('read_message', { messageId, chatId });
+    const data = { messageId, chatId };
+    
+    // Store in pending read receipts if offline
+    if (!this.isConnected()) {
+      this.pendingReadReceipts.add(data);
+      return Promise.resolve({ queued: true });
+    }
+    
+    return this.emit('read_message', data);
   }
   
-  // Send typing indicator
+  // Send typing indicator with debounce to reduce network traffic
   sendTypingIndicator(chatId, isTyping) {
-    return this.emit('typing', { chatId, isTyping });
+    // Clear any existing timeout for this chat
+    if (this.typingTimeouts[chatId]) {
+      clearTimeout(this.typingTimeouts[chatId]);
+      delete this.typingTimeouts[chatId];
+    }
+    
+    // If user stopped typing, send immediately
+    if (!isTyping) {
+      return this.emit('typing', { chatId, isTyping });
+    }
+    
+    // If user is typing, debounce
+    const debounceTime = 1000; // 1 second debounce
+    this.typingTimeouts[chatId] = setTimeout(() => {
+      this.emit('typing', { chatId, isTyping });
+      delete this.typingTimeouts[chatId];
+    }, debounceTime);
+    
+    return Promise.resolve({ debounced: true });
   }
   
   // Get current connection status
@@ -280,38 +449,39 @@ class SocketManager {
   getLastMessage(event) {
     return this.lastMessages[event] || null;
   }
-  // Add these methods to your SocketManager class
-startCall(chatId, callType, recipient) {
-  return this.emit('call_started', {
-    chatId,
-    callType,
-    recipient
-  });
-}
 
-sendIceCandidate(callId, candidate, targetUserId) {
-  return this.emit('call_ice_candidate', {
-    callId,
-    candidate,
-    targetUserId
-  });
-}
+  // Call-related methods
+  startCall(chatId, callType, recipient) {
+    return this.emit('call_started', {
+      chatId,
+      callType,
+      recipient
+    });
+  }
 
-sendSdpOffer(callId, sdp, targetUserId) {
-  return this.emit('call_sdp_offer', {
-    callId,
-    sdp,
-    targetUserId
-  });
-}
+  sendIceCandidate(callId, candidate, targetUserId) {
+    return this.emit('call_ice_candidate', {
+      callId,
+      candidate,
+      targetUserId
+    });
+  }
 
-sendSdpAnswer(callId, sdp, targetUserId) {
-  return this.emit('call_sdp_answer', {
-    callId,
-    sdp,
-    targetUserId
-  });
-}
+  sendSdpOffer(callId, sdp, targetUserId) {
+    return this.emit('call_sdp_offer', {
+      callId,
+      sdp,
+      targetUserId
+    });
+  }
+
+  sendSdpAnswer(callId, sdp, targetUserId) {
+    return this.emit('call_sdp_answer', {
+      callId,
+      sdp,
+      targetUserId
+    });
+  }
   
   // Force a reconnection
   forceReconnect() {
@@ -326,9 +496,14 @@ sendSdpAnswer(callId, sdp, targetUserId) {
       }, 1000);
     }
   }
+
+  // Enable/disable debug mode
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+  }
 }
 
 // Create a singleton instance
-const socketManager = new SocketManager();
+const enhancedSocketManager = new EnhancedSocketManager();
 
-export default socketManager;
+export default enhancedSocketManager;
