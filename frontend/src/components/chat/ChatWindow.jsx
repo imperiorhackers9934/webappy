@@ -452,21 +452,57 @@ const EnhancedChatWindow = ({
   }, [chat, currentUser._id, activeCall, sendReadReceipt]);
 
   // Load more messages when scrolling to the top
-  const loadMoreMessages = async () => {
-    if (!hasMore || loadingMore) return;
+// Enhanced loadMoreMessages function with better error handling and data validation
+const loadMoreMessages = async () => {
+  if (!hasMore || loadingMore || !chat?._id) return;
+  
+  try {
+    setLoadingMore(true);
     
+    // Log the current state before making the request
+    console.log('Loading more messages with params:', { 
+      chatId: chat._id, 
+      nextCursor, 
+      messagesCount: messages.length 
+    });
+    
+    // Make the API request with additional error handling
+    let response;
     try {
-      setLoadingMore(true);
-      const response = await api.getMessages(chat._id, { before: nextCursor });
-      
-      setMessages(prevMessages => [...response.messages, ...prevMessages]);
-      setHasMore(response.hasMore);
-      setNextCursor(response.nextCursor);
-    } catch (error) {
-      console.error('Error loading more messages:', error);
-      setError('Failed to load more messages. Please try again.');
+      response = await api.getMessages(chat._id, { before: nextCursor });
+    } catch (apiError) {
+      console.error('API Error details:', apiError.response?.data || apiError.message);
+      throw apiError;
     }
-  };
+    
+    // Validate the response
+    if (!response || !Array.isArray(response.messages)) {
+      console.error('Invalid response format:', response);
+      throw new Error('Invalid server response format');
+    }
+    
+    console.log(`Received ${response.messages.length} more messages`);
+    
+    // Update the state with the new messages
+    setMessages(prevMessages => {
+      // Ensure no duplicate messages by tracking IDs
+      const existingIds = new Set(prevMessages.map(msg => msg._id));
+      const newMessages = response.messages.filter(msg => !existingIds.has(msg._id));
+      
+      console.log(`Adding ${newMessages.length} unique messages to the existing ${prevMessages.length}`);
+      return [...newMessages, ...prevMessages];
+    });
+    
+    // Update pagination state
+    setHasMore(response.hasMore === true);
+    setNextCursor(response.nextCursor || null);
+  } catch (error) {
+    console.error('Error loading more messages:', error);
+    setError('Failed to load more messages. Please try again.');
+  } finally {
+    setLoadingMore(false);
+  }
+};
 
   // Detect scroll to load more messages
   useEffect(() => {
