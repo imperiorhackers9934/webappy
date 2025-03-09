@@ -413,24 +413,71 @@ const chatService = {
     return response.data;
   },
 
-  getMessages: async (chatId, options = {}) => {
-    const { limit, before, after, lastMessageId } = options;
+// Enhanced getMessages function with better error handling and parameter validation
+getMessages: async (chatId, options = {}) => {
+  if (!chatId) {
+    console.error('getMessages called without chatId');
+    throw new Error('Chat ID is required');
+  }
+
+  try {
+    const { limit = 20, before, after, lastMessageId } = options;
     let url = `/api/chats/${chatId}/messages`;
     
     const params = new URLSearchParams();
-    if (limit) params.append('limit', limit);
-    if (before) params.append('before', before);
-    if (after) params.append('after', after);
-    if (lastMessageId) params.append('lastMessageId', lastMessageId);
     
+    // Add pagination parameters
+    if (limit) params.append('limit', limit);
+    
+    // Only add cursor if it's a valid string
+    if (before && typeof before === 'string') {
+      params.append('before', before);
+    }
+    
+    if (after && typeof after === 'string') {
+      params.append('after', after);
+    }
+    
+    if (lastMessageId && typeof lastMessageId === 'string') {
+      params.append('lastMessageId', lastMessageId);
+    }
+    
+    // Add the query string to the URL if there are parameters
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
     
+    console.log(`API: Fetching messages from ${url}`);
+    
     const response = await api.get(url);
-    return response.data;
-  },
-
+    
+    // Validate and normalize response data
+    const responseData = response.data;
+    
+    // Ensure messages is always an array
+    if (!responseData.messages) {
+      responseData.messages = [];
+    }
+    
+    // Ensure pagination fields are consistent
+    responseData.hasMore = !!responseData.hasMore;
+    
+    // Log response summary
+    console.log(`API: Received ${responseData.messages.length} messages, hasMore: ${responseData.hasMore}`);
+    
+    return responseData;
+  } catch (error) {
+    console.error(`API Error in getMessages for chat ${chatId}:`, error);
+    
+    // Add enhanced error details
+    if (error.response) {
+      console.error('Server response status:', error.response.status);
+      console.error('Server response data:', error.response.data);
+    }
+    
+    throw error;
+  }
+},
   sendMessage: async (chatId, messageData) => {
     const response = await api.post(`/api/chats/${chatId}/messages`, messageData);
     
