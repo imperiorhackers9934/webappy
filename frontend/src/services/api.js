@@ -714,303 +714,120 @@ startVideoCall: async (chatId) => {
 };
 
 // Network endpoints
+// Update the networkService section in frontend/src/services/api.js
+
+// Network endpoints
 const networkService = {
-   sendConnectionRequest: async (userId) => {
-    const response = await api.post('/api/connections/request', { targetUserId: userId });
-    return response.data;
+  sendConnectionRequest: async (userId) => {
+    try {
+      const response = await api.post('/api/network/connection-request', { targetUserId: userId });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending connection request:', error);
+      throw error;
+    }
   },
 
   acceptConnection: async (userId) => {
-    const response = await api.post('/api/connections/accept', { senderUserId: userId });
-    return response.data;
+    try {
+      const response = await api.post('/api/network/connection-response', { 
+        senderUserId: userId,
+        action: 'accept'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error accepting connection:', error);
+      throw error;
+    }
   },
 
   declineConnection: async (userId) => {
-    const response = await api.post('/api/connections/decline', { senderUserId: userId });
-    return response.data;
+    try {
+      const response = await api.post('/api/network/connection-response', { 
+        senderUserId: userId,
+        action: 'decline'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error declining connection:', error);
+      throw error;
+    }
   },
 
   getConnections: async (type = 'all') => {
-    const response = await api.get(`/api/network/connections?type=${type}`);
-    return response.data;
+    try {
+      const response = await api.get(`/api/network/connections?type=${type}`);
+      return response.data.connections || [];
+    } catch (error) {
+      console.error('Error fetching connections:', error);
+      return [];
+    }
   },
 
   getConnectionRequests: async () => {
-    const response = await api.get('/api/network/connection-requests');
-    return response.data;
+    try {
+      const response = await api.get('/api/network/connection-requests');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching connection requests:', error);
+      return [];
+    }
   },
 
-  followUser: async (userId) => {
-    const response = await api.post(`/api/users/${userId}/follow`);
-    return response.data;
-  },
-  
-// Add this improved function to your api.js file
-// Replace the existing getNearbyProfessionals function
-
-// Update this function in your api.js file
-
-getNearbyProfessionals: async (distance = 10, latitude = null, longitude = null) => {
-  try {
-    console.log(`getNearbyProfessionals called with: distance=${distance}, lat=${latitude}, lng=${longitude}`);
-    
-    // If coordinates are provided directly, use them
-    let userLocation = null;
-    if (latitude && longitude) {
-      userLocation = { latitude, longitude };
-      console.log('Using provided coordinates:', userLocation);
-    } 
-    // Otherwise try to get them from browser geolocation
-    else if (navigator.geolocation) {
-      try {
-        userLocation = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            position => {
-              resolve({
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                accuracy: position.coords.accuracy
-              });
-            },
-            error => {
-              console.error('Error getting location:', error);
-              reject(error);
-            },
-            { 
+  getNearbyProfessionals: async (distance = 10, latitude = null, longitude = null) => {
+    try {
+      // Build query parameters
+      const params = { distance };
+      
+      // Add coordinates if available
+      if (latitude !== null && longitude !== null) {
+        params.latitude = latitude;
+        params.longitude = longitude;
+      }
+      // Otherwise try to get from browser
+      else if (navigator.geolocation) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
               enableHighAccuracy: true,
               timeout: 15000,
               maximumAge: 0
-            }
-          );
-        });
-        console.log('Using browser geolocation:', userLocation);
-      } catch (error) {
-        console.error('Failed to get location from browser:', error);
-      }
-    }
-    
-    // Build the API request
-    let url = '/api/network/nearby';
-    const params = { distance };
-    
-    // Add location parameters if available
-    if (userLocation) {
-      params.latitude = userLocation.latitude;
-      params.longitude = userLocation.longitude;
-    }
-    
-    console.log(`Making API request to ${url} with params:`, params);
-    
-    // Make the API call
-    const response = await api.get(url, { params });
-    
-    // Process the response
-    if (!response || !response.data) {
-      console.error('Empty response from server');
-      return [];
-    }
-    
-    // Extract the users from the response
-    let users = [];
-    if (Array.isArray(response.data)) {
-      users = response.data;
-    } else if (response.data && typeof response.data === 'object') {
-      // Handle different response formats
-      if (Array.isArray(response.data.users)) {
-        users = response.data.users;
-      } else if (Array.isArray(response.data.data)) {
-        users = response.data.data;
-      } else if (Array.isArray(response.data.results)) {
-        users = response.data.results;
-      }
-    }
-    
-    // Check for empty results
-    if (users.length === 0) {
-      console.log('No nearby users found');
-      return [];
-    }
-    
-    // Add default distance if missing
-    users = users.map(user => {
-      if (typeof user.distance !== 'number') {
-        return { ...user, distance: null };
-      }
-      return user;
-    });
-    
-    // Log some sample data
-    console.log(`Retrieved ${users.length} nearby users. Sample:`, 
-      users.slice(0, 3).map(u => ({ 
-        name: `${u.firstName} ${u.lastName}`, 
-        distance: u.distance 
-      }))
-    );
-    
-    return users;
-  } catch (error) {
-    console.error('Error fetching nearby professionals:', error);
-    
-    // Log detailed error information
-    if (error.response) {
-      console.error('Server responded with error:', error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-    } else {
-      console.error('Error setting up request:', error.message);
-    }
-    
-    return [];
-  }
-},
-  // Add this method to your api.js file to provide IP-based geolocation as a fallback
-
-// IP-based geolocation as a fallback when other methods fail
-getIPLocation: async () => {
-  try {
-    // First try server-side IP detection
-    const response = await api.get('/api/location/ip');
-    
-    // If the server has an endpoint for IP location
-    if (response.data && response.data.latitude && response.data.longitude) {
-      console.log('Using server-provided IP location:', response.data);
-      return response.data;
-    }
-    
-    // If server doesn't provide location or endpoint doesn't exist,
-    // fall back to a free IP geolocation service
-    const ipInfoResponse = await axios.get('https://ipapi.co/json/');
-    
-    if (ipInfoResponse.data && ipInfoResponse.data.latitude && ipInfoResponse.data.longitude) {
-      const location = {
-        latitude: ipInfoResponse.data.latitude,
-        longitude: ipInfoResponse.data.longitude,
-        city: ipInfoResponse.data.city,
-        region: ipInfoResponse.data.region,
-        country: ipInfoResponse.data.country_name
-      };
-      
-      console.log('Using ipapi.co IP location:', location);
-      return location;
-    }
-    
-    // If all else fails
-    throw new Error('Could not determine location from IP');
-  } catch (error) {
-    console.error('Error in IP-based geolocation:', error);
-    throw error;
-  }
-},
-
-  getProfessionalSuggestions: async (options = {}) => {
-    try {
-      const { industry, skills, limit } = options;
-      
-      let url = '/api/network/suggestions';
-      const params = new URLSearchParams();
-      
-      if (industry) params.append('industry', industry);
-      if (skills) params.append('skills', skills);
-      if (limit) params.append('limit', limit);
-      
-      if (params.toString()) {
-        url += `?${params.toString()}`;
+            });
+          });
+          
+          params.latitude = position.coords.latitude;
+          params.longitude = position.coords.longitude;
+        } catch (geoError) {
+          console.error('Error getting location:', geoError);
+          return []; // Return empty array if we can't get location
+        }
       }
       
-      const response = await api.get(url);
+      // Make API request
+      const response = await api.get('/api/network/nearby', { params });
       
-      // Filter out self and already connected users from the response
-      const currentUser = localStorage.getItem('userId');
-      const filteredUsers = response.data.filter(user => {
-        // Filter out self
-        if (user._id === currentUser) return false;
-        
-        // Filter out connected users
-        if (user.isConnected) return false;
-        
-        return true;
-      });
-      
-      return filteredUsers;
+      return response.data || [];
     } catch (error) {
-      console.error('Error fetching professional suggestions:', error);
+      console.error('Error fetching nearby professionals:', error);
       return [];
     }
   },
 
-  // Location-based networking
-  getMapUsers: async (options = {}) => {
-    const { 
-      latitude, longitude, radius, 
-      industries, skills, 
-      availableForMeeting, availableForHiring, lookingForWork,
-      page, limit
-    } = options;
-    
-    let url = '/api/network/map';
-    const params = new URLSearchParams();
-    
-    if (latitude) params.append('latitude', latitude);
-    if (longitude) params.append('longitude', longitude);
-    if (radius) params.append('radius', radius);
-    if (industries) params.append('industries', industries);
-    if (skills) params.append('skills', skills);
-    if (availableForMeeting) params.append('availableForMeeting', availableForMeeting);
-    if (availableForHiring) params.append('availableForHiring', availableForHiring);
-    if (lookingForWork) params.append('lookingForWork', lookingForWork);
-    if (page) params.append('page', page);
-    if (limit) params.append('limit', limit);
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
+  removeConnection: async (userId) => {
+    try {
+      const response = await api.post('/api/network/remove-connection', { userId });
+      return response.data;
+    } catch (error) {
+      console.error('Error removing connection:', error);
+      throw error;
     }
-    
-    const response = await api.get(url);
-    return response.data;
-  },
-
-  updateLocationStatus: async (data) => {
-    const response = await api.put('/api/network/location-status', data);
-    return response.data;
-  },
-
-  // Request an in-person meeting
-  requestMeeting: async (targetUserId, meetingData) => {
-    const response = await api.post('/api/network/meeting-request', {
-      targetUserId,
-      ...meetingData
-    });
-    return response.data;
-  },
-
-  // Respond to a meeting request
-  respondToMeeting: async (meetingId, status, alternativeData = {}) => {
-    const response = await api.put(`/api/network/meeting-request/${meetingId}`, {
-      status,
-      ...alternativeData
-    });
-    return response.data;
-  },
-
-  // Get user's meetings
-  getMeetings: async (options = {}) => {
-    const { status, type, page, limit } = options;
-    let url = '/api/network/meetings';
-    const params = new URLSearchParams();
-    
-    if (status) params.append('status', status);
-    if (type) params.append('type', type);
-    if (page) params.append('page', page);
-    if (limit) params.append('limit', limit);
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-    
-    const response = await api.get(url);
-    return response.data;
   }
 };
+
+// Make sure this section replaces the existing networkService object in your api.js file
+    
+    // Log some sample data
+   
 
 // Profile View endpoints (LinkedIn style)
 const profileViewService = {
