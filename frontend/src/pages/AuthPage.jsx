@@ -1,90 +1,85 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import AuthLayout from '../components/layout/AuthLayout';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import Login from '../components/auth/Login';
 import Signup from '../components/auth/Signup';
 import PhoneLogin from '../components/auth/PhoneLogin';
-import { useAuth } from '../context/AuthContext';
+import AuthLayout from '../components/layout/AuthLayout';
+import { useToast } from '../components/common/Toast';
 
-const AuthPage = ({ type: propType }) => {
-  const { type: paramType } = useParams();
-  const navigate = useNavigate();
+const AuthPage = ({ type = 'login' }) => {
   const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const { user, loading, handleAuthCallback, isNewSignup } = useAuth();
-  
-  // Initialize authType from either prop or param
-  const [authType, setAuthType] = useState(propType || paramType || 'login');
-  const [isCallbackProcessed, setIsCallbackProcessed] = useState(false);
+  const navigate = useNavigate();
+  const { user, handleAuthCallback, isNewSignup } = useAuth();
+  const [authType, setAuthType] = useState(type);
+  const { addToast } = useToast();
+  const [isProcessingCallback, setIsProcessingCallback] = useState(false);
 
   useEffect(() => {
-    // Handle OAuth callback
-    if (location.pathname === '/auth/callback' && !isCallbackProcessed) {
-      console.log('OAuth callback triggered, params:', searchParams.toString());
-      
-      // Mark callback as processed to prevent multiple redirect attempts
-      setIsCallbackProcessed(true);
-      
-      // Process the callback - handleAuthCallback will handle the redirects
-      handleAuthCallback(searchParams);
-      return;
+    // Check if user is already logged in and not in callback mode
+    if (user && !location.pathname.includes('/auth/callback')) {
+      navigate('/dashboard');
     }
-    
-    // Only run the following logic when auth state is settled (not loading)
-    if (!loading) {
-      // For debugging
-      console.log('Auth state:', { user, isNewSignup, pathname: location.pathname });
-      
-      // If authenticated user...
-      if (user) {
-        // New users should be redirected to profile setup from any auth page
-        if (isNewSignup && 
-            (location.pathname === '/login' || 
-             location.pathname === '/signup' || 
-             location.pathname === '/phone-login')) {
-          console.log('Redirecting new user to profile setup');
-          navigate('/profile-setup');
-          return;
-        }
-        
-        // Existing users should be redirected to dashboard from any auth page
-        if (!isNewSignup && 
-            (location.pathname === '/login' || 
-             location.pathname === '/signup' || 
-             location.pathname === '/phone-login')) {
-          console.log('Redirecting existing user to dashboard');
-          navigate('/dashboard');
-          return;
-        }
+
+    // Handle OAuth callback if on callback page
+    if (location.pathname === '/auth/callback') {
+      handleOAuthCallback();
+    }
+
+    // Check for error params
+    const urlParams = new URLSearchParams(location.search);
+    const error = urlParams.get('error');
+    const expired = urlParams.get('expired');
+
+    if (error) {
+      let errorMessage = 'Authentication failed';
+      if (error === 'auth_failed') {
+        errorMessage = 'Authentication failed. Please try again.';
+      } else if (error === 'server_error') {
+        errorMessage = 'Server error occurred. Please try again later.';
+      } else if (error === 'invalid_state') {
+        errorMessage = 'Security validation failed. Please try again.';
+      } else if (error === 'linkedin_auth_failed') {
+        errorMessage = 'LinkedIn authentication failed. Please try again.';
       }
+      addToast(errorMessage, 'error');
     }
-    
-    // Update auth type if props or params change
-    if (propType || paramType) {
-      setAuthType(propType || paramType);
+
+    if (expired === 'true') {
+      addToast('Your session has expired. Please log in again.', 'warning');
     }
-  }, [user, loading, propType, paramType, location.pathname, navigate, searchParams, 
-      handleAuthCallback, isNewSignup, isCallbackProcessed]);
-  
-  // Render appropriate auth component
-  const renderAuthComponent = () => {
-    switch (authType) {
-      case 'signup':
-        return <Signup />;
-      case 'phone-login':
-        return <PhoneLogin />;
-      case 'login':
-      default:
-        return <Login />;
+  }, [location, user, navigate, addToast]);
+
+  useEffect(() => {
+    // Update auth type based on props
+    setAuthType(type);
+  }, [type]);
+
+  const handleOAuthCallback = async () => {
+    try {
+      setIsProcessingCallback(true);
+      const searchParams = new URLSearchParams(location.search);
+      console.log('Processing auth callback with params:', searchParams.toString());
+      
+      await handleAuthCallback(searchParams);
+      
+      // The handleAuthCallback function should handle navigation
+    } catch (error) {
+      console.error('Error handling auth callback:', error);
+      addToast('Failed to authenticate. Please try again.', 'error');
+      navigate('/login');
+    } finally {
+      setIsProcessingCallback(false);
     }
   };
 
-  // Show loading indicator while authentication state is being determined
-  if (loading || (location.pathname === '/auth/callback' && !isCallbackProcessed)) {
+  // Show loading state during callback processing
+  if (isProcessingCallback) {
     return (
       <AuthLayout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="flex flex-col items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Processing your login...</p>
         </div>
       </AuthLayout>
     );
@@ -92,7 +87,13 @@ const AuthPage = ({ type: propType }) => {
 
   return (
     <AuthLayout>
-      {renderAuthComponent()}
+      {authType === 'signup' ? (
+        <Signup />
+      ) : authType === 'phone-login' ? (
+        <PhoneLogin />
+      ) : (
+        <Login />
+      )}
     </AuthLayout>
   );
 };
