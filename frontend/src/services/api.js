@@ -1840,6 +1840,44 @@ const token = localStorage.getItem('token');
 if (token) {
   socketManager.connect(token);
 }
+const setAuthToken = (token) => {
+  if (token) {
+    // Store in localStorage
+    localStorage.setItem('token', token);
+    
+    // Set default headers for future requests
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    
+    // Connect socket with new token
+    if (socketManager && typeof socketManager.connect === 'function') {
+      socketManager.connect(token);
+    }
+    
+    return true;
+  } else {
+    // Remove token
+    localStorage.removeItem('token');
+    delete api.defaults.headers.common['Authorization'];
+    
+    // Disconnect socket
+    if (socketManager && typeof socketManager.disconnect === 'function') {
+      socketManager.disconnect();
+    }
+    
+    return false;
+  }
+};
+
+// Get the current auth token
+const getAuthToken = () => {
+  return localStorage.getItem('token');
+};
+
+// Check if user is authenticated
+const isAuthenticated = () => {
+  return !!localStorage.getItem('token');
+};
+
 
 // Export all services
 export default {
