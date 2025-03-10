@@ -1,24 +1,29 @@
+// Update the beginning of your api.js file with this improved configuration
+
 import axios from 'axios';
 import socketManager from './socketmanager';
 
 // Determine API base URL from environment or default
-const baseURL =  "https://myapp-nt8s.onrender.com"
+const baseURL = process.env.REACT_APP_API_URL || "https://myapp-nt8s.onrender.com";
+
+// Debug logger
 const logApiCall = (method, url, data = null, error = null) => {
   if (error) {
-    console.log(`🔴 API ERROR [${method}] ${url}:`, error);
+    console.error(`🔴 API ERROR [${method}] ${url}:`, error);
   } else if (data) {
     console.log(`🟢 API SUCCESS [${method}] ${url}:`, data);
   } else {
     console.log(`🟡 API CALL [${method}] ${url}`);
   }
 };
+
 // Create axios instance with default config
 const api = axios.create({
   baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true
+  withCredentials: true // Essential for cookies in OAuth flows
 });
 
 // Add token to requests if available
@@ -28,25 +33,71 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log all API requests in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`);
+    }
+    
     return config;
   },
-  (error) => Promise.reject(error)
-);
-
-// Handle token expiration
-api.interceptors.response.use(
-  (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Clear token and disconnect socket on authentication failure
-      localStorage.removeItem('token');
-      socketManager.disconnect();
-      window.location.href = '/login?expired=true';
-    }
+    console.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
+// Enhanced error handling for responses
+api.interceptors.response.use(
+  (response) => {
+    // Log successful responses in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`API Response: ${response.status} ${response.config.method.toUpperCase()} ${response.config.url}`);
+    }
+    return response;
+  },
+  (error) => {
+    // Log detailed error information
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method?.toUpperCase(),
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    });
+
+    // Handle authentication errors
+    if (error.response && error.response.status === 401) {
+      // Only handle token expiration if there's a token
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Clear token and disconnect socket on authentication failure
+        localStorage.removeItem('token');
+        if (socketManager && typeof socketManager.disconnect === 'function') {
+          socketManager.disconnect();
+        }
+        
+        // Try to determine if this is an expired token
+        const isExpired = error.response.data?.message?.includes('expired') || 
+                        error.response.data?.error?.includes('expired');
+        
+        // Add appropriate query parameter
+        const redirectParam = isExpired ? '?expired=true' : '?error=auth_failed';
+        
+        // Only redirect if not already on login/auth pages
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes('/login') && !currentPath.includes('/auth/')) {
+          console.log('Authentication failed, redirecting to login');
+          window.location.href = `/login${redirectParam}`;
+        }
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// The rest of your API service code follows...
 // Authentication endpoints
 const authService = {
   login: async (credentials) => {
