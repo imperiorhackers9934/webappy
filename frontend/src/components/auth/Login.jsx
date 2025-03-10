@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const Login = () => {
@@ -7,13 +7,37 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login, socialLogin } = useAuth();
+  const { login, socialLogin, authError } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get any redirectTo param from the URL
+  const searchParams = new URLSearchParams(location.search);
+  const redirectTo = searchParams.get('redirectTo') || '/dashboard';
+
+  // Handle errors from AuthContext
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
+
+  // Handle query params for errors
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('error') === 'auth_failed') {
+      setError('Authentication failed. Please try again.');
+    } else if (params.get('error') === 'server_error') {
+      setError('Server error occurred. Please try again later.');
+    } else if (params.get('expired') === 'true') {
+      setError('Your session has expired. Please login again.');
+    }
+  }, [location.search]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
       const credentials = {};
@@ -29,7 +53,7 @@ const Login = () => {
       }
       
       await login(credentials);
-      navigate('/dashboard');
+      navigate(redirectTo);
     } catch (error) {
       console.error('Login error:', error);
       setError(
@@ -42,11 +66,11 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-    socialLogin('google');
+    socialLogin('google', redirectTo);
   };
 
   const handleLinkedInLogin = () => {
-    socialLogin('linkedin');
+    socialLogin('linkedin', redirectTo);
   };
 
   return (
