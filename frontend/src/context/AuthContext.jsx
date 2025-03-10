@@ -1,4 +1,3 @@
-// In frontend/src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -17,13 +16,7 @@ export const AuthProvider = ({ children }) => {
     const loadUserInfo = async () => {
       if (token) {
         try {
-          // Set token in API service
-          api.setAuthToken(token);
-          
-          // Get user data
-          const response = await api.getUserInfo();
-          const userData = response.user || response;
-          
+          const userData = await api.getUserInfo();
           setUser(userData);
           localStorage.setItem('token', token);
           
@@ -79,72 +72,51 @@ export const AuthProvider = ({ children }) => {
     navigate('/login');
   };
 
-  const updateUser = async (userData) => {
-    try {
-      // Submit update to API
-      const response = await api.updateProfile(userData);
-      
-      // Update local user state with returned data or the submitted data
-      setUser(prev => ({ 
-        ...prev, 
-        ...userData, 
-        ...(response.user || {})
-      }));
-      
-      // When user updates profile, reset new signup flag
-      if (isNewSignup) {
-        setIsNewSignup(false);
-      }
-      
-      return response;
-    } catch (error) {
-      console.error('Update user error:', error);
-      throw error;
+  const updateUser = (userData) => {
+    setUser(prev => ({ ...prev, ...userData }));
+    
+    // When user updates profile, reset new signup flag
+    if (isNewSignup) {
+      setIsNewSignup(false);
     }
   };
 
   const handleAuthCallback = async (searchParams) => {
     console.log('Auth callback triggered', searchParams.toString());
-    const tokenFromUrl = searchParams.get('token');
-    const isNewUserFromUrl = searchParams.get('isNewUser') === 'true';
-    const error = searchParams.get('error');
-    const redirect = searchParams.get('redirect') || '/dashboard';
+    const token = searchParams.get('token');
+    console.log('Token from URL:', token);
     
-    console.log('Token from URL:', tokenFromUrl);
-    console.log('Is new user from URL params:', isNewUserFromUrl);
-    
-    if (error) {
-      throw new Error(error);
-    }
-    
-    if (!tokenFromUrl) {
-      throw new Error('No token found in URL parameters');
-    }
-    
-    // Store the token in localStorage
-    localStorage.setItem('token', tokenFromUrl);
-    
-    // Update the token state
-    setToken(tokenFromUrl);
-    
-    // Set the new signup flag
-    setIsNewSignup(isNewUserFromUrl);
-    
-    // Important: Wait for state updates
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Decide where to redirect the user
-    if (isNewUserFromUrl) {
-      // New users go to profile setup
-      console.log('New user detected, redirecting to profile setup');
-      navigate('/profile-setup');
+    if (token) {
+      // Store the token in localStorage
+      localStorage.setItem('token', token);
+      
+      // Update the token state
+      setToken(token);
+      
+      // Check if this is a new user based on the flag from the backend
+      const isNewUser = searchParams.get('isNewUser') === 'true';
+      console.log('Is new user from URL params:', isNewUser);
+      
+      // Set the new signup flag before any redirects
+      setIsNewSignup(isNewUser);
+      
+      // Important: Force a slight delay to ensure state update before navigation
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (isNewUser) {
+        // Always redirect new users to profile setup
+        console.log('New user detected, redirecting to profile setup');
+        navigate('/profile-setup');
+      } else {
+        // Get the redirect destination for existing users
+        const redirect = searchParams.get('redirect') || '/dashboard';
+        console.log('Existing user, redirecting to:', redirect);
+        navigate(redirect);
+      }
     } else {
-      // Existing users go to dashboard or specified redirect
-      console.log('Existing user, redirecting to:', redirect);
-      navigate(redirect);
+      console.error('No token found in URL parameters');
+      navigate('/login?error=auth_failed');
     }
-    
-    return { success: true };
   };
 
   const sendPhoneVerification = async (phoneNumber) => {
@@ -158,7 +130,7 @@ export const AuthProvider = ({ children }) => {
       setUser(response.user);
       
       // Check if this is a new user
-      setIsNewSignup(response.isNewUser || !response.user.profileComplete);
+      setIsNewSignup(response.isNewUser);
       
       return response;
     } catch (error) {
@@ -166,15 +138,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const socialLogin = (provider, redirectUrl) => {
-    // Construct the frontend callback URL
-    const callbackUrl = `${window.location.origin}/auth/callback`;
-    
-    // Redirect to OAuth endpoint with proper callback URL
-    const authUrl = `${api.baseURL}/auth/${provider}?redirectTo=${encodeURIComponent(callbackUrl)}`;
-    
-    console.log(`Redirecting to social login: ${authUrl}`);
-    window.location.href = authUrl;
+  const socialLogin = (provider) => {
+    window.location.href = `${api.baseURL}/auth/${provider}?redirectTo=${window.location.origin}/auth/callback`;
   };
 
   const value = {
