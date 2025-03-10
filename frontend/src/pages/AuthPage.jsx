@@ -1,4 +1,3 @@
-// In frontend/src/pages/AuthPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../components/layout/AuthLayout';
@@ -16,39 +15,18 @@ const AuthPage = ({ type: propType }) => {
   
   // Initialize authType from either prop or param
   const [authType, setAuthType] = useState(propType || paramType || 'login');
-  const [isCallbackProcessing, setIsCallbackProcessing] = useState(false);
-  const [callbackError, setCallbackError] = useState(null);
+  const [isCallbackProcessed, setIsCallbackProcessed] = useState(false);
 
   useEffect(() => {
     // Handle OAuth callback
-    if (location.pathname === '/auth/callback' && !isCallbackProcessing) {
-      setIsCallbackProcessing(true);
+    if (location.pathname === '/auth/callback' && !isCallbackProcessed) {
+      console.log('OAuth callback triggered, params:', searchParams.toString());
       
-      const token = searchParams.get('token');
-      const isNewUser = searchParams.get('isNewUser') === 'true';
-      const error = searchParams.get('error');
+      // Mark callback as processed to prevent multiple redirect attempts
+      setIsCallbackProcessed(true);
       
-      console.log('OAuth callback triggered:', { token, isNewUser, error });
-      
-      if (error) {
-        setCallbackError(error);
-        setIsCallbackProcessing(false);
-        return;
-      }
-      
-      if (token) {
-        // Process the callback - handleAuthCallback will handle state and redirects
-        handleAuthCallback(searchParams).catch(err => {
-          console.error('Error handling auth callback:', err);
-          setCallbackError('Failed to process authentication');
-          setIsCallbackProcessing(false);
-        });
-      } else {
-        console.error('No token found in URL parameters');
-        setCallbackError('Authentication failed - no token received');
-        setIsCallbackProcessing(false);
-      }
-      
+      // Process the callback - handleAuthCallback will handle the redirects
+      handleAuthCallback(searchParams);
       return;
     }
     
@@ -86,7 +64,7 @@ const AuthPage = ({ type: propType }) => {
       setAuthType(propType || paramType);
     }
   }, [user, loading, propType, paramType, location.pathname, navigate, searchParams, 
-      handleAuthCallback, isNewSignup, isCallbackProcessing]);
+      handleAuthCallback, isNewSignup, isCallbackProcessed]);
   
   // Render appropriate auth component
   const renderAuthComponent = () => {
@@ -102,32 +80,11 @@ const AuthPage = ({ type: propType }) => {
   };
 
   // Show loading indicator while authentication state is being determined
-  if (loading || (location.pathname === '/auth/callback' && isCallbackProcessing)) {
+  if (loading || (location.pathname === '/auth/callback' && !isCallbackProcessed)) {
     return (
       <AuthLayout>
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          <p className="ml-3 text-gray-600">Processing authentication...</p>
-        </div>
-      </AuthLayout>
-    );
-  }
-
-  // Show error if OAuth callback failed
-  if (callbackError) {
-    return (
-      <AuthLayout>
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          <strong className="font-bold">Authentication Error: </strong>
-          <span className="block sm:inline">{callbackError}</span>
-          <div className="mt-4">
-            <button 
-              onClick={() => navigate('/login')}
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-            >
-              Back to Login
-            </button>
-          </div>
         </div>
       </AuthLayout>
     );
