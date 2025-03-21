@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 import socketManager from './socketmanager';
 
@@ -653,11 +654,7 @@ const chatService = {
 
 // Network endpoints
 const networkService = {
-  sendConnectionRequest: async (userId) => {
-    const response = await api.post('/api/connections/request', { targetUserId: userId });
-    return response.data;
-  },
-
+  
   acceptConnection: async (userId) => {
     const response = await api.post('/api/connections/accept', { senderUserId: userId });
     return response.data;
@@ -665,17 +662,9 @@ const networkService = {
 // Add these methods to your api.js service file
 
 // Send connection request
- sendConnectionRequest : async (targetUserId) => {
+endConnectionRequest: async (targetUserId) => {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/connections/request`,
-      { targetUserId },
-      {
-        headers: {
-          Authorization: `Bearer ${getAuthToken()}`
-        }
-      }
-    );
+    const response = await api.post('/api/connections/request', { targetUserId });
     return response.data;
   } catch (error) {
     console.error('API Error - sendConnectionRequest:', error);
@@ -683,21 +672,24 @@ const networkService = {
   }
 },
 
-// Follow or unfollow a user
-followUser : async (userId) => {
+// Follow or unfollow a user - properly use the api instance
+followUser: async (userId) => {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/users/${userId}/follow`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${getAuthToken()}`
-        }
-      }
-    );
+    const response = await api.post(`/api/users/${userId}/follow`);
     return response.data;
   } catch (error) {
     console.error('API Error - followUser:', error);
+    throw error;
+  }
+},
+
+// Get pending connection requests sent by the user
+getPendingConnections: async () => {
+  try {
+    const response = await api.get('/api/connections/pending/sent');
+    return response.data;
+  } catch (error) {
+    console.error('API Error - getPendingConnections:', error);
     throw error;
   }
 },
@@ -871,22 +863,7 @@ followUser : async (userId) => {
 // Add this function to your api.js service file
 
 // Get pending connection requests sent by the user
- getPendingConnections : async () => {
-  try {
-    const response = await axios.get(
-      `${API_BASE_URL}/connections/pending/sent`,
-      {
-        headers: {
-          Authorization: `Bearer ${getAuthToken()}`
-        }
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('API Error - getPendingConnections:', error);
-    throw error;
-  }
-},
+
   // Get user's meetings
   getMeetings: async (options = {}) => {
     const { status, type, page, limit } = options;
