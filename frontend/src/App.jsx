@@ -11,7 +11,7 @@ import ChatPage from './pages/ChatPage';
 import NearbyProfessionals from './pages/NetworkPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SettingsPage from './pages/SettingsPage';
-import NearbyProfessionals from './components/network/NearbyProfessional';
+import NetworkPage from './components/network/NearbyProfessional';
 import CreateStoryPage from './pages/CreateStroyPage';
 import StoryViewPage from './pages/StoryViewPage';
 import CreatePost from './components/posts/CreatePost';
