@@ -61,44 +61,141 @@ const [userLocation, setUserLocation] = useState(null);
       setLoading(prev => ({ ...prev, nearby: false }));
     }
   };
-  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+ // Update your fetchNearbyUsers function to include connection status
+const fetchNearbyUsers = async (latitude, longitude, distance) => {
+  try {
+    const nearbyResponse = await api.getNearbyProfessionals(distance);
+    
+    if (!Array.isArray(nearbyResponse)) {
+      console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+      setNearbyUsers([]);
+      setLoading(prev => ({ ...prev, nearby: false }));
+      return;
+    }
+    
+    // Now fetch connections in a separate call
+    let connections = [];
+    let following = [];
     try {
-      const nearbyResponse = await api.getNearbyProfessionals(distance);
-      
-      if (!Array.isArray(nearbyResponse)) {
-        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
-        setNearbyUsers([]);
-        setLoading(prev => ({ ...prev, nearby: false }));
-        return;
-      }
-      
-      // Now fetch connections in a separate call
-      let connections = [];
-      try {
-        connections = await api.getConnections('all');
-        if (!Array.isArray(connections)) {
-          console.error('Invalid response from getConnections:', connections);
-          connections = [];
-        }
-      } catch (connectionError) {
-        console.error('Error fetching connections:', connectionError);
+      // Get connections
+      connections = await api.getConnections('all');
+      if (!Array.isArray(connections)) {
+        console.error('Invalid response from getConnections:', connections);
         connections = [];
       }
       
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set(connections.map(conn => conn._id));
+      // Get following
+      const user = await api.getMe();
+      following = user?.following || [];
       
-      // Filter out users who are in your connections
-      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
-      
-      setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-      setLoading(prev => ({ ...prev, nearby: false }));
-    } catch (error) {
-      console.error('Error fetching nearby professionals:', error);
-      setLoading(prev => ({ ...prev, nearby: false }));
+    } catch (connectionError) {
+      console.error('Error fetching connections or following:', connectionError);
+      connections = [];
+      following = [];
     }
-  };
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(connections.map(conn => conn._id));
+    const followingIds = new Set(following.map(id => id.toString()));
+    
+    // Get pending connections
+    let pendingConnections = [];
+    try {
+      pendingConnections = await api.getPendingConnections();
+    } catch (error) {
+      console.error('Error fetching pending connections:', error);
+      pendingConnections = [];
+    }
+    const pendingIds = new Set(pendingConnections.map(conn => conn.toString()));
+    
+    // Enhance users with connection status and following status
+    const enhancedUsers = nearbyResponse.map(user => ({
+      ...user,
+      connectionStatus: connectionIds.has(user._id) 
+        ? 'connected' 
+        : pendingIds.has(user._id)
+          ? 'pending'
+          : 'none',
+      isFollowing: followingIds.has(user._id)
+    }));
+    
+    // Filter out users who are in your connections
+    const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
+    
+    setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
+    setLoading(prev => ({ ...prev, nearby: false }));
+  } catch (error) {
+    console.error('Error fetching nearby professionals:', error);
+    setLoading(prev => ({ ...prev, nearby: false }));
+  }
+};
+// Add these functions to your Dashboard component, 
+// right after the other handler functions like handleAcceptConnection
 
+const handleConnect = async (userId) => {
+  try {
+    // Show loading state or disable button if needed
+    
+    // Send connection request
+    await api.sendConnectionRequest(userId);
+    
+    // Update the UI to show pending status
+    setNearbyUsers(prev => 
+      prev.map(user => 
+        user._id === userId 
+          ? { ...user, connectionStatus: 'pending' }
+          : user
+      )
+    );
+    
+    // Show success toast
+    toast({
+      title: "Connection request sent!",
+      description: "We'll notify you when they respond.",
+      status: "success"
+    });
+  } catch (error) {
+    console.error('Error sending connection request:', error);
+    
+    // Show error toast
+    toast({
+      title: "Request failed",
+      description: "Couldn't send connection request. Please try again.",
+      status: "error"
+    });
+  }
+};
+
+const handleFollow = async (userId) => {
+  try {
+    // Send follow request
+    const response = await api.followUser(userId);
+    
+    // Update UI based on new following status
+    setNearbyUsers(prev => 
+      prev.map(user => 
+        user._id === userId 
+          ? { ...user, isFollowing: response.following }
+          : user
+      )
+    );
+    
+    // Show success toast
+    toast({
+      title: response.following ? "Following user" : "Unfollowed user",
+      status: "success"
+    });
+  } catch (error) {
+    console.error('Error following user:', error);
+    
+    // Show error toast
+    toast({
+      title: "Action failed",
+      description: "Couldn't update follow status. Please try again.",
+      status: "error"
+    });
+  }
+};
   const getProfilePicture = (userObj) => {
     if (userObj?.profilePicture) {
       return userObj.profilePicture;
