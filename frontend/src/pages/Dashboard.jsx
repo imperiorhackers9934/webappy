@@ -197,113 +197,142 @@ const Dashboard = () => {
     }
   };
 
-  // Updated fetchNearbyUsers function to handle missing location and fix the filteredUsers error
-  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+// Enhanced fetchNearbyUsers function with robust data handling for the Dashboard component
+
+// Updated fetchNearbyUsers function to handle missing/invalid location and fix the distance error
+const fetchNearbyUsers = async (latitude, longitude, distance) => {
+  try {
+    setLoadingState(prev => ({ ...prev, nearby: true }));
+    
+    // Modify API call to handle missing location
+    let nearbyResponse = [];
+    
     try {
-      setLoadingState(prev => ({ ...prev, nearby: true }));
-      
-      // Modify API call to handle missing location
-      let nearbyResponse = [];
-      
-      try {
-        if (latitude && longitude) {
-          nearbyResponse = await api.getNearbyProfessionals(distance);
-        } else {
-          // Try recommended professionals first
-          try {
-            nearbyResponse = await api.getRecommendedProfessionals({ limit: 10 });
-          } catch (recError) {
-            console.log('Recommended professionals API failed, trying generic professionals', recError);
-            // Fall back to generic professionals
-            nearbyResponse = await api.getProfessionals({ limit: 10 });
-          }
+      if (latitude && longitude) {
+        nearbyResponse = await api.getNearbyProfessionals(distance, latitude, longitude);
+      } else {
+        // Try recommended professionals first
+        try {
+          nearbyResponse = await api.getRecommendedProfessionals({ limit: 10 });
+        } catch (recError) {
+          console.log('Recommended professionals API failed, trying generic professionals', recError);
+          // Fall back to generic professionals
+          nearbyResponse = await api.getProfessionals({ limit: 10 });
         }
-        
-        // Ensure we have an array
-        if (!Array.isArray(nearbyResponse)) {
-          console.warn('API response is not an array, using empty array instead');
-          nearbyResponse = [];
-        }
-      } catch (apiError) {
-        console.error('All professionals API calls failed:', apiError);
+      }
+      
+      // Ensure we have an array
+      if (!Array.isArray(nearbyResponse)) {
+        console.warn('API response is not an array, using empty array instead');
         nearbyResponse = [];
       }
-      
-      // Now fetch connections in a separate call
-      let connections = [];
-      let following = [];
-      try {
-        // Get connections
-        connections = await api.getConnections('all');
-        if (!Array.isArray(connections)) {
-          connections = [];
-        }
-        
-        // Get following data from user object
-        following = user?.following || [];
-        
-      } catch (connectionError) {
-        console.error('Error fetching connections or following:', connectionError);
+    } catch (apiError) {
+      console.error('All professionals API calls failed:', apiError);
+      nearbyResponse = [];
+    }
+    
+    // Now fetch connections in a separate call
+    let connections = [];
+    let following = [];
+    try {
+      // Get connections
+      connections = await api.getConnections('all');
+      if (!Array.isArray(connections)) {
         connections = [];
-        following = [];
       }
       
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set(connections.map(conn => conn._id || ''));
+      // Get following data from user object
+      following = user?.following || [];
       
-      // Handle following data based on structure
-      const followingIds = new Set();
-      if (following && following.length > 0) {
-        if (typeof following[0] === 'object') {
-          following.forEach(f => f?._id && followingIds.add(f._id));
-        } else {
-          following.forEach(id => id && followingIds.add(id.toString()));
-        }
+    } catch (connectionError) {
+      console.error('Error fetching connections or following:', connectionError);
+      connections = [];
+      following = [];
+    }
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(connections.map(conn => conn._id || ''));
+    
+    // Handle following data based on structure
+    const followingIds = new Set();
+    if (following && following.length > 0) {
+      if (typeof following[0] === 'object') {
+        following.forEach(f => f?._id && followingIds.add(f._id));
+      } else {
+        following.forEach(id => id && followingIds.add(id.toString()));
       }
-      
-      // Get pending connections
-      let pendingConnections = [];
-      try {
-        pendingConnections = await api.getPendingConnections();
-        if (!Array.isArray(pendingConnections)) {
-          pendingConnections = [];
-        }
-      } catch (error) {
-        console.error('Error fetching pending connections:', error);
+    }
+    
+    // Get pending connections
+    let pendingConnections = [];
+    try {
+      pendingConnections = await api.getPendingConnections();
+      if (!Array.isArray(pendingConnections)) {
         pendingConnections = [];
       }
+    } catch (error) {
+      console.error('Error fetching pending connections:', error);
+      pendingConnections = [];
+    }
+    
+    const pendingIds = new Set(pendingConnections.map(conn => 
+      typeof conn === 'string' ? conn : conn?._id || ''
+    ));
+    
+    // Enhance users with connection status, following status, and SAFE distance formatting
+    const enhancedUsers = nearbyResponse.map(user => {
+      // Format distance properly to avoid TypeError
+      let formattedDistance = 'nearby';
+      try {
+        if (user.distance !== undefined) {
+          // Ensure distance is a number
+          const distValue = typeof user.distance === 'string' 
+            ? parseFloat(user.distance) 
+            : user.distance;
+            
+          if (!isNaN(distValue)) {
+            formattedDistance = distValue < 1 
+              ? `${(distValue * 1000).toFixed(0)}m away` 
+              : `${distValue.toFixed(1)}km away`;
+          }
+        }
+      } catch (distError) {
+        console.error('Error formatting distance for user:', user._id, distError);
+      }
       
-      const pendingIds = new Set(pendingConnections.map(conn => 
-        typeof conn === 'string' ? conn : conn?._id || ''
-      ));
-      
-      // Enhance users with connection status and following status
-      const enhancedUsers = nearbyResponse.map(user => ({
+      return {
         ...user,
         connectionStatus: connectionIds.has(user._id) 
           ? 'connected' 
           : pendingIds.has(user._id)
             ? 'pending'
             : 'none',
-        isFollowing: followingIds.has(user._id)
-      }));
-      
-      // Filter out users who are in your connections
-      const filteredUsers = enhancedUsers.filter(user => 
-        user._id && user.connectionStatus !== 'connected'
-      );
-      
-      // Take the first 3 users to display
-      setNearbyUsers(filteredUsers.slice(0, 3));
-      
-    } catch (error) {
-      console.error('Error in fetchNearbyUsers:', error);
-      setNearbyUsers([]);
-    } finally {
-      // Always reset loading state
-      setLoadingState(prev => ({ ...prev, nearby: false }));
-    }
-  };
+        isFollowing: followingIds.has(user._id),
+        // Add the pre-formatted distance to avoid errors in rendering
+        formattedDistance,
+        // Ensure distance is a number for comparisons
+        distance: typeof user.distance === 'string' 
+          ? parseFloat(user.distance) || null
+          : (user.distance ?? null)
+      };
+    });
+    
+    // Filter out users who are in your connections
+    const filteredUsers = enhancedUsers.filter(user => 
+      user._id && user.connectionStatus !== 'connected'
+    );
+    
+    // Take the first 3 users to display
+    setNearbyUsers(filteredUsers.slice(0, 3));
+    
+  } catch (error) {
+    console.error('Error in fetchNearbyUsers:', error);
+    setNearbyUsers([]);
+  } finally {
+    // Always reset loading state
+    setLoadingState(prev => ({ ...prev, nearby: false }));
+  }
+};
 
   // Update fetchAllData to use the new loading state
   const fetchAllData = async () => {
