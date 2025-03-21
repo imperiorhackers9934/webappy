@@ -8,7 +8,7 @@ import Discover from './pages/DiscoverPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
-import NetworkPage from './pages/NetworkPage';
+import NearbyProfessionals from './pages/NetworkPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SettingsPage from './pages/SettingsPage';
 import NearbyProfessionals from './components/network/NearbyProfessional';
