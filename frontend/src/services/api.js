@@ -662,7 +662,45 @@ const networkService = {
     const response = await api.post('/api/connections/accept', { senderUserId: userId });
     return response.data;
   },
+// Add these methods to your api.js service file
 
+// Send connection request
+ sendConnectionRequest : async (targetUserId) => {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/connections/request`,
+      { targetUserId },
+      {
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('API Error - sendConnectionRequest:', error);
+    throw error;
+  }
+},
+
+// Follow or unfollow a user
+followUser : async (userId) => {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/users/${userId}/follow`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('API Error - followUser:', error);
+    throw error;
+  }
+},
   declineConnection: async (userId) => {
     const response = await api.post('/api/connections/decline', { senderUserId: userId });
     return response.data;
@@ -830,7 +868,25 @@ const networkService = {
     });
     return response.data;
   },
+// Add this function to your api.js service file
 
+// Get pending connection requests sent by the user
+ getPendingConnections : async () => {
+  try {
+    const response = await axios.get(
+      `${API_BASE_URL}/connections/pending/sent`,
+      {
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('API Error - getPendingConnections:', error);
+    throw error;
+  }
+},
   // Get user's meetings
   getMeetings: async (options = {}) => {
     const { status, type, page, limit } = options;
