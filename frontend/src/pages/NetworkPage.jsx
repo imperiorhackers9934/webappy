@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import api from '../../services/api';
 
 const NearbyProfessionals = ({ user }) => {
   const [professionals, setProfessionals] = useState([]);
@@ -9,6 +9,34 @@ const NearbyProfessionals = ({ user }) => {
   const [distance, setDistance] = useState(10); // Default 10km radius
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationError, setLocationError] = useState(false);
+
+  // Safe distance formatting function
+  const formatDistance = (distance) => {
+    try {
+      // Check if distance is a valid number
+      if (typeof distance === 'number' && !isNaN(distance)) {
+        return distance < 1 
+          ? `${(distance * 1000).toFixed(0)}m away` 
+          : `${distance.toFixed(1)}km away`;
+      }
+      
+      // Handle string values that can be parsed to numbers
+      if (typeof distance === 'string') {
+        const parsedDist = parseFloat(distance);
+        if (!isNaN(parsedDist)) {
+          return parsedDist < 1 
+            ? `${(parsedDist * 1000).toFixed(0)}m away` 
+            : `${parsedDist.toFixed(1)}km away`;
+        }
+      }
+      
+      // Default case
+      return 'nearby';
+    } catch (error) {
+      console.error('Error formatting distance:', error);
+      return 'nearby';
+    }
+  };
 
   // Get user's current location
   useEffect(() => {
@@ -42,7 +70,7 @@ const NearbyProfessionals = ({ user }) => {
     getUserLocation();
   }, []);
 
-  // Function to fetch nearby professionals
+  // Function to fetch nearby professionals - using useCallback to avoid recreating
   const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
     if (!loc) return;
     
@@ -67,17 +95,20 @@ const NearbyProfessionals = ({ user }) => {
         const professionalsData = Array.isArray(response.data) ? response.data : 
                           (response.data.professionals || []);
         
-        // THIS IS THE KEY FIX: Map and safely format the distance property
+        // THIS IS THE KEY FIX: Map and safely process each professional
         const processedProfessionals = professionalsData.map(prof => {
-          // Always return a new object with safe defaults
+          // Always return a new object with safe defaults and pre-formatted distance
           return {
             ...prof,
             // Ensure required properties exist
             firstName: prof.firstName || '',
             lastName: prof.lastName || '',
             connectionStatus: prof.connectionStatus || 'none',
-            // Format the distance safely to avoid the TypeError
-            distanceText: formatDistance(prof.distance)
+            // Pre-format the distance to prevent errors during rendering
+            formattedDistance: formatDistance(prof.distance),
+            // Normalize distance to a number if possible for other calculations
+            distanceValue: typeof prof.distance === 'number' ? prof.distance : 
+                          (typeof prof.distance === 'string' ? parseFloat(prof.distance) || null : null)
           };
         });
         
@@ -102,25 +133,6 @@ const NearbyProfessionals = ({ user }) => {
       setLoading(false);
     }
   }, []);
-
-  // Helper function to safely format distance
-  const formatDistance = (distance) => {
-    // If distance is a number, format it
-    if (typeof distance === 'number' && !isNaN(distance)) {
-      return `${distance.toFixed(1)} km`;
-    }
-    
-    // If distance is a string that can be parsed as a number
-    if (typeof distance === 'string') {
-      const parsedDistance = parseFloat(distance);
-      if (!isNaN(parsedDistance)) {
-        return `${parsedDistance.toFixed(1)} km`;
-      }
-    }
-    
-    // Default fallback
-    return 'nearby';
-  };
 
   // Fetch nearby professionals when location is available
   useEffect(() => {
@@ -454,7 +466,7 @@ const NearbyProfessionals = ({ user }) => {
                       {professional.firstName} {professional.lastName}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {professional.headline || professional.title || 'Professional'} • {professional.distanceText || 'nearby'}
+                      {professional.headline || professional.title || 'Professional'} • {professional.formattedDistance}
                     </p>
                   </div>
                   {professional.connectionStatus === 'connected' ? (
