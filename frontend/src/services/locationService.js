@@ -4,6 +4,7 @@ import api from './api'; // Adjust the path as needed
 import socketManager from './socketmanager';
 
 // Enhanced location service with better error handling and data validation
+// Enhanced location service with better error handling and data validation
 const locationService = {
   // Update location with better error handling
   updateLocation: async (latitude, longitude) => {
@@ -37,7 +38,7 @@ const locationService = {
         longitude: formattedLongitude 
       });
       
-      // Emit location update via Socket.IO if successful
+      // Emit location update via Socket.IO if available
       if (socketManager && socketManager.emit) {
         socketManager.emit('update_location', { 
           latitude: formattedLatitude, 
@@ -176,5 +177,7 @@ const locationService = {
     }
   }
 };
+
+export default locationService;
 
 export default locationService;
