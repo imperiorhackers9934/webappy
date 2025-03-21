@@ -43,42 +43,119 @@ const NearbyProfessionals = ({ user }) => {
   }, []);
 
   // Function to fetch nearby professionals - using useCallback to avoid recreating this function
-  const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
-    if (!loc) return;
+  // Updated fetchNearbyProfessionals function to handle API compatibility issues
+const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
+  if (!loc) return;
+  
+  try {
+    setLoading(true);
     
     try {
-      setLoading(true);
+      let response;
       
-      // Try to fetch professionals directly without updating location first
-      // This helps avoid the 500 error in location update
+      // Try using the dedicated function first
       try {
-        const response = await api.getNearbyProfessionals(
-          dist, 
-          loc.latitude, 
-          loc.longitude
-        );
-        
-        setProfessionals(response);
-        
-        // Now try to update location separately - if it fails, we already have the professionals
-        try {
-          await api.updateLocation(loc.latitude, loc.longitude);
-          console.log('Location updated successfully:', loc);
-        } catch (locationError) {
-          console.log('Location update failed, but professionals were fetched', locationError);
-          // Don't show error to user as we already got the professionals
+        // Use the dedicated function if available
+        if (typeof api.getNearbyProfessionals === 'function') {
+          console.log('Using api.getNearbyProfessionals function');
+          response = await api.getNearbyProfessionals(dist, loc.latitude, loc.longitude);
+        } else {
+          // Fall back to direct API call
+          console.log('Falling back to api.get for nearby professionals');
+          const params = { 
+            distance: dist,
+            latitude: loc.latitude,
+            longitude: loc.longitude
+          };
+          const apiResponse = await api.get('/api/network/nearby', { params });
+          response = apiResponse.data;
         }
-      } catch (fetchError) {
-        console.error('Error fetching nearby professionals:', fetchError);
-        setError('Failed to load nearby professionals');
+      } catch (apiMethodError) {
+        console.error('Error with primary API method:', apiMethodError);
+        
+        // If the first approach fails, try an alternative approach
+        console.log('Trying alternative API approach');
+        const params = { 
+          distance: dist,
+          latitude: loc.latitude,
+          longitude: loc.longitude
+        };
+        const apiResponse = await api.get('/api/network/nearby', { params });
+        response = apiResponse.data;
       }
-    } catch (error) {
-      console.error('Error in fetchNearbyProfessionals:', error);
-      setError('An unexpected error occurred');
-    } finally {
-      setLoading(false);
+      
+      // Ensure we have a valid array of professionals
+      const professionals = Array.isArray(response) 
+        ? response 
+        : Array.isArray(response?.data) 
+          ? response.data 
+          : Array.isArray(response?.professionals)
+            ? response.professionals
+            : [];
+            
+      console.log('Received professionals data:', professionals);
+            
+      // Process professionals to ensure safe values and formatting
+      const processedProfessionals = professionals.map(prof => {
+        // Format distance to prevent errors
+        let formattedDistance = 'nearby';
+        let distanceValue = null;
+        
+        try {
+          if (typeof prof.distance === 'number' && !isNaN(prof.distance)) {
+            distanceValue = prof.distance;
+            formattedDistance = prof.distance < 1 
+              ? `${(prof.distance * 1000).toFixed(0)}m away` 
+              : `${prof.distance.toFixed(1)}km away`;
+          } else if (typeof prof.distance === 'string') {
+            const parsedDist = parseFloat(prof.distance);
+            if (!isNaN(parsedDist)) {
+              distanceValue = parsedDist;
+              formattedDistance = parsedDist < 1 
+                ? `${(parsedDist * 1000).toFixed(0)}m away` 
+                : `${parsedDist.toFixed(1)}km away`;
+            }
+          }
+        } catch (distError) {
+          console.error('Error formatting distance:', distError);
+        }
+        
+        return {
+          ...prof,
+          // Ensure required properties exist
+          _id: prof._id || prof.id || `temp-${Date.now()}-${Math.random()}`,
+          firstName: prof.firstName || '',
+          lastName: prof.lastName || '',
+          connectionStatus: prof.connectionStatus || 'none',
+          formattedDistance,
+          distance: distanceValue
+        };
+      });
+      
+      setProfessionals(processedProfessionals);
+      
+      // Update location separately
+      try {
+        if (typeof api.updateLocation === 'function') {
+          await api.updateLocation(loc.latitude, loc.longitude);
+          console.log('Location updated successfully');
+        } else {
+          console.log('updateLocation function not available');
+        }
+      } catch (locationError) {
+        console.log('Location update failed, but professionals were fetched', locationError);
+      }
+    } catch (fetchError) {
+      console.error('Error fetching nearby professionals:', fetchError);
+      setError('Failed to load nearby professionals');
     }
-  }, []);
+  } catch (error) {
+    console.error('Error in fetchNearbyProfessionals:', error);
+    setError('An unexpected error occurred');
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   // Fetch nearby professionals when location is available
   useEffect(() => {
