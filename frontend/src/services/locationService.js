@@ -1,6 +1,6 @@
 // Fixed Location Service to handle distance values properly
 
-import api from '../api'; // Adjust the path as needed
+import api from './api'; // Adjust the path as needed
 import socketManager from './socketmanager';
 
 // Enhanced location service with better error handling and data validation
