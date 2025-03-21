@@ -2154,7 +2154,7 @@ updateLocation: async (latitude, longitude) => {
       // Return empty array instead of throwing to prevent UI errors
       return [];
     }
-  }
+  },
 
   // Get users with shared location
   getSharedLocationUsers: async () => {
