@@ -44,10 +44,36 @@ const Dashboard = () => {
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [userLocation, setUserLocation] = useState(null);
+  const initialLoadTimer = useRef(null);
+
+  // Add a safety timeout to prevent infinite loading
+  useEffect(() => {
+    // Force loading to complete after 10 seconds no matter what
+    initialLoadTimer.current = setTimeout(() => {
+      if (loadingState.data || loadingData) {
+        console.log('Safety timeout triggered - forcing loading to complete');
+        setLoadingState(prev => ({ ...prev, data: false }));
+        setLoadingData(false);
+      }
+    }, 10000); // 10 seconds timeout
+
+    return () => {
+      if (initialLoadTimer.current) {
+        clearTimeout(initialLoadTimer.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Get user's location and fetch both types of users simultaneously
-    getUserLocation();
+    // Using a try-catch to make sure any errors here don't block the entire component
+    try {
+      getUserLocation();
+    } catch (error) {
+      console.error('Error in getUserLocation:', error);
+      // Ensure location loading state is set to false
+      setLoadingState(prev => ({ ...prev, nearby: false }));
+    }
     
     // Fetch all dashboard data when component mounts
     fetchAllData();
@@ -59,6 +85,13 @@ const Dashboard = () => {
       navigate('/login');
     }
   }, [user, loading, navigate]);
+
+  // Extra safety check to load data once user is available
+  useEffect(() => {
+    if (user && user._id && loadingData) {
+      fetchAllData();
+    }
+  }, [user]);
 
   // Location tracking implementation
   useEffect(() => {
@@ -80,18 +113,27 @@ const Dashboard = () => {
         
         console.log('Starting location tracking...');
         
-        // Start tracking and store the control object
-        locationControlRef.current = api.startContinuousLocationUpdates({
+        // Location tracking options with reasonable timeouts
+        const trackingOptions = {
           interval: 30000, // 30 seconds
+          enableHighAccuracy: false, // Set to false for battery saving
+          timeout: 5000, // 5 second timeout
+          maximumAge: 300000, // 5 minutes
           successCallback: (result) => {
-            console.log('Location updated successfully:', result);
+            console.log('Location updated successfully');
             setLocationEnabled(true);
           },
           errorCallback: (error) => {
             console.error('Location update error:', error);
-            setLocationEnabled(false);
+            // Only show error message for permanent errors, not timeouts
+            if (error.code !== error.TIMEOUT) {
+              setLocationEnabled(false);
+            }
           }
-        });
+        };
+        
+        // Start tracking and store the control object
+        locationControlRef.current = api.startContinuousLocationUpdates(trackingOptions);
       } catch (error) {
         console.error('Error setting up location tracking:', error);
         setLocationEnabled(false);
@@ -112,174 +154,217 @@ const Dashboard = () => {
   }, [user?._id]);
 
   const getUserLocation = () => {
-  setLoadingState(prev => ({ ...prev, nearby: true }));
-  
-  if (navigator.geolocation) {
-    // Add options to the geolocation request
-    const options = {
-      enableHighAccuracy: false, // Set to false for faster response
-      timeout: 10000, // 10 seconds timeout (default is often too long)
-      maximumAge: 300000 // Cache position for 5 minutes
-    };
-    
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ latitude, longitude });
-        fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        setLoadingState(prev => ({ ...prev, nearby: false }));
-        // Handle timeout error gracefully
-        if (error.code === error.TIMEOUT) {
-          toast({
-            title: "Location request timed out",
-            description: "Unable to get your location. Using default location instead.",
-            status: "warning"
-          });
-          // You could use a default location here if needed
-          // For example: fetchNearbyUsers(defaultLat, defaultLong, 20);
-        } else {
-          toast({
-            title: "Location access error",
-            description: "We couldn't access your location. Check your browser permissions.",
-            status: "error"
-          });
-        }
-        // Continue loading nearby users without location
-        fetchNearbyUsers(null, null, 50); // Larger radius, no location filtering
-      },
-      options // Pass the options object
-    );
-  } else {
-    console.error('Geolocation is not supported by this browser.');
-    setLoadingState(prev => ({ ...prev, nearby: false }));
-    toast({
-      title: "Location not supported",
-      description: "Your browser doesn't support location services.",
-      status: "error"
-    });
-    // Continue loading nearby users without location
-    fetchNearbyUsers(null, null, 50);
-  }
-};
-
-// Update the fetchNearbyUsers function to handle missing location
-// Updated fetchNearbyUsers function to handle missing location and fix the filteredUsers error
-const fetchNearbyUsers = async (latitude, longitude, distance) => {
-  try {
     setLoadingState(prev => ({ ...prev, nearby: true }));
     
-    // Modify API call to handle missing location
-    let nearbyResponse;
-    if (latitude && longitude) {
-      nearbyResponse = await api.getNearbyProfessionals(distance);
+    if (navigator.geolocation) {
+      // Add options to the geolocation request
+      const options = {
+        enableHighAccuracy: false, // Set to false for faster response
+        timeout: 5000, // 5 seconds timeout (shorter timeout to prevent blocking)
+        maximumAge: 300000 // Cache position for 5 minutes
+      };
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ latitude, longitude });
+          fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          // Handle timeout error gracefully and ensure loading state gets reset
+          if (error.code === error.TIMEOUT) {
+            console.log('Location request timed out, using fallback');
+            toast({
+              title: "Location request timed out",
+              description: "Showing recommended professionals instead.",
+              status: "warning",
+              duration: 3000,
+            });
+          }
+          
+          // Continue loading nearby users without location, regardless of error type
+          fetchNearbyUsers(null, null, 50);
+        },
+        options // Pass the options object
+      );
     } else {
-      // Fallback to get users without location-based filtering
-      try {
-        nearbyResponse = await api.getRecommendedProfessionals(distance);
-      } catch (error) {
-        // If getRecommendedProfessionals fails or doesn't exist, try a generic call
-        console.log('Falling back to generic professionals call');
-        nearbyResponse = await api.getProfessionals({ limit: 10 });
-      }
-    }
-    
-    if (!Array.isArray(nearbyResponse)) {
-      console.error('Invalid response from professionals API:', nearbyResponse);
-      setNearbyUsers([]);
+      console.error('Geolocation is not supported by this browser.');
       setLoadingState(prev => ({ ...prev, nearby: false }));
+      
+      // Continue loading nearby users without location
+      fetchNearbyUsers(null, null, 50);
+    }
+  };
+
+  // Updated fetchNearbyUsers function to handle missing location and fix the filteredUsers error
+  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+    try {
+      setLoadingState(prev => ({ ...prev, nearby: true }));
+      
+      // Modify API call to handle missing location
+      let nearbyResponse = [];
+      
+      try {
+        if (latitude && longitude) {
+          nearbyResponse = await api.getNearbyProfessionals(distance);
+        } else {
+          // Try recommended professionals first
+          try {
+            nearbyResponse = await api.getRecommendedProfessionals({ limit: 10 });
+          } catch (recError) {
+            console.log('Recommended professionals API failed, trying generic professionals', recError);
+            // Fall back to generic professionals
+            nearbyResponse = await api.getProfessionals({ limit: 10 });
+          }
+        }
+        
+        // Ensure we have an array
+        if (!Array.isArray(nearbyResponse)) {
+          console.warn('API response is not an array, using empty array instead');
+          nearbyResponse = [];
+        }
+      } catch (apiError) {
+        console.error('All professionals API calls failed:', apiError);
+        nearbyResponse = [];
+      }
+      
+      // Now fetch connections in a separate call
+      let connections = [];
+      let following = [];
+      try {
+        // Get connections
+        connections = await api.getConnections('all');
+        if (!Array.isArray(connections)) {
+          connections = [];
+        }
+        
+        // Get following data from user object
+        following = user?.following || [];
+        
+      } catch (connectionError) {
+        console.error('Error fetching connections or following:', connectionError);
+        connections = [];
+        following = [];
+      }
+      
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set(connections.map(conn => conn._id || ''));
+      
+      // Handle following data based on structure
+      const followingIds = new Set();
+      if (following && following.length > 0) {
+        if (typeof following[0] === 'object') {
+          following.forEach(f => f?._id && followingIds.add(f._id));
+        } else {
+          following.forEach(id => id && followingIds.add(id.toString()));
+        }
+      }
+      
+      // Get pending connections
+      let pendingConnections = [];
+      try {
+        pendingConnections = await api.getPendingConnections();
+        if (!Array.isArray(pendingConnections)) {
+          pendingConnections = [];
+        }
+      } catch (error) {
+        console.error('Error fetching pending connections:', error);
+        pendingConnections = [];
+      }
+      
+      const pendingIds = new Set(pendingConnections.map(conn => 
+        typeof conn === 'string' ? conn : conn?._id || ''
+      ));
+      
+      // Enhance users with connection status and following status
+      const enhancedUsers = nearbyResponse.map(user => ({
+        ...user,
+        connectionStatus: connectionIds.has(user._id) 
+          ? 'connected' 
+          : pendingIds.has(user._id)
+            ? 'pending'
+            : 'none',
+        isFollowing: followingIds.has(user._id)
+      }));
+      
+      // Filter out users who are in your connections
+      const filteredUsers = enhancedUsers.filter(user => 
+        user._id && user.connectionStatus !== 'connected'
+      );
+      
+      // Take the first 3 users to display
+      setNearbyUsers(filteredUsers.slice(0, 3));
+      
+    } catch (error) {
+      console.error('Error in fetchNearbyUsers:', error);
+      setNearbyUsers([]);
+    } finally {
+      // Always reset loading state
+      setLoadingState(prev => ({ ...prev, nearby: false }));
+    }
+  };
+
+  // Update fetchAllData to use the new loading state
+  const fetchAllData = async () => {
+    if (!user || !user._id) {
+      console.log('fetchAllData: No user or user ID, skipping');
       return;
     }
     
-    // Now fetch connections in a separate call
-    let connections = [];
-    let following = [];
-    try {
-      // Get connections
-      connections = await api.getConnections('all');
-      if (!Array.isArray(connections)) {
-        console.error('Invalid response from getConnections:', connections);
-        connections = [];
-      }
-      
-      // Get user data - we no longer need to use getMe() directly
-      following = user?.following || [];
-      
-    } catch (connectionError) {
-      console.error('Error fetching connections or following:', connectionError);
-      connections = [];
-      following = [];
-    }
-    
-    // Create a Set of connection IDs for faster lookup
-    const connectionIds = new Set(connections.map(conn => conn._id));
-    const followingIds = new Set(typeof following[0] === 'object' 
-      ? following.map(f => f._id) 
-      : following.map(id => id.toString()));
-    
-    // Get pending connections
-    let pendingConnections = [];
-    try {
-      pendingConnections = await api.getPendingConnections();
-    } catch (error) {
-      console.error('Error fetching pending connections:', error);
-      pendingConnections = [];
-    }
-    const pendingIds = new Set(pendingConnections.map(conn => conn.toString()));
-    
-    // Enhance users with connection status and following status
-    const enhancedUsers = nearbyResponse.map(user => ({
-      ...user,
-      connectionStatus: connectionIds.has(user._id) 
-        ? 'connected' 
-        : pendingIds.has(user._id)
-          ? 'pending'
-          : 'none',
-      isFollowing: followingIds.has(user._id)
-    }));
-    
-    // Filter out users who are in your connections
-    const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
-    
-    setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-    setLoadingState(prev => ({ ...prev, nearby: false }));
-  } catch (error) {
-    console.error('Error fetching professionals:', error);
-    setLoadingState(prev => ({ ...prev, nearby: false }));
-    setNearbyUsers([]); // Reset nearby users on error
-    toast({
-      title: "Network error",
-      description: "Couldn't load nearby professionals. Please try again later.",
-      status: "error"
-    });
-  }
-};
-  // Update fetchAllData to use the new loading state
-  const fetchAllData = async () => {
-    if (!user) return;
     setLoadingState(prev => ({ ...prev, data: true }));
     
     try {
-      // Fetch all data in parallel
-      const [
-        profileViewData,
-        connectionsData,
-        pendingRequestsData,
-        streaksData,
-        projectsData,
-        achievementsData,
-        postsData
-      ] = await Promise.all([
-        api.getProfileViewAnalytics(),
-        api.getConnections('all'),
-        api.getConnectionRequests(),
-        api.getUserStreaks(user._id, { limit: 5, active: true }),
-        api.getUserProjects(user._id, { limit: 5 }),
-        api.getUserAchievements(user._id, { limit: 3 }),
-        api.getPosts({ limit: 3 })
-      ]);
+      // Fetch all data in parallel but with individual try-catch blocks for each call
+      let profileViewData = { totalViews: 0 };
+      let connectionsData = [];
+      let pendingRequestsData = [];
+      let streaksData = { items: [] };
+      let projectsData = { items: [] };
+      let achievementsData = { items: [] };
+      let postsData = { posts: [] };
+      
+      try {
+        profileViewData = await api.getProfileViewAnalytics();
+      } catch (error) {
+        console.error('Error fetching profile views:', error);
+      }
+      
+      try {
+        connectionsData = await api.getConnections('all') || [];
+      } catch (error) {
+        console.error('Error fetching connections:', error);
+      }
+      
+      try {
+        pendingRequestsData = await api.getConnectionRequests() || [];
+      } catch (error) {
+        console.error('Error fetching connection requests:', error);
+      }
+      
+      try {
+        streaksData = await api.getUserStreaks(user._id, { limit: 5, active: true }) || { items: [] };
+      } catch (error) {
+        console.error('Error fetching streaks:', error);
+      }
+      
+      try {
+        projectsData = await api.getUserProjects(user._id, { limit: 5 }) || { items: [] };
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+      }
+      
+      try {
+        achievementsData = await api.getUserAchievements(user._id, { limit: 3 }) || { items: [] };
+      } catch (error) {
+        console.error('Error fetching achievements:', error);
+      }
+      
+      try {
+        postsData = await api.getPosts({ limit: 3 }) || { posts: [] };
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+      }
       
       // Update dashboard stats with real data
       setDashboardStats({
@@ -298,17 +383,21 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
       setRecentPosts(postsData?.posts || []);
       
       // Load planner from local storage if exists
-      const savedPlanner = localStorage.getItem('userPlanner');
-      if (savedPlanner) {
-        setPlanner(JSON.parse(savedPlanner));
+      try {
+        const savedPlanner = localStorage.getItem('userPlanner');
+        if (savedPlanner) {
+          setPlanner(JSON.parse(savedPlanner));
+        }
+      } catch (error) {
+        console.error('Error loading planner from local storage:', error);
       }
       
-      setLoadingState(prev => ({ ...prev, data: false }));
-      setLoadingData(false); // Update the loadingData state as well
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    } finally {
+      // Always update loading state, even on error
       setLoadingState(prev => ({ ...prev, data: false }));
-      setLoadingData(false); // Update even on error
+      setLoadingData(false); 
     }
   };
 
@@ -445,16 +534,26 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const options = { weekday: 'short', month: 'short', day: 'numeric' };
-    return date.toLocaleDateString(undefined, options);
+    if (!dateString) return 'N/A';
+    
+    try {
+      const date = new Date(dateString);
+      const options = { weekday: 'short', month: 'short', day: 'numeric' };
+      return date.toLocaleDateString(undefined, options);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
   };
 
   // Fix the loading condition by checking both loading states
   if (loading || loadingState.data) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-orange-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -607,7 +706,7 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
                         <h3 className="text-xl md:text-3xl font-bold text-gray-800 mt-1">{dashboardStats.profileViews}</h3>
                       </div>
                       <div className="bg-orange-100 p-1.5 md:p-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-6 md:w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-6 md:w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
@@ -1037,7 +1136,7 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
                                 onClick={() => handleAcceptConnection(request._id)}
                                 className="bg-orange-500 text-white px-2 md:px-3 py-1 rounded-md text-xs md:text-sm"
                               >
-                                Accept
+                               Accept
                               </button>
                               <button 
                                 onClick={() => handleDeclineConnection(request._id)}
