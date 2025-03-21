@@ -659,29 +659,35 @@ const networkService = {
     const response = await api.post('/api/connections/accept', { senderUserId: userId });
     return response.data;
   },
-// Add these methods to your api.js service file
+  
+  // Add these methods to your api.js service file
 
-// Send connection request
-endConnectionRequest: async (targetUserId) => {
-  try {
-    const response = await api.post('/api/connections/request', { targetUserId });
-    return response.data;
-  } catch (error) {
-    console.error('API Error - sendConnectionRequest:', error);
-    throw error;
-  }
-},
+  // Send connection request
+  endConnectionRequest: async (targetUserId) => {
+    try {
+      const response = await api.post('/api/connections/request', { targetUserId });
+      return response.data;
+    } catch (error) {
+      console.error('API Error - sendConnectionRequest:', error);
+      throw error;
+    }
+  },
 
-// Follow or unfollow a user - properly use the api instance
-followUser: async (userId) => {
-  try {
-    const response = await api.post(`/api/users/${userId}/follow`);
-    return response.data;
-  } catch (error) {
-    console.error('API Error - followUser:', error);
-    throw error;
-  }
-},
+  // Add this line right here for backward compatibility
+  sendConnectionRequest: async (targetUserId) => {
+    return networkService.endConnectionRequest(targetUserId);
+  },
+
+  // Follow or unfollow a user - properly use the api instance
+  followUser: async (userId) => {
+    try {
+      const response = await api.post(`/api/users/${userId}/follow`);
+      return response.data;
+    } catch (error) {
+      console.error('API Error - followUser:', error);
+      throw error;
+    }
+  },
 
 // Get pending connection requests sent by the user
 getPendingConnections: async () => {
