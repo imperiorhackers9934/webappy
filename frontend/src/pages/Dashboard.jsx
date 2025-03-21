@@ -15,6 +15,12 @@ import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss, Home, Bell,
 import defaultProfilePic from '../assets/default-avatar.png';
 
 const Dashboard = () => {
+  const [loadingState, setLoadingState] = useState({
+  nearby: false,
+  connections: false,
+  data: true
+});
+
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const locationControlRef = useRef(null);
@@ -43,33 +49,38 @@ const [userLocation, setUserLocation] = useState(null);
     getUserLocation();
   }, []);
 
- const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation({ latitude, longitude });
-          fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setLoading(prev => ({ ...prev, nearby: false }));
-        }
-      );
-    } else {
-      console.error('Geolocation is not supported by this browser.');
-      setLoading(prev => ({ ...prev, nearby: false }));
-    }
-  };
- // Update your fetchNearbyUsers function to include connection status
+const getUserLocation = () => {
+  setLoadingState(prev => ({ ...prev, nearby: true }));
+  
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ latitude, longitude });
+        fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        setLoadingState(prev => ({ ...prev, nearby: false }));
+      }
+    );
+  } else {
+    console.error('Geolocation is not supported by this browser.');
+    setLoadingState(prev => ({ ...prev, nearby: false }));
+  }
+};
+
+// Update fetchNearbyUsers to use the new loading state
 const fetchNearbyUsers = async (latitude, longitude, distance) => {
   try {
+    setLoadingState(prev => ({ ...prev, nearby: true }));
+    
     const nearbyResponse = await api.getNearbyProfessionals(distance);
     
     if (!Array.isArray(nearbyResponse)) {
       console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
       setNearbyUsers([]);
-      setLoading(prev => ({ ...prev, nearby: false }));
+      setLoadingState(prev => ({ ...prev, nearby: false }));
       return;
     }
     
@@ -84,8 +95,7 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
         connections = [];
       }
       
-      // Get following
-      const user = await api.getMe();
+      // Get user data - we no longer need to use getMe() directly
       following = user?.following || [];
       
     } catch (connectionError) {
@@ -96,7 +106,9 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
     
     // Create a Set of connection IDs for faster lookup
     const connectionIds = new Set(connections.map(conn => conn._id));
-    const followingIds = new Set(following.map(id => id.toString()));
+    const followingIds = new Set(typeof following[0] === 'object' 
+      ? following.map(f => f._id) 
+      : following.map(id => id.toString()));
     
     // Get pending connections
     let pendingConnections = [];
@@ -123,12 +135,75 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
     const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
     
     setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-    setLoading(prev => ({ ...prev, nearby: false }));
+    setLoadingState(prev => ({ ...prev, nearby: false }));
   } catch (error) {
     console.error('Error fetching nearby professionals:', error);
-    setLoading(prev => ({ ...prev, nearby: false }));
+    setLoadingState(prev => ({ ...prev, nearby: false }));
   }
 };
+
+// Update fetchAllData to use the new loading state
+const fetchAllData = async () => {
+  if (!user) return;
+  setLoadingState(prev => ({ ...prev, data: true }));
+  
+  try {
+    // Fetch all data in parallel
+    const [
+      profileViewData,
+      connectionsData,
+      pendingRequestsData,
+      streaksData,
+      projectsData,
+      achievementsData,
+      postsData
+    ] = await Promise.all([
+      api.getProfileViewAnalytics(),
+      api.getConnections('all'),
+      api.getConnectionRequests(),
+      api.getUserStreaks(user._id, { limit: 5, active: true }),
+      api.getUserProjects(user._id, { limit: 5 }),
+      api.getUserAchievements(user._id, { limit: 3 }),
+      api.getPosts({ limit: 3 })
+    ]);
+    
+    // Update dashboard stats with real data
+    setDashboardStats({
+      profileViews: profileViewData?.totalViews || 0,
+      connections: connectionsData?.length || 0,
+      streaks: streaksData?.items?.length || 0,
+      projects: projectsData?.items?.length || 0
+    });
+    
+    // Update other state data - add null checks
+    setPendingRequests(pendingRequestsData?.length || 0);
+    setConnectionRequests(pendingRequestsData || []);
+    setUserStreaks(streaksData?.items || []);
+    setUserProjects(projectsData?.items || []);
+    setUserAchievements(achievementsData?.items || []);
+    setRecentPosts(postsData?.posts || []);
+    
+    // Load planner from local storage if exists
+    const savedPlanner = localStorage.getItem('userPlanner');
+    if (savedPlanner) {
+      setPlanner(JSON.parse(savedPlanner));
+    }
+    
+    setLoadingState(prev => ({ ...prev, data: false }));
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    setLoadingState(prev => ({ ...prev, data: false }));
+  }
+};
+
+// Update the loading condition in your render function
+if (loading || loadingState.data) {
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-orange-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+    </div>
+  );
+}
 // Add these functions to your Dashboard component, 
 // right after the other handler functions like handleAcceptConnection
 
@@ -212,61 +287,7 @@ const handleFollow = async (userId) => {
 
   // Fetch all real data in parallel
   useEffect(() => {
-    const fetchAllData = async () => {
-      if (!user) return;
-      setLoadingData(true);
-      
-      try {
-        // Fetch all data in parallel
-        const [
-          profileViewData,
-          connectionsData,
-          pendingRequestsData,
-          streaksData,
-          projectsData,
-          achievementsData,
-          postsData
-        ] = await Promise.all([
-          api.getProfileViewAnalytics(),
-          api.getConnections('all'),
-          api.getConnectionRequests(),
-          api.getUserStreaks(user._id, { limit: 5, active: true }),
-          api.getUserProjects(user._id, { limit: 5 }),
-          api.getUserAchievements(user._id, { limit: 3 }),
-          api.getPosts({ limit: 3 })
-        ]);
-        
-        // Update dashboard stats with real data
-        setDashboardStats({
-          profileViews: profileViewData?.totalViews || 0,
-          connections: connectionsData?.length || 0,
-          streaks: streaksData?.items?.length || 0,
-          projects: projectsData?.items?.length || 0
-        });
-        
-        // Update other state data - add null checks
-        setPendingRequests(pendingRequestsData?.length || 0);
-        setConnectionRequests(pendingRequestsData || []);
-        setUserStreaks(streaksData?.items || []);
-        setUserProjects(projectsData?.items || []);
-        setUserAchievements(achievementsData?.items || []);
-        setRecentPosts(postsData?.posts || []);
-        
-        // Load planner from local storage if exists
-        const savedPlanner = localStorage.getItem('userPlanner');
-        if (savedPlanner) {
-          setPlanner(JSON.parse(savedPlanner));
-        }
-        
-        setLoadingData(false);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setLoadingData(false);
-      }
-    };
-
-    fetchAllData();
-  }, [user]);
+    
 
   // Location tracking implementation
   useEffect(() => {
