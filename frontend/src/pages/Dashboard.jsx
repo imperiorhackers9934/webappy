@@ -16,10 +16,10 @@ import defaultProfilePic from '../assets/default-avatar.png';
 
 const Dashboard = () => {
   const [loadingState, setLoadingState] = useState({
-  nearby: false,
-  connections: false,
-  data: true
-});
+    nearby: false,
+    connections: false,
+    data: true
+  });
 
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState([]);
@@ -43,240 +43,15 @@ const Dashboard = () => {
   const [recentPosts, setRecentPosts] = useState([]);
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
-const [userLocation, setUserLocation] = useState(null);
-    useEffect(() => {
+  const [userLocation, setUserLocation] = useState(null);
+
+  useEffect(() => {
     // Get user's location and fetch both types of users simultaneously
     getUserLocation();
+    
+    // Fetch all dashboard data when component mounts
+    fetchAllData();
   }, []);
-
-const getUserLocation = () => {
-  setLoadingState(prev => ({ ...prev, nearby: true }));
-  
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ latitude, longitude });
-        fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
-      },
-      (error) => {
-        console.error('Error getting location:', error);
-        setLoadingState(prev => ({ ...prev, nearby: false }));
-      }
-    );
-  } else {
-    console.error('Geolocation is not supported by this browser.');
-    setLoadingState(prev => ({ ...prev, nearby: false }));
-  }
-};
-
-// Update fetchNearbyUsers to use the new loading state
-const fetchNearbyUsers = async (latitude, longitude, distance) => {
-  try {
-    setLoadingState(prev => ({ ...prev, nearby: true }));
-    
-    const nearbyResponse = await api.getNearbyProfessionals(distance);
-    
-    if (!Array.isArray(nearbyResponse)) {
-      console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
-      setNearbyUsers([]);
-      setLoadingState(prev => ({ ...prev, nearby: false }));
-      return;
-    }
-    
-    // Now fetch connections in a separate call
-    let connections = [];
-    let following = [];
-    try {
-      // Get connections
-      connections = await api.getConnections('all');
-      if (!Array.isArray(connections)) {
-        console.error('Invalid response from getConnections:', connections);
-        connections = [];
-      }
-      
-      // Get user data - we no longer need to use getMe() directly
-      following = user?.following || [];
-      
-    } catch (connectionError) {
-      console.error('Error fetching connections or following:', connectionError);
-      connections = [];
-      following = [];
-    }
-    
-    // Create a Set of connection IDs for faster lookup
-    const connectionIds = new Set(connections.map(conn => conn._id));
-    const followingIds = new Set(typeof following[0] === 'object' 
-      ? following.map(f => f._id) 
-      : following.map(id => id.toString()));
-    
-    // Get pending connections
-    let pendingConnections = [];
-    try {
-      pendingConnections = await api.getPendingConnections();
-    } catch (error) {
-      console.error('Error fetching pending connections:', error);
-      pendingConnections = [];
-    }
-    const pendingIds = new Set(pendingConnections.map(conn => conn.toString()));
-    
-    // Enhance users with connection status and following status
-    const enhancedUsers = nearbyResponse.map(user => ({
-      ...user,
-      connectionStatus: connectionIds.has(user._id) 
-        ? 'connected' 
-        : pendingIds.has(user._id)
-          ? 'pending'
-          : 'none',
-      isFollowing: followingIds.has(user._id)
-    }));
-    
-    // Filter out users who are in your connections
-    const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
-    
-    setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-    setLoadingState(prev => ({ ...prev, nearby: false }));
-  } catch (error) {
-    console.error('Error fetching nearby professionals:', error);
-    setLoadingState(prev => ({ ...prev, nearby: false }));
-  }
-};
-
-// Update fetchAllData to use the new loading state
-const fetchAllData = async () => {
-  if (!user) return;
-  setLoadingState(prev => ({ ...prev, data: true }));
-  
-  try {
-    // Fetch all data in parallel
-    const [
-      profileViewData,
-      connectionsData,
-      pendingRequestsData,
-      streaksData,
-      projectsData,
-      achievementsData,
-      postsData
-    ] = await Promise.all([
-      api.getProfileViewAnalytics(),
-      api.getConnections('all'),
-      api.getConnectionRequests(),
-      api.getUserStreaks(user._id, { limit: 5, active: true }),
-      api.getUserProjects(user._id, { limit: 5 }),
-      api.getUserAchievements(user._id, { limit: 3 }),
-      api.getPosts({ limit: 3 })
-    ]);
-    
-    // Update dashboard stats with real data
-    setDashboardStats({
-      profileViews: profileViewData?.totalViews || 0,
-      connections: connectionsData?.length || 0,
-      streaks: streaksData?.items?.length || 0,
-      projects: projectsData?.items?.length || 0
-    });
-    
-    // Update other state data - add null checks
-    setPendingRequests(pendingRequestsData?.length || 0);
-    setConnectionRequests(pendingRequestsData || []);
-    setUserStreaks(streaksData?.items || []);
-    setUserProjects(projectsData?.items || []);
-    setUserAchievements(achievementsData?.items || []);
-    setRecentPosts(postsData?.posts || []);
-    
-    // Load planner from local storage if exists
-    const savedPlanner = localStorage.getItem('userPlanner');
-    if (savedPlanner) {
-      setPlanner(JSON.parse(savedPlanner));
-    }
-    
-    setLoadingState(prev => ({ ...prev, data: false }));
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    setLoadingState(prev => ({ ...prev, data: false }));
-  }
-};
-
-// Update the loading condition in your render function
-if (loading || loadingState.data) {
-  return (
-    <div className="flex justify-center items-center min-h-screen bg-orange-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
-    </div>
-  );
-}
-// Add these functions to your Dashboard component, 
-// right after the other handler functions like handleAcceptConnection
-
-const handleConnect = async (userId) => {
-  try {
-    // Show loading state or disable button if needed
-    
-    // Send connection request
-    await api.sendConnectionRequest(userId);
-    
-    // Update the UI to show pending status
-    setNearbyUsers(prev => 
-      prev.map(user => 
-        user._id === userId 
-          ? { ...user, connectionStatus: 'pending' }
-          : user
-      )
-    );
-    
-    // Show success toast
-    toast({
-      title: "Connection request sent!",
-      description: "We'll notify you when they respond.",
-      status: "success"
-    });
-  } catch (error) {
-    console.error('Error sending connection request:', error);
-    
-    // Show error toast
-    toast({
-      title: "Request failed",
-      description: "Couldn't send connection request. Please try again.",
-      status: "error"
-    });
-  }
-};
-
-const handleFollow = async (userId) => {
-  try {
-    // Send follow request
-    const response = await api.followUser(userId);
-    
-    // Update UI based on new following status
-    setNearbyUsers(prev => 
-      prev.map(user => 
-        user._id === userId 
-          ? { ...user, isFollowing: response.following }
-          : user
-      )
-    );
-    
-    // Show success toast
-    toast({
-      title: response.following ? "Following user" : "Unfollowed user",
-      status: "success"
-    });
-  } catch (error) {
-    console.error('Error following user:', error);
-    
-    // Show error toast
-    toast({
-      title: "Action failed",
-      description: "Couldn't update follow status. Please try again.",
-      status: "error"
-    });
-  }
-};
-  const getProfilePicture = (userObj) => {
-    if (userObj?.profilePicture) {
-      return userObj.profilePicture;
-    }
-    return defaultProfilePic;
-  };
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -284,10 +59,6 @@ const handleFollow = async (userId) => {
       navigate('/login');
     }
   }, [user, loading, navigate]);
-
-  // Fetch all real data in parallel
-  useEffect(() => {
-    
 
   // Location tracking implementation
   useEffect(() => {
@@ -339,6 +110,227 @@ const handleFollow = async (userId) => {
       }
     };
   }, [user?._id]);
+
+  const getUserLocation = () => {
+    setLoadingState(prev => ({ ...prev, nearby: true }));
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ latitude, longitude });
+          fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          setLoadingState(prev => ({ ...prev, nearby: false }));
+        }
+      );
+    } else {
+      console.error('Geolocation is not supported by this browser.');
+      setLoadingState(prev => ({ ...prev, nearby: false }));
+    }
+  };
+
+  // Update fetchNearbyUsers to use the new loading state
+  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+    try {
+      setLoadingState(prev => ({ ...prev, nearby: true }));
+      
+      const nearbyResponse = await api.getNearbyProfessionals(distance);
+      
+      if (!Array.isArray(nearbyResponse)) {
+        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
+        setNearbyUsers([]);
+        setLoadingState(prev => ({ ...prev, nearby: false }));
+        return;
+      }
+      
+      // Now fetch connections in a separate call
+      let connections = [];
+      let following = [];
+      try {
+        // Get connections
+        connections = await api.getConnections('all');
+        if (!Array.isArray(connections)) {
+          console.error('Invalid response from getConnections:', connections);
+          connections = [];
+        }
+        
+        // Get user data - we no longer need to use getMe() directly
+        following = user?.following || [];
+        
+      } catch (connectionError) {
+        console.error('Error fetching connections or following:', connectionError);
+        connections = [];
+        following = [];
+      }
+      
+      // Create a Set of connection IDs for faster lookup
+      const connectionIds = new Set(connections.map(conn => conn._id));
+      const followingIds = new Set(typeof following[0] === 'object' 
+        ? following.map(f => f._id) 
+        : following.map(id => id.toString()));
+      
+      // Get pending connections
+      let pendingConnections = [];
+      try {
+        pendingConnections = await api.getPendingConnections();
+      } catch (error) {
+        console.error('Error fetching pending connections:', error);
+        pendingConnections = [];
+      }
+      const pendingIds = new Set(pendingConnections.map(conn => conn.toString()));
+      
+      // Enhance users with connection status and following status
+      const enhancedUsers = nearbyResponse.map(user => ({
+        ...user,
+        connectionStatus: connectionIds.has(user._id) 
+          ? 'connected' 
+          : pendingIds.has(user._id)
+            ? 'pending'
+            : 'none',
+        isFollowing: followingIds.has(user._id)
+      }));
+      
+      // Filter out users who are in your connections
+      const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
+      
+      setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
+      setLoadingState(prev => ({ ...prev, nearby: false }));
+    } catch (error) {
+      console.error('Error fetching nearby professionals:', error);
+      setLoadingState(prev => ({ ...prev, nearby: false }));
+    }
+  };
+
+  // Update fetchAllData to use the new loading state
+  const fetchAllData = async () => {
+    if (!user) return;
+    setLoadingState(prev => ({ ...prev, data: true }));
+    
+    try {
+      // Fetch all data in parallel
+      const [
+        profileViewData,
+        connectionsData,
+        pendingRequestsData,
+        streaksData,
+        projectsData,
+        achievementsData,
+        postsData
+      ] = await Promise.all([
+        api.getProfileViewAnalytics(),
+        api.getConnections('all'),
+        api.getConnectionRequests(),
+        api.getUserStreaks(user._id, { limit: 5, active: true }),
+        api.getUserProjects(user._id, { limit: 5 }),
+        api.getUserAchievements(user._id, { limit: 3 }),
+        api.getPosts({ limit: 3 })
+      ]);
+      
+      // Update dashboard stats with real data
+      setDashboardStats({
+        profileViews: profileViewData?.totalViews || 0,
+        connections: connectionsData?.length || 0,
+        streaks: streaksData?.items?.length || 0,
+        projects: projectsData?.items?.length || 0
+      });
+      
+      // Update other state data - add null checks
+      setPendingRequests(pendingRequestsData?.length || 0);
+      setConnectionRequests(pendingRequestsData || []);
+      setUserStreaks(streaksData?.items || []);
+      setUserProjects(projectsData?.items || []);
+      setUserAchievements(achievementsData?.items || []);
+      setRecentPosts(postsData?.posts || []);
+      
+      // Load planner from local storage if exists
+      const savedPlanner = localStorage.getItem('userPlanner');
+      if (savedPlanner) {
+        setPlanner(JSON.parse(savedPlanner));
+      }
+      
+      setLoadingState(prev => ({ ...prev, data: false }));
+      setLoadingData(false); // Update the loadingData state as well
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setLoadingState(prev => ({ ...prev, data: false }));
+      setLoadingData(false); // Update even on error
+    }
+  };
+
+  const handleConnect = async (userId) => {
+    try {
+      // Show loading state or disable button if needed
+      
+      // Send connection request
+      await api.sendConnectionRequest(userId);
+      
+      // Update the UI to show pending status
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, connectionStatus: 'pending' }
+            : user
+        )
+      );
+      
+      // Show success toast
+      toast({
+        title: "Connection request sent!",
+        description: "We'll notify you when they respond.",
+        status: "success"
+      });
+    } catch (error) {
+      console.error('Error sending connection request:', error);
+      
+      // Show error toast
+      toast({
+        title: "Request failed",
+        description: "Couldn't send connection request. Please try again.",
+        status: "error"
+      });
+    }
+  };
+
+  const handleFollow = async (userId) => {
+    try {
+      // Send follow request
+      const response = await api.followUser(userId);
+      
+      // Update UI based on new following status
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, isFollowing: response.following }
+            : user
+        )
+      );
+      
+      // Show success toast
+      toast({
+        title: response.following ? "Following user" : "Unfollowed user",
+        status: "success"
+      });
+    } catch (error) {
+      console.error('Error following user:', error);
+      
+      // Show error toast
+      toast({
+        title: "Action failed",
+        description: "Couldn't update follow status. Please try again.",
+        status: "error"
+      });
+    }
+  };
+
+  const getProfilePicture = (userObj) => {
+    if (userObj?.profilePicture) {
+      return userObj.profilePicture;
+    }
+    return defaultProfilePic;
+  };
 
   const handleAcceptConnection = async (userId) => {
     try {
@@ -406,7 +398,8 @@ const handleFollow = async (userId) => {
     return date.toLocaleDateString(undefined, options);
   };
 
-  if (loading || loadingData) {
+  // Fix the loading condition by checking both loading states
+  if (loading || loadingState.data) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-orange-50">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
@@ -1016,261 +1009,263 @@ const handleFollow = async (userId) => {
                       </div>
                     )}
                   </div>
-               {/* Nearby Professionals with Improved Card Width for Laptops - All Styles Inline */}
-<div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
-  {/* Header */}
-  <div className="flex justify-between items-center mb-4">
-    <div className="flex items-center">
-      <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
-      <h2 className="text-base md:text-xl font-semibold text-gray-800">Nearby Professionals</h2>
-    </div>
-    <Link to="/network/nearby" className="text-xs md:text-sm text-orange-500 hover:text-orange-600 flex items-center">
-      See All <ChevronRight className="h-3 w-3 md:h-4 md:w-4 ml-1" />
-    </Link>
-  </div>
+                  
+                  {/* Nearby Professionals with Improved Card Width for Laptops - All Styles Inline */}
+                  <div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
+                    {/* Header */}
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
+                        <h2 className="text-base md:text-xl font-semibold text-gray-800">Nearby Professionals</h2>
+                      </div>
+                      <Link to="/network/nearby" className="text-xs md:text-sm text-orange-500 hover:text-orange-600 flex items-center">
+                        See All <ChevronRight className="h-3 w-3 md:h-4 md:w-4 ml-1" />
+                      </Link>
+                    </div>
 
-  {/* User Cards - Fixed overlapping issue */}
-  {loadingData ? (
-    <div className="flex justify-center items-center h-40">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-    </div>
-  ) : nearbyUsers && nearbyUsers.length > 0 ? (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-      {nearbyUsers.map(user => (
-        <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100 flex flex-col w-full">
-          {/* Card Header with gradient background and distance badge */}
-          <div className="h-16 sm:h-20 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative w-full">
-            {user.distance !== undefined && (
-              <div className="absolute top-2 right-2 bg-white px-2 py-0.5 md:py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
-              </div>
-            )}
-          </div>
-          
-          {/* User Info Section - Fixed overlapping issues */}
-          <div className="p-3 sm:p-4 md:p-5 relative flex-grow w-full">
-            {/* Profile Picture - Adjusted size and positioning */}
-            <div className="absolute -top-10 sm:-top-11 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
-              {user.profilePicture ? (
-                <img 
-                  src={user.profilePicture} 
-                  alt={`${user.firstName} ${user.lastName}`}
-                  className="h-16 sm:h-16 md:h-20 w-16 sm:w-16 md:w-20 rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-16 sm:h-16 md:h-20 w-16 sm:w-16 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
-                  <span className="text-lg md:text-xl font-medium text-orange-600">
-                    {user.firstName?.charAt(0) || ''}
-                    {user.lastName?.charAt(0) || ''}
-                  </span>
+                    {/* User Cards - Fixed overlapping issue */}
+                    {loadingState.nearby ? (
+                      <div className="flex justify-center items-center h-40">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                      </div>
+                    ) : nearbyUsers && nearbyUsers.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                        {nearbyUsers.map(user => (
+                          <div key={user._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-gray-100 flex flex-col w-full">
+                            {/* Card Header with gradient background and distance badge */}
+                            <div className="h-16 sm:h-20 md:h-24 bg-gradient-to-r from-orange-100 to-orange-200 relative w-full">
+                              {user.distance !== undefined && (
+                                <div className="absolute top-2 right-2 bg-white px-2 py-0.5 md:py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                                  {user.distance < 1 ? `${(user.distance * 1000).toFixed(0)}m` : `${user.distance.toFixed(1)}km`} away
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* User Info Section - Fixed overlapping issues */}
+                            <div className="p-3 sm:p-4 md:p-5 relative flex-grow w-full">
+                              {/* Profile Picture - Adjusted size and positioning */}
+                              <div className="absolute -top-10 sm:-top-11 md:-top-12 left-3 md:left-4 border-3 md:border-4 border-white rounded-full">
+                                {user.profilePicture ? (
+                                  <img 
+                                    src={user.profilePicture} 
+                                    alt={`${user.firstName} ${user.lastName}`}
+                                    className="h-16 sm:h-16 md:h-20 w-16 sm:w-16 md:w-20 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="h-16 sm:h-16 md:h-20 w-16 sm:w-16 md:w-20 rounded-full bg-orange-100 flex items-center justify-center">
+                                    <span className="text-lg md:text-xl font-medium text-orange-600">
+                                      {user.firstName?.charAt(0) || ''}
+                                      {user.lastName?.charAt(0) || ''}
+                                    </span>
+                                  </div>
+                                )}
+                                {/* Online indicator */}
+                                {user.online && (
+                                  <div className="absolute bottom-0 right-0 h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500 border-2 border-white"></div>
+                                )}
+                              </div>
+                              
+                              {/* User Details - Fixed min-height causing overlap */}
+                              <div className="mt-8 sm:mt-9 md:mt-10 w-full" style={{ minHeight: '100px' }}>
+                                <h3 
+                                  className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate w-full"
+                                  onClick={() => navigate(`/profile/${user._id}`)}
+                                >
+                                  {user.firstName || ''} {user.lastName || ''}
+                                </h3>
+                                <p className="text-xs md:text-sm text-gray-600 truncate mb-1 w-full">
+                                  {user.headline || "Professional"}
+                                </p>
+                                
+                                {/* Industry - if available */}
+                                {user.industry && (
+                                  <div className="mt-1 text-xs md:text-sm text-gray-600 truncate w-full">
+                                    {user.industry}
+                                  </div>
+                                )}
+                                
+                                {/* Skills tags - if available */}
+                                {user.skills && user.skills.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2 w-full">
+                                    {user.skills.slice(0, 2).map((skill, index) => (
+                                      <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate" style={{ maxWidth: '120px' }}>
+                                        {typeof skill === 'string' ? skill : skill.name}
+                                      </span>
+                                    ))}
+                                    {user.skills.length > 2 && (
+                                      <span className="text-xs text-gray-500">+{user.skills.length - 2} more</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Action Buttons - Fixed positioning */}
+                              <div className="mt-3 sm:mt-4 flex space-x-2 w-full">
+                                <button
+                                  onClick={() => handleConnect(user._id)}
+                                  disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                                  className={`flex-1 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-medium ${
+                                    user.connectionStatus === 'pending' 
+                                      ? 'bg-gray-100 text-gray-500'
+                                      : user.connectionStatus === 'connected'
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-orange-500 text-white hover:bg-orange-600'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-center">
+                                    <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                                    {user.connectionStatus === 'pending' 
+                                      ? 'Pending' 
+                                      : user.connectionStatus === 'connected'
+                                        ? 'Connected'
+                                        : 'Connect'}
+                                  </div>
+                                </button>
+                                
+                                <button
+                                  onClick={() => handleFollow(user._id)}
+                                  className={`flex-1 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-medium ${
+                                    user.isFollowing
+                                      ? 'bg-blue-100 text-blue-700'
+                                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-center">
+                                    <Rss className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                                    {user.isFollowing ? 'Following' : 'Follow'}
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      // Empty state - unchanged
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-8 text-center">
+                        <div className="inline-flex h-12 w-12 md:h-16 md:w-16 rounded-full bg-orange-100 items-center justify-center mb-3 md:mb-4">
+                          <MapPin className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
+                        </div>
+                        <h3 className="text-base md:text-xl font-semibold text-gray-800 mb-1 md:mb-2">No Nearby Professionals</h3>
+                        <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
+                          {userLocation 
+                            ? "We couldn't find any professionals near your current location." 
+                            : "Please enable location services to see professionals near you."}
+                        </p>
+                        <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
+                          <button 
+                            onClick={getUserLocation}
+                            className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Retry
+                          </button>
+                          <button 
+                            onClick={() => navigate('/network/nearby')}
+                            className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Explore More
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              {/* Online indicator */}
-              {user.online && (
-                <div className="absolute bottom-0 right-0 h-3 w-3 md:h-4 md:w-4 rounded-full bg-green-500 border-2 border-white"></div>
-              )}
-            </div>
-            
-            {/* User Details - Fixed min-height causing overlap */}
-            <div className="mt-8 sm:mt-9 md:mt-10 w-full" style={{ minHeight: '100px' }}>
-              <h3 
-                className="text-base md:text-lg font-medium text-gray-900 hover:text-orange-600 cursor-pointer truncate w-full"
-                onClick={() => navigate(`/profile/${user._id}`)}
-              >
-                {user.firstName || ''} {user.lastName || ''}
-              </h3>
-              <p className="text-xs md:text-sm text-gray-600 truncate mb-1 w-full">
-                {user.headline || "Professional"}
-              </p>
-              
-              {/* Industry - if available */}
-              {user.industry && (
-                <div className="mt-1 text-xs md:text-sm text-gray-600 truncate w-full">
-                  {user.industry}
-                </div>
-              )}
-              
-              {/* Skills tags - if available */}
-              {user.skills && user.skills.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2 w-full">
-                  {user.skills.slice(0, 2).map((skill, index) => (
-                    <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded truncate" style={{ maxWidth: '120px' }}>
-                      {typeof skill === 'string' ? skill : skill.name}
-                    </span>
-                  ))}
-                  {user.skills.length > 2 && (
-                    <span className="text-xs text-gray-500">+{user.skills.length - 2} more</span>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Action Buttons - Fixed positioning */}
-            <div className="mt-3 sm:mt-4 flex space-x-2 w-full">
-              <button
-                onClick={() => handleConnect(user._id)}
-                disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
-                className={`flex-1 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-medium ${
-                  user.connectionStatus === 'pending' 
-                    ? 'bg-gray-100 text-gray-500'
-                    : user.connectionStatus === 'connected'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-orange-500 text-white hover:bg-orange-600'
-                }`}
-              >
-                <div className="flex items-center justify-center">
-                  <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                  {user.connectionStatus === 'pending' 
-                    ? 'Pending' 
-                    : user.connectionStatus === 'connected'
-                      ? 'Connected'
-                      : 'Connect'}
-                </div>
-              </button>
-              
-              <button
-                onClick={() => handleFollow(user._id)}
-                className={`flex-1 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-medium ${
-                  user.isFollowing
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <div className="flex items-center justify-center">
-                  <Rss className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                  {user.isFollowing ? 'Following' : 'Follow'}
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  ) : (
-    // Empty state - unchanged
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-8 text-center">
-      <div className="inline-flex h-12 w-12 md:h-16 md:w-16 rounded-full bg-orange-100 items-center justify-center mb-3 md:mb-4">
-        <MapPin className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
-      </div>
-      <h3 className="text-base md:text-xl font-semibold text-gray-800 mb-1 md:mb-2">No Nearby Professionals</h3>
-      <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
-        {userLocation 
-          ? "We couldn't find any professionals near your current location." 
-          : "Please enable location services to see professionals near you."}
-      </p>
-      <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
-        <button 
-          onClick={getUserLocation}
-          className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-        >
-          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-          </svg>
-          Retry
-        </button>
-        <button 
-          onClick={() => navigate('/network/nearby')}
-          className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-        >
-          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-          </svg>
-          Explore More
-        </button>
-      </div>
-    </div>
-  )}
-</div>
-             </div>
               </div>
             )}
 
            {activeSection === 'content' && (
-  <div className="bg-white rounded-xl shadow-md p-3 md:p-6">
-    <div className="mb-3 md:mb-6">
-      <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1 md:mb-2">Content Creation</h2>
-      <p className="text-xs md:text-sm text-gray-500">Share updates, insights, and connect with your network</p>
-    </div>
-    
-    {/* CreatePost Component - Add responsive props or wrapper */}
-    <div className="create-post-wrapper">
-      <CreatePost />
-    </div>
-    
-    {/* Recent Posts Preview - More responsive */}
-    {recentPosts.length > 0 && (
-      <div className="mt-4 md:mt-8">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-base md:text-lg font-semibold text-gray-800">Your Recent Posts</h3>
-          <Link to="/posts" className="text-xs md:text-sm text-orange-500 hover:text-orange-600">
-            View All →
-          </Link>
-        </div>
-        
-        <div className="space-y-3 md:space-y-4">
-          {recentPosts.slice(0, 2).map(post => (
-            <div key={post._id} className="p-2 md:p-4 border border-gray-100 rounded-lg hover:bg-orange-50 transition-colors">
-              <div className="flex items-start">
-                <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg overflow-hidden mr-2 md:mr-3 flex-shrink-0">
-                  <img 
-                    src={getProfilePicture(post.author || user)}
-                    alt={`${post.author?.firstName || user?.firstName || 'User'}`}
-                    className="h-full w-full object-cover" 
-                  />
+              <div className="bg-white rounded-xl shadow-md p-3 md:p-6">
+                <div className="mb-3 md:mb-6">
+                  <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1 md:mb-2">Content Creation</h2>
+                  <p className="text-xs md:text-sm text-gray-500">Share updates, insights, and connect with your network</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <p className="font-medium text-xs md:text-sm text-gray-900 truncate">
-                      {post.author?.firstName || user?.firstName || 'You'} {post.author?.lastName || user?.lastName || ''}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatDate(post.createdAt)}
-                    </p>
-                  </div>
-                  <p className="text-xs md:text-sm text-gray-700 mt-1 line-clamp-2">
-                    {post.content}
-                  </p>
-                  
-                  {post.images && post.images.length > 0 && (
-                    <div className="mt-2">
-                      <div className="h-20 md:h-28 rounded-lg overflow-hidden">
-                        <img 
-                          src={post.images[0].url} 
-                          alt="Post media"
-                          className="h-full w-full object-cover" 
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center space-x-3 text-xs text-gray-500">
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                        </svg>
-                        {post.likes || 0}
-                      </div>
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                        {post.comments?.length || 0}
-                      </div>
-                    </div>
-                    <Link to={`/posts/${post._id}`} className="text-xs md:text-sm text-orange-500 hover:text-orange-600 font-medium">
-                      View Post
-                    </Link>
-                  </div>
+                
+                {/* CreatePost Component - Add responsive props or wrapper */}
+                <div className="create-post-wrapper">
+                  <CreatePost />
                 </div>
+                
+                {/* Recent Posts Preview - More responsive */}
+                {recentPosts.length > 0 && (
+                  <div className="mt-4 md:mt-8">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-base md:text-lg font-semibold text-gray-800">Your Recent Posts</h3>
+                      <Link to="/posts" className="text-xs md:text-sm text-orange-500 hover:text-orange-600">
+                        View All →
+                      </Link>
+                    </div>
+                    
+                    <div className="space-y-3 md:space-y-4">
+                      {recentPosts.slice(0, 2).map(post => (
+                        <div key={post._id} className="p-2 md:p-4 border border-gray-100 rounded-lg hover:bg-orange-50 transition-colors">
+                          <div className="flex items-start">
+                            <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg overflow-hidden mr-2 md:mr-3 flex-shrink-0">
+                              <img 
+                                src={getProfilePicture(post.author || user)}
+                                alt={`${post.author?.firstName || user?.firstName || 'User'}`}
+                                className="h-full w-full object-cover" 
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                <p className="font-medium text-xs md:text-sm text-gray-900 truncate">
+                                  {post.author?.firstName || user?.firstName || 'You'} {post.author?.lastName || user?.lastName || ''}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {formatDate(post.createdAt)}
+                                </p>
+                              </div>
+                              <p className="text-xs md:text-sm text-gray-700 mt-1 line-clamp-2">
+                                {post.content}
+                              </p>
+                              
+                              {post.images && post.images.length > 0 && (
+                                <div className="mt-2">
+                                  <div className="h-20 md:h-28 rounded-lg overflow-hidden">
+                                    <img 
+                                      src={post.images[0].url} 
+                                      alt="Post media"
+                                      className="h-full w-full object-cover" 
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="mt-2 flex items-center justify-between">
+                                <div className="flex items-center space-x-3 text-xs text-gray-500">
+                                  <div className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                    </svg>
+                                    {post.likes || 0}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                    {post.comments?.length || 0}
+                                  </div>
+                                </div>
+                                <Link to={`/posts/${post._id}`} className="text-xs md:text-sm text-orange-500 hover:text-orange-600 font-medium">
+                                  View Post
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-)}
+            )}
+
             {activeSection === 'portfolio' && (
               <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
                 <div className="mb-4 md:mb-6">
