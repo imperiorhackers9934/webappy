@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
-import locationService from "../services/locationService"
+import api from '../../services/api';
 
 const NearbyProfessionals = ({ user }) => {
   const [professionals, setProfessionals] = useState([]);
@@ -24,7 +23,8 @@ const NearbyProfessionals = ({ user }) => {
           (error) => {
             console.error('Geolocation error:', error);
             setLocationError(true);
-            handleLocationFallback();
+            setError('Could not get your location. Please enable location services.');
+            setLoading(false);
           },
           { 
             enableHighAccuracy: true, 
@@ -34,59 +34,93 @@ const NearbyProfessionals = ({ user }) => {
         );
       } else {
         setLocationError(true);
-        handleLocationFallback();
+        setError('Geolocation is not supported by your browser');
+        setLoading(false);
       }
     };
 
     getUserLocation();
   }, []);
 
-  // Fallback to IP-based location if browser geolocation fails
-  const handleLocationFallback = async () => {
-    try {
-      console.log('Attempting IP-based location fallback');
-      const ipLocation = await locationService.getIPLocation();
-      
-      if (ipLocation && ipLocation.latitude && ipLocation.longitude) {
-        console.log('Using IP-based location:', ipLocation);
-        setCurrentLocation({
-          latitude: ipLocation.latitude,
-          longitude: ipLocation.longitude
-        });
-        // Don't clear the locationError so user knows we're using a fallback
-      } else {
-        setError('Could not determine your location. Please enable location services.');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('IP location fallback failed:', error);
-      setError('Could not determine your location. Please enable location services.');
-      setLoading(false);
-    }
-  };
-
-  // Function to fetch nearby professionals - using useCallback to avoid recreating
+  // Function to fetch nearby professionals
   const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
     if (!loc) return;
     
     try {
       setLoading(true);
       
-      // Use the enhanced service that ensures distance is handled correctly
-      const response = await locationService.getNearbyProfessionals(
-        dist, 
-        loc.latitude, 
-        loc.longitude
-      );
-      
-      setProfessionals(response);
-      setLoading(false);
+      // Try to fetch professionals directly without updating location first
+      try {
+        // Build the request parameters
+        const params = { distance: dist };
+        
+        // Add coordinates if provided
+        if (loc.latitude && loc.longitude) {
+          params.latitude = loc.latitude;
+          params.longitude = loc.longitude;
+        }
+        
+        // Make the API call
+        const response = await api.get('/api/network/nearby', { params });
+        
+        // Process the response to ensure consistent format
+        const professionalsData = Array.isArray(response.data) ? response.data : 
+                          (response.data.professionals || []);
+        
+        // THIS IS THE KEY FIX: Map and safely format the distance property
+        const processedProfessionals = professionalsData.map(prof => {
+          // Always return a new object with safe defaults
+          return {
+            ...prof,
+            // Ensure required properties exist
+            firstName: prof.firstName || '',
+            lastName: prof.lastName || '',
+            connectionStatus: prof.connectionStatus || 'none',
+            // Format the distance safely to avoid the TypeError
+            distanceText: formatDistance(prof.distance)
+          };
+        });
+        
+        setProfessionals(processedProfessionals);
+        
+        // Now try to update location separately 
+        try {
+          await api.updateLocation(loc.latitude, loc.longitude);
+          console.log('Location updated successfully:', loc);
+        } catch (locationError) {
+          console.log('Location update failed, but professionals were fetched', locationError);
+          // Don't show error to user as we already got the professionals
+        }
+      } catch (fetchError) {
+        console.error('Error fetching nearby professionals:', fetchError);
+        setError('Failed to load nearby professionals');
+      }
     } catch (error) {
       console.error('Error in fetchNearbyProfessionals:', error);
-      setError('An unexpected error occurred while finding professionals nearby.');
+      setError('An unexpected error occurred');
+    } finally {
       setLoading(false);
     }
   }, []);
+
+  // Helper function to safely format distance
+  const formatDistance = (distance) => {
+    // If distance is a number, format it
+    if (typeof distance === 'number' && !isNaN(distance)) {
+      return `${distance.toFixed(1)} km`;
+    }
+    
+    // If distance is a string that can be parsed as a number
+    if (typeof distance === 'string') {
+      const parsedDistance = parseFloat(distance);
+      if (!isNaN(parsedDistance)) {
+        return `${parsedDistance.toFixed(1)} km`;
+      }
+    }
+    
+    // Default fallback
+    return 'nearby';
+  };
 
   // Fetch nearby professionals when location is available
   useEffect(() => {
@@ -135,8 +169,10 @@ const NearbyProfessionals = ({ user }) => {
 
   // Send connection request
   const handleConnect = async (userId, e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
     try {
       if (!userId) {
@@ -146,8 +182,18 @@ const NearbyProfessionals = ({ user }) => {
       
       console.log('Sending connection request to user:', userId);
       
-      // Use the more reliable function name
-      await api.endConnectionRequest(userId);
+      // Try both functions to ensure compatibility
+      try {
+        await api.endConnectionRequest(userId);
+      } catch (error1) {
+        // Fallback to the old function name if the new one fails
+        try {
+          await api.sendConnectionRequest(userId);
+        } catch (error2) {
+          console.error('Both connection request methods failed:', { error1, error2 });
+          throw error2; // Re-throw the last error
+        }
+      }
       
       // Update the list to show "Pending" for this user
       setProfessionals(prev => 
@@ -157,10 +203,6 @@ const NearbyProfessionals = ({ user }) => {
       );
     } catch (error) {
       console.error('Error sending connection request:', error);
-      // Check the specific error message or status
-      if (error.response) {
-        console.error('Server response:', error.response.data);
-      }
     }
   };
 
@@ -184,7 +226,8 @@ const NearbyProfessionals = ({ user }) => {
         (error) => {
           console.error('Geolocation retry failed:', error);
           setLocationError(true);
-          handleLocationFallback();
+          setError('Still unable to get your location. Please check your device settings.');
+          setLoading(false);
         },
         { 
           enableHighAccuracy: true, 
@@ -338,12 +381,6 @@ const NearbyProfessionals = ({ user }) => {
                     )}
                   </div>
                   
-                  {/* Tooltip with name and distance */}
-                  <div className="absolute opacity-0 group-hover:opacity-100 -bottom-12 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap pointer-events-none transition-opacity duration-200">
-                    <p>{professional.firstName} {professional.lastName}</p>
-                    <p className="text-gray-300 text-xs">{professional.distanceFormatted}</p>
-                  </div>
-                  
                   {/* Connection status indicator */}
                   <div className="absolute -bottom-1 right-0 transform translate-x-1/4">
                     {professional.connectionStatus === 'connected' ? (
@@ -417,7 +454,7 @@ const NearbyProfessionals = ({ user }) => {
                       {professional.firstName} {professional.lastName}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {professional.headline || professional.title || 'Professional'} • {professional.distanceFormatted}
+                      {professional.headline || professional.title || 'Professional'} • {professional.distanceText || 'nearby'}
                     </p>
                   </div>
                   {professional.connectionStatus === 'connected' ? (
@@ -459,7 +496,7 @@ const NearbyProfessionals = ({ user }) => {
           className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
           All professionals
         </Link>
