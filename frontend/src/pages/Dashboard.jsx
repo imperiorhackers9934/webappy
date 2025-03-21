@@ -166,6 +166,7 @@ const Dashboard = () => {
 };
 
 // Update the fetchNearbyUsers function to handle missing location
+// Updated fetchNearbyUsers function to handle missing location and fix the filteredUsers error
 const fetchNearbyUsers = async (latitude, longitude, distance) => {
   try {
     setLoadingState(prev => ({ ...prev, nearby: true }));
@@ -176,9 +177,13 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
       nearbyResponse = await api.getNearbyProfessionals(distance);
     } else {
       // Fallback to get users without location-based filtering
-      nearbyResponse = await api.getRecommendedProfessionals(distance);
-      // If no getRecommendedProfessionals function exists, you could use:
-      // nearbyResponse = await api.getProfessionals({limit: 10});
+      try {
+        nearbyResponse = await api.getRecommendedProfessionals(distance);
+      } catch (error) {
+        // If getRecommendedProfessionals fails or doesn't exist, try a generic call
+        console.log('Falling back to generic professionals call');
+        nearbyResponse = await api.getProfessionals({ limit: 10 });
+      }
     }
     
     if (!Array.isArray(nearbyResponse)) {
@@ -188,9 +193,56 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
       return;
     }
     
-    // Rest of your existing code...
-    // [...]
-
+    // Now fetch connections in a separate call
+    let connections = [];
+    let following = [];
+    try {
+      // Get connections
+      connections = await api.getConnections('all');
+      if (!Array.isArray(connections)) {
+        console.error('Invalid response from getConnections:', connections);
+        connections = [];
+      }
+      
+      // Get user data - we no longer need to use getMe() directly
+      following = user?.following || [];
+      
+    } catch (connectionError) {
+      console.error('Error fetching connections or following:', connectionError);
+      connections = [];
+      following = [];
+    }
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(connections.map(conn => conn._id));
+    const followingIds = new Set(typeof following[0] === 'object' 
+      ? following.map(f => f._id) 
+      : following.map(id => id.toString()));
+    
+    // Get pending connections
+    let pendingConnections = [];
+    try {
+      pendingConnections = await api.getPendingConnections();
+    } catch (error) {
+      console.error('Error fetching pending connections:', error);
+      pendingConnections = [];
+    }
+    const pendingIds = new Set(pendingConnections.map(conn => conn.toString()));
+    
+    // Enhance users with connection status and following status
+    const enhancedUsers = nearbyResponse.map(user => ({
+      ...user,
+      connectionStatus: connectionIds.has(user._id) 
+        ? 'connected' 
+        : pendingIds.has(user._id)
+          ? 'pending'
+          : 'none',
+      isFollowing: followingIds.has(user._id)
+    }));
+    
+    // Filter out users who are in your connections
+    const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
+    
     setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
     setLoadingState(prev => ({ ...prev, nearby: false }));
   } catch (error) {
@@ -204,65 +256,6 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
     });
   }
 };
-
-// And update the location tracking function in useEffect
-useEffect(() => {
-  // Skip if user is not logged in
-  if (!user || !user._id) return;
-  
-  const startLocationTracking = async () => {
-    try {
-      // Check if we have permission first
-      if (navigator.permissions) {
-        const permission = await navigator.permissions.query({ name: 'geolocation' });
-        
-        if (permission.state !== 'granted') {
-          console.log('Location permission not granted');
-          setLocationEnabled(false);
-          return;
-        }
-      }
-      
-      console.log('Starting location tracking...');
-      
-      // Location tracking options
-      const trackingOptions = {
-        interval: 30000, // 30 seconds
-        enableHighAccuracy: false, // Set to false for battery saving
-        timeout: 10000, // 10 second timeout
-        successCallback: (result) => {
-          console.log('Location updated successfully');
-          setLocationEnabled(true);
-        },
-        errorCallback: (error) => {
-          console.error('Location update error:', error);
-          // Only show error message for permanent errors, not timeouts
-          if (error.code !== error.TIMEOUT) {
-            setLocationEnabled(false);
-          }
-        }
-      };
-      
-      // Start tracking and store the control object
-      locationControlRef.current = api.startContinuousLocationUpdates(trackingOptions);
-    } catch (error) {
-      console.error('Error setting up location tracking:', error);
-      setLocationEnabled(false);
-    }
-  };
-  
-  // Start tracking
-  startLocationTracking();
-  
-  // Clean up function
-  return () => {
-    if (locationControlRef.current && typeof locationControlRef.current.stop === 'function') {
-      console.log('Stopping location tracking');
-      locationControlRef.current.stop();
-      locationControlRef.current = null;
-    }
-  };
-}, [user?._id]);
   // Update fetchAllData to use the new loading state
   const fetchAllData = async () => {
     if (!user) return;
