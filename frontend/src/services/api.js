@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 import socketManager from './socketmanager';
 
@@ -720,7 +719,7 @@ getPendingConnections: async () => {
   },
   
   // Get nearby professionals with simplified implementation
- const getNearbyProfessionals = async (distance = 10, latitude = null, longitude = null) => {
+  getNearbyProfessionals : async (distance = 10, latitude = null, longitude = null) => {
   try {
     // Build the request parameters
     const params = { distance };
