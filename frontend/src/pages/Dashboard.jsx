@@ -45,7 +45,44 @@ const Dashboard = () => {
   const [newTask, setNewTask] = useState('');
   const [userLocation, setUserLocation] = useState(null);
   const initialLoadTimer = useRef(null);
+// Fixed code for the nearby professionals card in Dashboard.jsx
+// This function safely formats the distance value to avoid the TypeError
 
+// Add this helper function at the start of your Dashboard component
+const formatDistance = (distance) => {
+  try {
+    // Check if distance is a valid number
+    if (typeof distance === 'number' && !isNaN(distance)) {
+      // Format based on distance magnitude
+      return distance < 1 
+        ? `${(distance * 1000).toFixed(0)}m` 
+        : `${distance.toFixed(1)}km`;
+    }
+    
+    // Handle string values that can be parsed to numbers
+    if (typeof distance === 'string') {
+      const parsedDist = parseFloat(distance);
+      if (!isNaN(parsedDist)) {
+        return parsedDist < 1 
+          ? `${(parsedDist * 1000).toFixed(0)}m` 
+          : `${parsedDist.toFixed(1)}km`;
+      }
+    }
+    
+    // Default case: when distance is undefined, null, or cannot be parsed
+    return 'nearby';
+  } catch (error) {
+    console.error('Error formatting distance:', error);
+    return 'nearby';
+  }
+};
+
+// Then replace the distance badge code in your component with this:
+{user.distance !== undefined && (
+  <div className="absolute top-2 right-2 bg-white px-2 py-0.5 md:py-1 rounded-full text-xs font-medium text-gray-700 shadow-sm">
+    {formatDistance(user.distance)}
+  </div>
+)}
   // Add a safety timeout to prevent infinite loading
   useEffect(() => {
     // Force loading to complete after 10 seconds no matter what
