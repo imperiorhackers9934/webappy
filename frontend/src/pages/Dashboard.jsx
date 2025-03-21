@@ -112,98 +112,157 @@ const Dashboard = () => {
   }, [user?._id]);
 
   const getUserLocation = () => {
+  setLoadingState(prev => ({ ...prev, nearby: true }));
+  
+  if (navigator.geolocation) {
+    // Add options to the geolocation request
+    const options = {
+      enableHighAccuracy: false, // Set to false for faster response
+      timeout: 10000, // 10 seconds timeout (default is often too long)
+      maximumAge: 300000 // Cache position for 5 minutes
+    };
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ latitude, longitude });
+        fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        setLoadingState(prev => ({ ...prev, nearby: false }));
+        // Handle timeout error gracefully
+        if (error.code === error.TIMEOUT) {
+          toast({
+            title: "Location request timed out",
+            description: "Unable to get your location. Using default location instead.",
+            status: "warning"
+          });
+          // You could use a default location here if needed
+          // For example: fetchNearbyUsers(defaultLat, defaultLong, 20);
+        } else {
+          toast({
+            title: "Location access error",
+            description: "We couldn't access your location. Check your browser permissions.",
+            status: "error"
+          });
+        }
+        // Continue loading nearby users without location
+        fetchNearbyUsers(null, null, 50); // Larger radius, no location filtering
+      },
+      options // Pass the options object
+    );
+  } else {
+    console.error('Geolocation is not supported by this browser.');
+    setLoadingState(prev => ({ ...prev, nearby: false }));
+    toast({
+      title: "Location not supported",
+      description: "Your browser doesn't support location services.",
+      status: "error"
+    });
+    // Continue loading nearby users without location
+    fetchNearbyUsers(null, null, 50);
+  }
+};
+
+// Update the fetchNearbyUsers function to handle missing location
+const fetchNearbyUsers = async (latitude, longitude, distance) => {
+  try {
     setLoadingState(prev => ({ ...prev, nearby: true }));
     
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation({ latitude, longitude });
-          fetchNearbyUsers(latitude, longitude, 10); // Default 10km radius
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setLoadingState(prev => ({ ...prev, nearby: false }));
-        }
-      );
+    // Modify API call to handle missing location
+    let nearbyResponse;
+    if (latitude && longitude) {
+      nearbyResponse = await api.getNearbyProfessionals(distance);
     } else {
-      console.error('Geolocation is not supported by this browser.');
-      setLoadingState(prev => ({ ...prev, nearby: false }));
+      // Fallback to get users without location-based filtering
+      nearbyResponse = await api.getRecommendedProfessionals(distance);
+      // If no getRecommendedProfessionals function exists, you could use:
+      // nearbyResponse = await api.getProfessionals({limit: 10});
     }
-  };
+    
+    if (!Array.isArray(nearbyResponse)) {
+      console.error('Invalid response from professionals API:', nearbyResponse);
+      setNearbyUsers([]);
+      setLoadingState(prev => ({ ...prev, nearby: false }));
+      return;
+    }
+    
+    // Rest of your existing code...
+    // [...]
 
-  // Update fetchNearbyUsers to use the new loading state
-  const fetchNearbyUsers = async (latitude, longitude, distance) => {
+    setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
+    setLoadingState(prev => ({ ...prev, nearby: false }));
+  } catch (error) {
+    console.error('Error fetching professionals:', error);
+    setLoadingState(prev => ({ ...prev, nearby: false }));
+    setNearbyUsers([]); // Reset nearby users on error
+    toast({
+      title: "Network error",
+      description: "Couldn't load nearby professionals. Please try again later.",
+      status: "error"
+    });
+  }
+};
+
+// And update the location tracking function in useEffect
+useEffect(() => {
+  // Skip if user is not logged in
+  if (!user || !user._id) return;
+  
+  const startLocationTracking = async () => {
     try {
-      setLoadingState(prev => ({ ...prev, nearby: true }));
-      
-      const nearbyResponse = await api.getNearbyProfessionals(distance);
-      
-      if (!Array.isArray(nearbyResponse)) {
-        console.error('Invalid response from getNearbyProfessionals:', nearbyResponse);
-        setNearbyUsers([]);
-        setLoadingState(prev => ({ ...prev, nearby: false }));
-        return;
-      }
-      
-      // Now fetch connections in a separate call
-      let connections = [];
-      let following = [];
-      try {
-        // Get connections
-        connections = await api.getConnections('all');
-        if (!Array.isArray(connections)) {
-          console.error('Invalid response from getConnections:', connections);
-          connections = [];
+      // Check if we have permission first
+      if (navigator.permissions) {
+        const permission = await navigator.permissions.query({ name: 'geolocation' });
+        
+        if (permission.state !== 'granted') {
+          console.log('Location permission not granted');
+          setLocationEnabled(false);
+          return;
         }
-        
-        // Get user data - we no longer need to use getMe() directly
-        following = user?.following || [];
-        
-      } catch (connectionError) {
-        console.error('Error fetching connections or following:', connectionError);
-        connections = [];
-        following = [];
       }
       
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set(connections.map(conn => conn._id));
-      const followingIds = new Set(typeof following[0] === 'object' 
-        ? following.map(f => f._id) 
-        : following.map(id => id.toString()));
+      console.log('Starting location tracking...');
       
-      // Get pending connections
-      let pendingConnections = [];
-      try {
-        pendingConnections = await api.getPendingConnections();
-      } catch (error) {
-        console.error('Error fetching pending connections:', error);
-        pendingConnections = [];
-      }
-      const pendingIds = new Set(pendingConnections.map(conn => conn.toString()));
+      // Location tracking options
+      const trackingOptions = {
+        interval: 30000, // 30 seconds
+        enableHighAccuracy: false, // Set to false for battery saving
+        timeout: 10000, // 10 second timeout
+        successCallback: (result) => {
+          console.log('Location updated successfully');
+          setLocationEnabled(true);
+        },
+        errorCallback: (error) => {
+          console.error('Location update error:', error);
+          // Only show error message for permanent errors, not timeouts
+          if (error.code !== error.TIMEOUT) {
+            setLocationEnabled(false);
+          }
+        }
+      };
       
-      // Enhance users with connection status and following status
-      const enhancedUsers = nearbyResponse.map(user => ({
-        ...user,
-        connectionStatus: connectionIds.has(user._id) 
-          ? 'connected' 
-          : pendingIds.has(user._id)
-            ? 'pending'
-            : 'none',
-        isFollowing: followingIds.has(user._id)
-      }));
-      
-      // Filter out users who are in your connections
-      const filteredUsers = enhancedUsers.filter(user => user.connectionStatus !== 'connected');
-      
-      setNearbyUsers(filteredUsers.slice(0, 3)); // Show only first 3 users
-      setLoadingState(prev => ({ ...prev, nearby: false }));
+      // Start tracking and store the control object
+      locationControlRef.current = api.startContinuousLocationUpdates(trackingOptions);
     } catch (error) {
-      console.error('Error fetching nearby professionals:', error);
-      setLoadingState(prev => ({ ...prev, nearby: false }));
+      console.error('Error setting up location tracking:', error);
+      setLocationEnabled(false);
     }
   };
-
+  
+  // Start tracking
+  startLocationTracking();
+  
+  // Clean up function
+  return () => {
+    if (locationControlRef.current && typeof locationControlRef.current.stop === 'function') {
+      console.log('Stopping location tracking');
+      locationControlRef.current.stop();
+      locationControlRef.current = null;
+    }
+  };
+}, [user?._id]);
   // Update fetchAllData to use the new loading state
   const fetchAllData = async () => {
     if (!user) return;
