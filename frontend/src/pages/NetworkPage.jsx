@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../services/api';
-import locationService from "../../services/locationService"
+import api from '../services/api';
+import locationService from "../services/locationService"
 
 const NearbyProfessionals = ({ user }) => {
   const [professionals, setProfessionals] = useState([]);
