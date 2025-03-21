@@ -720,29 +720,60 @@ getPendingConnections: async () => {
   },
   
   // Get nearby professionals with simplified implementation
-  getNearbyProfessionals: async (distance = 10, latitude = null, longitude = null) => {
-    try {
-      // Build the API request
-      let url = '/api/network/nearby';
-      const params = { distance };
+ const getNearbyProfessionals = async (distance = 10, latitude = null, longitude = null) => {
+  try {
+    // Build the request parameters
+    const params = { distance };
+    
+    // Add coordinates if provided
+    if (latitude !== null && longitude !== null) {
+      params.latitude = latitude;
+      params.longitude = longitude;
+    }
+    
+    // Make the API call using the axios instance
+    // Make sure 'api' is properly imported or accessible here
+    const response = await api.get('/api/network/nearby', { params });
+    
+    // Process the response to ensure consistent format
+    const professionals = Array.isArray(response.data) ? response.data : 
+                        (response.data.professionals || []);
+    
+    // Map any necessary data transformations or enrichments
+    // Ensure distance is always a number before calling toFixed
+    return professionals.map(prof => {
+      // Create a new distance property that's guaranteed to be a number
+      let distanceNum = null;
       
-      // Add location parameters if available
-      if (latitude && longitude) {
-        params.latitude = latitude;
-        params.longitude = longitude;
+      if (typeof prof.distance === 'number') {
+        distanceNum = prof.distance;
+      } else if (typeof prof.distance === 'string') {
+        // Try to parse the string to a number
+        const parsed = parseFloat(prof.distance);
+        if (!isNaN(parsed)) {
+          distanceNum = parsed;
+        }
       }
       
-      // Make the API call
-      const response = await api.get(url, { params });
-      
-      // Return the response data (backend already formats this correctly)
-      return response.data || [];
-    } catch (error) {
-      console.error('Error fetching nearby professionals:', error);
-      return [];
-    }
-  },
-  
+      return {
+        ...prof,
+        // Ensure these properties exist
+        firstName: prof.firstName || '',
+        lastName: prof.lastName || '',
+        connectionStatus: prof.connectionStatus || 'none',
+        // Format distance safely
+        distanceFormatted: distanceNum !== null ? `${distanceNum.toFixed(1)} km` : 'nearby',
+        // Keep the original distance for sorting
+        distance: distanceNum
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching nearby professionals:', error);
+    
+    // Return empty array instead of throwing to prevent UI errors
+    return [];
+  }
+},
   // IP-based geolocation as a fallback when other methods fail
   getIPLocation: async () => {
     try {
