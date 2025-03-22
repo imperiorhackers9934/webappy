@@ -43,57 +43,53 @@ const NearbyProfessionals = ({ user }) => {
   }, []);
 
   // Function to fetch nearby professionals - using useCallback to avoid recreating this function
-  // Updated fetchNearbyProfessionals function to handle API compatibility issues
-const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
-  if (!loc) return;
-  
-  try {
-    setLoading(true);
+  // Fixed fetchNearbyProfessionals function with better error handling and fallback options
+  const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
+    if (!loc) return;
     
     try {
-      let response;
+      setLoading(true);
       
-      // Try using the dedicated function first
+      let professionals = [];
+      
+      // First attempt: Try using the dedicated getNearbyProfessionals function
       try {
-        // Use the dedicated function if available
         if (typeof api.getNearbyProfessionals === 'function') {
           console.log('Using api.getNearbyProfessionals function');
-          response = await api.getNearbyProfessionals(dist, loc.latitude, loc.longitude);
+          professionals = await api.getNearbyProfessionals(dist, loc.latitude, loc.longitude);
         } else {
-          // Fall back to direct API call
-          console.log('Falling back to api.get for nearby professionals');
+          throw new Error('getNearbyProfessionals function not available');
+        }
+      } catch (primaryError) {
+        console.error('Error with primary API method:', primaryError);
+        
+        // Second attempt: Try direct API call with axios
+        try {
+          console.log('Falling back to direct API call for nearby professionals');
           const params = { 
             distance: dist,
             latitude: loc.latitude,
             longitude: loc.longitude
           };
-          const apiResponse = await api.get('/api/network/nearby', { params });
-          response = apiResponse.data;
+          
+          // Make sure we're using the API instance correctly
+          const response = await api.get('/api/network/nearby', { params });
+          
+          // Extract professionals data from response
+          professionals = Array.isArray(response.data) 
+            ? response.data 
+            : Array.isArray(response.data?.data) 
+              ? response.data.data 
+              : Array.isArray(response.data?.professionals)
+                ? response.data.professionals
+                : [];
+                
+          console.log('Received professionals data:', professionals);
+        } catch (fallbackError) {
+          console.error('Error with fallback API method:', fallbackError);
+          throw fallbackError; // Re-throw to be caught by the outer catch
         }
-      } catch (apiMethodError) {
-        console.error('Error with primary API method:', apiMethodError);
-        
-        // If the first approach fails, try an alternative approach
-        console.log('Trying alternative API approach');
-        const params = { 
-          distance: dist,
-          latitude: loc.latitude,
-          longitude: loc.longitude
-        };
-        const apiResponse = await api.get('/api/network/nearby', { params });
-        response = apiResponse.data;
       }
-      
-      // Ensure we have a valid array of professionals
-      const professionals = Array.isArray(response) 
-        ? response 
-        : Array.isArray(response?.data) 
-          ? response.data 
-          : Array.isArray(response?.professionals)
-            ? response.professionals
-            : [];
-            
-      console.log('Received professionals data:', professionals);
             
       // Process professionals to ensure safe values and formatting
       const processedProfessionals = professionals.map(prof => {
@@ -133,6 +129,7 @@ const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
       });
       
       setProfessionals(processedProfessionals);
+      setError(null);
       
       // Update location separately
       try {
@@ -145,17 +142,13 @@ const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
       } catch (locationError) {
         console.log('Location update failed, but professionals were fetched', locationError);
       }
-    } catch (fetchError) {
-      console.error('Error fetching nearby professionals:', fetchError);
-      setError('Failed to load nearby professionals');
+    } catch (error) {
+      console.error('Error in fetchNearbyProfessionals:', error);
+      setError('Failed to load nearby professionals. Please try again later.');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error in fetchNearbyProfessionals:', error);
-    setError('An unexpected error occurred');
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  }, []);
 
   // Fetch nearby professionals when location is available
   useEffect(() => {
@@ -215,8 +208,16 @@ const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
       
       console.log('Sending connection request to user:', userId);
       
-      // Use the more reliable function name
-      await api.endConnectionRequest(userId);
+      // Fix: Use the correct function name - sendConnectionRequest instead of endConnectionRequest
+      // Check if either function exists and use the available one
+      if (typeof api.sendConnectionRequest === 'function') {
+        await api.sendConnectionRequest(userId);
+      } else if (typeof api.endConnectionRequest === 'function') {
+        await api.endConnectionRequest(userId);
+      } else {
+        // Fallback to direct API call if neither function is available
+        await api.post('/api/connections/request', { targetUserId: userId });
+      }
       
       // Update the list to show "Pending" for this user
       setProfessionals(prev => 
