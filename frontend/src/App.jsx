@@ -27,7 +27,7 @@ import ProjectCreationPage from './components/portfolio/ProjectCreation';
 import ConnectionRequestPage from './pages/ConnectionRecommendation';
 import AchievementCreationPage from './components/portfolio/AchievementCreation';
 import StreakCreationPage from './components/portfolio/StreakCreation';
-
+import LinkCall from './pages/LinkCall';
 const App = () => {
   return (
     <Router>
@@ -73,6 +73,7 @@ const App = () => {
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
           <Route path="/connections" element={<ConnectionRequestPage/>}/>
           <Route path="/discover" element={<Discover/>}/>
+          <Route path="/linkedin-callback" element={<LinkCall/>}/>
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           {/* 404 Page */}
