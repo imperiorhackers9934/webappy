@@ -73,7 +73,7 @@ const App = () => {
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
           <Route path="/connections" element={<ConnectionRequestPage/>}/>
           <Route path="/discover" element={<Discover/>}/>
-          <Route path="/linkedin-callback" element={<LinkCall/>}/>
+          <Route path="/auth/linkedin-callback" element={<LinkCall/>}/>
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           {/* 404 Page */}
