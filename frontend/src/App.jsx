@@ -27,7 +27,24 @@ import ProjectCreationPage from './components/portfolio/ProjectCreation';
 import ConnectionRequestPage from './pages/ConnectionRecommendation';
 import AchievementCreationPage from './components/portfolio/AchievementCreation';
 import StreakCreationPage from './components/portfolio/StreakCreation';
+import PostsFetcher from './pages/PostFetcher';
 import LinkCall from './pages/LinkCall';
+
+// Event Management Pages
+import EventListingPage from './pages/EventsListingPage';
+import EventDetailPage from './pages/EventDetailPage';
+import EventCreationPage from './pages/EventCreationPage';
+import TicketPurchasePage from './pages/TicketPurchasePage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import TicketBookingPage from './pages/TicketBookingPage';
+import TicketConfirmationPage from './pages/TicketConfirmationPage';
+import MyEventsPage from './pages/MyEventsPage';
+import MyTicketsPage from './pages/MyTicketsPage';
+import EventDashboardPage from './pages/EventsDashboard';
+// import AttendeeManagementPage from './pages/AttendeeManagementPage'; 
+// import TicketManagementPage from './pages/TicketManagementPage';
+// import CheckInPage from './pages/CheckInPage';
+
 const App = () => {
   return (
     <Router>
@@ -51,11 +68,13 @@ const App = () => {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:userId" element={<ProfilePage />} />
           <Route path="/profile/edit" element={<EditProfilePage />} />
+          
           {/* Network Routes */}
           <Route path="/network" element={<NetworkExplorePage />} />
           <Route path="/network/:section" element={<NetworkPage />} />
           <Route path="/network/suggested" element={<RecommendedConnections />} />
           <Route path="/network/nearby" element={<NearbyProfessionals />} />
+          <Route path='/psf' element={<PostsFetcher/>}/>
           
           {/* Chat Routes */}
           <Route path="/chat">
@@ -72,10 +91,31 @@ const App = () => {
           <Route path="/portfolio/streak/new" element={<StreakCreationPage/>}/>
           <Route path="/porfile/views" element={<ProfileViewersPage/>}/>
           <Route path="/connections" element={<ConnectionRequestPage/>}/>
+          
+          {/* Event Management Routes */}
+          <Route path="/events" element={<EventListingPage/>}/>
+          <Route path="/events/new" element={<EventCreationPage />} />
+          <Route path="/events/:eventId" element={<EventDetailPage />} />
+          <Route path="/events/:eventId/edit" element={<EventCreationPage />} />
+          <Route path="/events/:eventId/tickets" element={<TicketBookingPage />} />
+          <Route path="/events/:eventId/manage" element={<EventDashboardPage />} />
+          {/* <Route path="/events/:eventId/attendees" element={<AttendeeManagementPage />} /> */}
+          {/* <Route path="/events/:eventId/tickets/manage" element={<TicketManagementPage/>} /> */}
+          {/* <Route path="/events/:eventId/checkin" element={<CheckInPage />} /> */}
+          
+          {/* My Events & Tickets */}
+          <Route path="/my-events" element={<MyEventsPage />} />
+          <Route path="/tickets" element={<MyTicketsPage />} />
+          <Route path="/tickets/book/:eventId" element={<TicketPurchasePage />} />
+          <Route path="/tickets/confirmation/:bookingId" element={<TicketConfirmationPage />} />
+          <Route path="/payment/success/:bookingId" element={<PaymentSuccessPage />} />
+          
           <Route path="/discover" element={<Discover/>}/>
           <Route path="/auth/linkedin-callback" element={<LinkCall/>}/>
+          
           {/* Redirect root to dashboard or login based on authentication */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          
           {/* 404 Page */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -86,14 +126,3 @@ const App = () => {
 };
 
 export default App;
-// import React from 'react'
-
-// const App = () => {
-//   return (
-//     <div>under maintenance
-//       we will be back soon
-//     </div>
-//   )
-// }
-
-// export default App

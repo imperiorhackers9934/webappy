@@ -1,12 +1,13 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import authService from '../services/authService';
 import api from '../services/api';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(localStorage.getItem('@auth_token'));
   const [loading, setLoading] = useState(true);
   const [isNewSignup, setIsNewSignup] = useState(false);
   const navigate = useNavigate();
@@ -16,16 +17,28 @@ export const AuthProvider = ({ children }) => {
     const loadUserInfo = async () => {
       if (token) {
         try {
-          const userData = await api.getUserInfo();
-          setUser(userData);
-          localStorage.setItem('token', token);
+          // Set authorization header for API requests
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           
-          // Reset new signup flag after loading user
-          // This ensures it doesn't persist across sessions
-          setIsNewSignup(false);
+          // Try to get user data from localStorage first
+          const userData = localStorage.getItem('@user_data');
+          if (userData) {
+            try {
+              const parsedUserData = JSON.parse(userData);
+              setUser(parsedUserData);
+              console.log('User data loaded from localStorage:', parsedUserData);
+              setLoading(false);
+            } catch (parseError) {
+              console.error('Error parsing user data from localStorage:', parseError);
+              await fetchUserDataFromToken();
+            }
+          } else {
+            // No user data in localStorage, try to extract from token
+            await fetchUserDataFromToken();
+          }
         } catch (error) {
           console.error('Failed to load user info:', error);
-          logout();
+          performLocalLogout();
         } finally {
           setLoading(false);
         }
@@ -34,103 +47,248 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
+    // Helper function to fetch user data from token
+    const fetchUserDataFromToken = async () => {
+      try {
+        // Extract user info from token
+        const payload = authService.parseJwt(token);
+        
+        if (payload && payload.id) {
+          // Create a basic user object from the token
+          const basicUserData = {
+            id: payload.id,
+            email: payload.email || '',
+            firstName: payload.firstName || '',
+            lastName: payload.lastName || '',
+            role: payload.role || 'user'
+          };
+          
+          // Store this basic user data
+          localStorage.setItem('@user_data', JSON.stringify(basicUserData));
+          setUser(basicUserData);
+          console.log('Basic user data extracted from token');
+        } else {
+          throw new Error('Invalid token payload');
+        }
+      } catch (error) {
+        console.error('Error extracting user data from token:', error);
+        throw error;
+      }
+    };
+
     loadUserInfo();
   }, [token]);
-
-  const login = async (credentials) => {
+  
+  const login = async (email, password) => {
     try {
-      const response = await api.login(credentials);
-      setToken(response.token);
+      // Call authService.login with separate email and password parameters
+      const response = await authService.login(email, password);
+      
+      // Get token from localStorage (set by authService)
+      const currentToken = localStorage.getItem('@auth_token');
+      setToken(currentToken);
       setUser(response.user);
+      
+      // Store user data in localStorage
+      localStorage.setItem('@user_data', JSON.stringify(response.user));
+      
       setIsNewSignup(false);
-      return response;
+      return { token: currentToken, user: response.user };
     } catch (error) {
+      console.error('Login error:', error);
       throw error;
     }
   };
 
   const signup = async (userData) => {
     try {
-      const response = await api.signup(userData);
-      setToken(response.token);
+      // Use authService.signup which returns { user, source }
+      const response = await authService.signup(userData);
+      
+      // Get token from localStorage (set by authService)
+      const currentToken = localStorage.getItem('@auth_token');
+      setToken(currentToken);
       setUser(response.user);
       
-      // Explicitly set new signup flag
-      setIsNewSignup(true);
+      // Store user data in localStorage
+      localStorage.setItem('@user_data', JSON.stringify(response.user));
       
-      return response.isNewUser;
+      // Determine if this is a new user based on the response
+      const isNewUser = response.source === 'signup';
+      setIsNewSignup(isNewUser);
+      
+      return isNewUser;
     } catch (error) {
+      console.error('Signup error:', error);
       throw error;
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = (callServer = true) => {
+    console.log('Logging out, callServer:', callServer);
+    
+    if (callServer) {
+      // Use authService.logout which handles both server and local logout
+      authService.logout().then(() => {
+        performLocalLogout();
+      }).catch(error => {
+        console.error('Server logout error:', error);
+        // Still clear state even if server logout fails
+        performLocalLogout();
+      });
+    } else {
+      // Skip server call, just do local logout
+      performLocalLogout();
+    }
+  };
+
+  const performLocalLogout = () => {
+    // Clear all auth-related data
+    localStorage.removeItem('@auth_token');
+    localStorage.removeItem('@user_data');
+    localStorage.removeItem('@refresh_token');
+    
+    // Reset state
     setToken(null);
     setUser(null);
     setIsNewSignup(false);
+    
+    // Clear authorization header
+    delete api.defaults.headers.common['Authorization'];
+    
+    console.log('Local logout complete, redirecting to login');
     navigate('/login');
   };
 
-  const updateUser = (userData) => {
-    setUser(prev => ({ ...prev, ...userData }));
-    
-    // When user updates profile, reset new signup flag
-    if (isNewSignup) {
-      setIsNewSignup(false);
+  const updateUser = async (userData) => {
+    try {
+      // Update local user data through authService
+      const updatedUser = await authService.updateLocalUserData(userData);
+      setUser(updatedUser);
+      
+      // Update localStorage
+      localStorage.setItem('@user_data', JSON.stringify(updatedUser));
+      
+      // When user updates profile, reset new signup flag
+      if (isNewSignup) {
+        setIsNewSignup(false);
+      }
+      
+      return updatedUser;
+    } catch (error) {
+      console.error('Update user error:', error);
+      throw error;
     }
   };
 
   const handleAuthCallback = async (searchParams) => {
     console.log('Auth callback triggered', searchParams.toString());
-    const token = searchParams.get('token');
-    console.log('Token from URL:', token);
     
-    if (token) {
-      // Store the token in localStorage
-      localStorage.setItem('token', token);
+    // Extract tokens from URL
+    const token = searchParams.get('token');
+    const refreshToken = searchParams.get('refreshToken');
+    const provider = searchParams.get('provider');
+    const isNewUser = searchParams.get('new') === 'true';
+    const error = searchParams.get('error');
+    
+    // Check for error
+    if (error) {
+      console.error('Auth error in callback params:', error);
+      throw new Error(error);
+    }
+    
+    console.log('Token from URL:', token ? 'Received' : 'None');
+    console.log('Provider:', provider);
+    console.log('Is new user:', isNewUser);
+    
+    if (!token) {
+      console.error('No token found in URL parameters');
+      throw new Error('No token found in URL parameters');
+    }
+    
+    try {
+      // Store tokens in localStorage
+      localStorage.setItem('@auth_token', token);
+      if (refreshToken) {
+        localStorage.setItem('@refresh_token', refreshToken);
+      }
       
-      // Update the token state
+      // Update token state
       setToken(token);
       
-      // Check if this is a new user based on the flag from the backend
-      const isNewUser = searchParams.get('isNewUser') === 'true';
-      console.log('Is new user from URL params:', isNewUser);
+      // Set the auth header for subsequent requests
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
-      // Set the new signup flag before any redirects
-      setIsNewSignup(isNewUser);
+      // Extract user info from token
+      const payload = authService.parseJwt(token);
+      console.log('User info from token:', payload);
       
-      // Important: Force a slight delay to ensure state update before navigation
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      if (isNewUser) {
-        // Always redirect new users to profile setup
-        console.log('New user detected, redirecting to profile setup');
-        navigate('/profile-setup');
+      if (payload && payload.id) {
+        // Create a basic user object from the token
+        const basicUserData = {
+          id: payload.id,
+          email: payload.email || '',
+          firstName: payload.firstName || payload.given_name || '',
+          lastName: payload.lastName || payload.family_name || '',
+          role: payload.role || 'user'
+        };
+        
+        // Store user data
+        localStorage.setItem('@user_data', JSON.stringify(basicUserData));
+        setUser(basicUserData);
+        setIsNewSignup(isNewUser);
+        
+        // Determine redirect path
+        const redirectPath = isNewUser ? '/profile-setup' : '/dashboard';
+        console.log(`Redirecting to: ${redirectPath}`);
+        
+        // Important: Force a slight delay to ensure state update before navigation
+        await new Promise(resolve => setTimeout(resolve, 100));
+        navigate(redirectPath);
+        
+        return { user: basicUserData, isNewUser };
       } else {
-        // Get the redirect destination for existing users
-        const redirect = searchParams.get('redirect') || '/dashboard';
-        console.log('Existing user, redirecting to:', redirect);
-        navigate(redirect);
+        console.warn('Could not extract user info from token, redirecting to login');
+        throw new Error('Invalid token payload');
       }
-    } else {
-      console.error('No token found in URL parameters');
-      navigate('/login?error=auth_failed');
+    } catch (error) {
+      console.error('Error in handleAuthCallback:', error);
+      // Clear any partial auth data
+      localStorage.removeItem('@auth_token');
+      localStorage.removeItem('@refresh_token');
+      localStorage.removeItem('@user_data');
+      setToken(null);
+      setUser(null);
+      
+      throw error;
     }
   };
 
   const sendPhoneVerification = async (phoneNumber) => {
-    return api.sendPhoneVerification(phoneNumber);
+    if (!user || !user.id) {
+      throw new Error('User must be logged in to verify phone');
+    }
+    return authService.sendPhoneVerificationCode(user.id, phoneNumber);
   };
 
   const verifyPhone = async (phoneNumber, code) => {
     try {
-      const response = await api.verifyPhone(phoneNumber, code);
-      setToken(response.token);
-      setUser(response.user);
+      if (!user || !user.id) {
+        throw new Error('User must be logged in to verify phone');
+      }
       
-      // Check if this is a new user
-      setIsNewSignup(response.isNewUser);
+      const response = await authService.verifyPhoneCode(user.id, code);
+      
+      // If verification successful, update user data
+      if (response.success) {
+        const updatedUserData = {
+          ...user,
+          phoneNumber,
+          phoneVerified: true
+        };
+        
+        await updateUser(updatedUserData);
+      }
       
       return response;
     } catch (error) {
@@ -139,7 +297,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   const socialLogin = (provider) => {
-    window.location.href = `${api.baseURL}/auth/${provider}?redirectTo=${window.location.origin}/auth/callback`;
+    // Create a redirect URL back to your application
+    const redirectUri = `${window.location.origin}/auth/callback`;
+    
+    // Get the API base URL
+    const apiBaseUrl = 'https://new-backend-w86d.onrender.com';
+    
+    // Create the OAuth URL with the redirect parameter
+    const oauthUrl = `${apiBaseUrl}/auth/${provider}?redirectTo=${encodeURIComponent(redirectUri)}`;
+    
+    // Log the URL for debugging
+    console.log(`Redirecting to OAuth provider: ${oauthUrl}`);
+    
+    // Redirect the user to the OAuth URL
+    window.location.href = oauthUrl;
   };
 
   const value = {

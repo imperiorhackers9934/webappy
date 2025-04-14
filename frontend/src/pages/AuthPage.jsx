@@ -16,17 +16,31 @@ const AuthPage = ({ type: propType }) => {
   // Initialize authType from either prop or param
   const [authType, setAuthType] = useState(propType || paramType || 'login');
   const [isCallbackProcessed, setIsCallbackProcessed] = useState(false);
+  const [callbackError, setCallbackError] = useState(null);
 
   useEffect(() => {
     // Handle OAuth callback
     if (location.pathname === '/auth/callback' && !isCallbackProcessed) {
       console.log('OAuth callback triggered, params:', searchParams.toString());
       
+      // Check for error in the URL
+      const error = searchParams.get('error');
+      if (error) {
+        setCallbackError(error);
+        setIsCallbackProcessed(true);
+        return;
+      }
+      
       // Mark callback as processed to prevent multiple redirect attempts
       setIsCallbackProcessed(true);
       
       // Process the callback - handleAuthCallback will handle the redirects
-      handleAuthCallback(searchParams);
+      handleAuthCallback(searchParams).catch(err => {
+        console.error('Error handling auth callback:', err);
+        setCallbackError('Authentication failed. Please try again.');
+        // Redirect to login on error
+        navigate('/login?error=auth_failed');
+      });
       return;
     }
     
@@ -64,7 +78,7 @@ const AuthPage = ({ type: propType }) => {
       setAuthType(propType || paramType);
     }
   }, [user, loading, propType, paramType, location.pathname, navigate, searchParams, 
-      handleAuthCallback, isNewSignup, isCallbackProcessed]);
+     handleAuthCallback, isNewSignup, isCallbackProcessed]);
   
   // Render appropriate auth component
   const renderAuthComponent = () => {
@@ -78,6 +92,28 @@ const AuthPage = ({ type: propType }) => {
         return <Login />;
     }
   };
+
+  // Show error message if OAuth callback failed
+  if (callbackError) {
+    return (
+      <AuthLayout>
+        <div className="w-full max-w-md">
+          <div className="bg-white shadow-md rounded-lg px-8 pt-6 pb-8 mb-4">
+            <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Authentication Failed</h2>
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <span className="block sm:inline">{callbackError}</span>
+            </div>
+            <button 
+              onClick={() => navigate('/login')}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+            >
+              Return to Login
+            </button>
+          </div>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   // Show loading indicator while authentication state is being determined
   if (loading || (location.pathname === '/auth/callback' && !isCallbackProcessed)) {

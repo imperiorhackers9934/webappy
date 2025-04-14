@@ -9,33 +9,38 @@ const Login = () => {
   const [error, setError] = useState('');
   const { login, socialLogin } = useAuth();
   const navigate = useNavigate();
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+  
     try {
-      const credentials = {};
-      
       // Check if input is email or phone
       if (identifier.includes('@')) {
-        credentials.email = identifier;
-        credentials.password = password;
+        // Call login with email and password as separate parameters
+        // This should match the authService.login() parameter structure
+        await login(identifier, password);
+        
+        // Navigate to dashboard on success
+        navigate('/dashboard');
       } else {
-        // Navigate to phone verification
+        // For phone number, redirect to phone verification flow
         navigate('/phone-login', { state: { phoneNumber: identifier } });
         return;
       }
-      
-      await login(credentials);
-      navigate('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      setError(
-        error.response?.data?.error || 
-        'Failed to login. Please check your credentials.'
-      );
+      
+      // Handle error display
+      if (error.response?.data?.error) {
+        setError(error.response.data.error);
+      } 
+      else if (error.message) {
+        setError(error.message);
+      } 
+      else {
+        setError('Failed to login. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -87,7 +92,11 @@ const Login = () => {
               placeholder="******************"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required={identifier.includes('@')}
             />
+            <p className="text-xs italic text-gray-500 mt-1">
+              Password only required for email login
+            </p>
           </div>
           
           <div className="flex items-center justify-between mb-6">
@@ -134,6 +143,11 @@ const Login = () => {
             Don't have an account?{' '}
             <Link to="/signup" className="text-blue-500 hover:text-blue-700 font-medium">
               Sign up
+            </Link>
+          </p>
+          <p className="text-sm text-gray-600 mt-2">
+            <Link to="/forgot-password" className="text-blue-500 hover:text-blue-700 font-medium">
+              Forgot Password?
             </Link>
           </p>
         </div>

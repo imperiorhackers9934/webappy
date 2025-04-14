@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import storyService from '../../services/storyService';
 
 const StoryCard = () => {
     const { user, loading, logout } = useAuth();
@@ -26,8 +27,20 @@ const StoryCard = () => {
                 setLoadingStories(true);
                 
                 // Call the getStories method from the API
-                const response = await api.getStories();
-                setStories(response);
+                const response = await storyService.getStories();
+                console.log('Stories response:', response);
+                
+                // Ensure the response has the expected format
+                const formattedStories = Array.isArray(response) ? 
+                    response.map(story => {
+                        // Ensure each story has a stories array
+                        return {
+                            ...story,
+                            stories: Array.isArray(story.stories) ? story.stories : []
+                        };
+                    }) : [];
+                
+                setStories(formattedStories);
                 setLoadingStories(false);
             } catch (error) {
                 console.error('Error fetching stories:', error);
@@ -36,9 +49,9 @@ const StoryCard = () => {
                 const mockStories = [
                     {
                         author: {
-                            _id: user._id,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
+                            _id: user.id || 'current-user',
+                            firstName: user.firstName || 'You',
+                            lastName: user.lastName || '',
                             profilePicture: user.profilePicture
                         },
                         stories: [
@@ -91,10 +104,16 @@ const StoryCard = () => {
     // Handle viewing a story
     const handleViewStory = async (storyGroup, index = 0) => {
         try {
+            // Check if storyGroup has stories
+            if (!storyGroup.stories || !storyGroup.stories.length) {
+                console.error('No stories available in this group');
+                return;
+            }
+            
             // Mark the story as viewed
             if (storyGroup.stories && storyGroup.stories[index]) {
                 const storyId = storyGroup.stories[index]._id;
-                await api.viewStory(storyId);
+                await storyService.getStory(storyId);
             }
             
             // Navigate to story view page with the story data
@@ -140,54 +159,61 @@ const StoryCard = () => {
                     ))
                 ) : (
                     // Actual stories
-                    stories.map((storyGroup) => (
-                        <div 
-                            key={storyGroup.author._id} 
-                            className="flex-shrink-0 w-24 cursor-pointer"
-                            onClick={() => handleViewStory(storyGroup)}
-                        >
-                            <div className="h-36 w-24 bg-gray-200 rounded-lg shadow overflow-hidden relative">
-                                {/* Preview image from first story */}
-                                {storyGroup.stories[0]?.mediaUrl && (
-                                    <img 
-                                        src={storyGroup.stories[0].mediaUrl} 
-                                        alt="Story preview" 
-                                        className="h-full w-full object-cover"
-                                    />
-                                )}
-                                
-                                {/* User avatar */}
-                                <div className="absolute top-2 left-2 h-7 w-7 rounded-full border-2 border-orange-500 overflow-hidden">
-                                    {storyGroup.author.profilePicture ? (
-                                        <img
-                                            src={storyGroup.author.profilePicture}
-                                            alt={storyGroup.author.firstName}
+                    stories.map((storyGroup) => {
+                        // Guard against invalid story groups
+                        if (!storyGroup || !storyGroup.author || !Array.isArray(storyGroup.stories)) {
+                            return null;
+                        }
+                        
+                        return (
+                            <div 
+                                key={storyGroup.author._id || `story-group-${Math.random()}`} 
+                                className="flex-shrink-0 w-24 cursor-pointer"
+                                onClick={() => handleViewStory(storyGroup)}
+                            >
+                                <div className="h-36 w-24 bg-gray-200 rounded-lg shadow overflow-hidden relative">
+                                    {/* Preview image from first story - with proper checks */}
+                                    {storyGroup.stories && storyGroup.stories.length > 0 && storyGroup.stories[0]?.mediaUrl && (
+                                        <img 
+                                            src={storyGroup.stories[0].mediaUrl} 
+                                            alt="Story preview" 
                                             className="h-full w-full object-cover"
                                         />
-                                    ) : (
-                                        <div className="h-full w-full flex items-center justify-center bg-orange-500 text-white text-xs font-semibold">
-                                            {storyGroup.author.firstName.charAt(0)}
-                                            {storyGroup.author.lastName.charAt(0)}
-                                        </div>
+                                    )}
+                                    
+                                    {/* User avatar */}
+                                    <div className="absolute top-2 left-2 h-7 w-7 rounded-full border-2 border-orange-500 overflow-hidden">
+                                        {storyGroup.author.profilePicture ? (
+                                            <img
+                                                src={storyGroup.author.profilePicture}
+                                                alt={storyGroup.author.firstName}
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center bg-orange-500 text-white text-xs font-semibold">
+                                                {storyGroup.author.firstName ? storyGroup.author.firstName.charAt(0) : ''}
+                                                {storyGroup.author.lastName ? storyGroup.author.lastName.charAt(0) : ''}
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Username - fixed comparison to use proper id */}
+                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent text-white text-xs p-2 pt-5">
+                                        {user && storyGroup.author._id === (user.id || user._id) ? 'Your Story' : storyGroup.author.firstName}
+                                    </div>
+                                    
+                                    {/* Unviewed indicator - with existence check */}
+                                    {storyGroup.stories && storyGroup.stories.some(story => story && !story.viewed) && (
+                                        <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-orange-500"></div>
                                     )}
                                 </div>
-                                
-                                {/* Username */}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent text-white text-xs p-2 pt-5">
-                                    {storyGroup.author._id === user._id ? 'Your Story' : storyGroup.author.firstName}
-                                </div>
-                                
-                                {/* Unviewed indicator */}
-                                {storyGroup.stories.some(story => !story.viewed) && (
-                                    <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-orange-500"></div>
-                                )}
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>
     );
 }
 
-export default StoryCard
+export default StoryCard;

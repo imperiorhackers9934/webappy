@@ -7,6 +7,7 @@ import ProfileViewCard from '../components/profile/ProfileViewCard';
 import ConnectionButton from '../components/network/ConnectionButton';
 import Sidebar from '../components/common/Navbar';
 import { useAuth } from '../context/AuthContext';
+import userService from '../services/userService';
 
 const ProfilePage = () => {
     const { userId } = useParams(); // This might be undefined if visiting /profile
@@ -25,105 +26,116 @@ const ProfilePage = () => {
     const [currentUserInfo, setCurrentUserInfo] = useState(null);
   
     // Memoized fetch function to avoid recreation on each render
-    const fetchUserData = useCallback(async () => {
+   // Modified fetchUserData function to handle the API response structure correctly
+const fetchUserData = useCallback(async () => {
   try {
     console.log("Starting to fetch profile data...");
     setLoading(true);
+    setError(null); // Reset any previous errors
     
-    // First, get the current user's info
+    // If we're on the edit route, skip profile fetch
+    if (location.pathname.endsWith('/edit')) {
+      console.log("Edit route detected, skipping profile fetch");
+      setLoading(false);
+      return;
+    }
+    
+    // First, get the current user's info using getCurrentUser
     console.log("Fetching current user info...");
-    const userInfo = await api.getUserInfo();
-    console.log("Current user info fetched:", userInfo);
-    setCurrentUserInfo(userInfo);
-    
-    // If no userId is provided or it's "undefined", redirect to the current user's profile
-    if (!userId) {
-      console.log("No userId provided, redirecting to current user profile");
-      navigate(`/profile/${userInfo._id}`, { replace: true });
-      return;
-    }
-    
-    // Check if we're viewing our own profile
-    const isSelf = userInfo._id === userId;
-    console.log(`Viewing profile ${userId}, is self: ${isSelf}`);
-    setIsCurrentUser(isSelf);
-    
-    // Fetch the requested profile
-    console.log(`Fetching profile data for user ${userId}...`);
-    const profileData = await api.getProfile(userId);
-    console.log("Profile data fetched:", profileData);
-    
-    // Make sure we have valid data before setting state
-    if (!profileData || !profileData.user) {
-      console.error("Invalid profile data received:", profileData);
-      setError('Received invalid profile data');
-      setLoading(false);
-      return;
-    }
-    
-    // Prepare all state updates to minimize React batching issues
-    const updatedProfile = profileData.user;
-    const updatedRelationship = profileData.relationshipStatus || {};
-    const updatedPortfolio = profileData.portfolio || {};
-    const updatedRecommendations = profileData.recommendations || [];
-    
-    // Use Promise.all to wait for all state updates
-    await Promise.all([
-      new Promise(resolve => {
-        setProfile(updatedProfile);
-        resolve();
-      }),
-      new Promise(resolve => {
-        setUserRelationship(updatedRelationship);
-        resolve();
-      }),
-      new Promise(resolve => {
-        setPortfolio(updatedPortfolio);
-        resolve();
-      }),
-      new Promise(resolve => {
-        setRecommendations(updatedRecommendations);
-        resolve();
-      })
-    ]);
-    
-    // Record view if not our own profile
-    if (!isSelf) {
-      try {
-        await api.recordProfileView(userId);
-      } catch (viewError) {
-        console.error('Failed to record profile view:', viewError);
+    try {
+      const currentUserResponse = await userService.get('/api/me');
+      const userInfo = currentUserResponse.data;
+      console.log("Current user info fetched:", userInfo);
+      setCurrentUserInfo(userInfo);
+      
+      // If no userId is provided in URL, redirect to current user's profile
+      if (!userId || userId === 'undefined') {
+        console.log("No userId provided, redirecting to current user profile");
+        if (userInfo && userInfo._id) {
+          navigate(`/profile/${userInfo._id}`, { replace: true });
+          return; // Exit early as we're redirecting
+        } else {
+          setError('Could not determine your user ID');
+          setLoading(false);
+          return;
+        }
       }
-    } else {
-      // Get our own view analytics
-      try {
-        const analytics = await api.getProfileViewAnalytics('month');
-        setViewsAnalytics(analytics);
-      } catch (analyticsError) {
-        console.error('Failed to get view analytics:', analyticsError);
+      
+      // Check if we're viewing our own profile
+      const isSelf = userInfo._id === userId;
+      console.log(`Viewing profile ${userId}, is self: ${isSelf}`);
+      setIsCurrentUser(isSelf);
+      
+      // Now fetch the requested profile
+      console.log(`Fetching profile data for user ${userId}...`);
+      const profileData = await userService.getUserProfile(userId);
+      console.log("Profile data fetched:", profileData);
+      
+      // Handle the API response correctly
+      // Check if profileData is the user object directly (not nested)
+      if (profileData && profileData.id) {
+        // If the API returns the user directly (not nested under 'user')
+        console.log("API returned user object directly, using it as profile");
+        setProfile(profileData);
+        // Since relationship status might not be included, default to empty object
+        setUserRelationship({});
+        // Portfolio and recommendations might be nested properties of the user object
+        setPortfolio(profileData.portfolio || {});
+        setRecommendations(profileData.recommendations || []);
+      } else if (profileData && profileData.user) {
+        // If the API returns with expected nested structure
+        console.log("API returned expected nested structure");
+        setProfile(profileData.user);
+        setUserRelationship(profileData.relationshipStatus || {});
+        setPortfolio(profileData.portfolio || {});
+        setRecommendations(profileData.recommendations || []);
+      } else {
+        // Invalid data received
+        console.error("Invalid profile data received:", profileData);
+        setError('Received invalid profile data');
+        setLoading(false);
+        return;
       }
-    }
-    
-    // Use timeout to ensure state updates have processed
-    setTimeout(() => {
-      console.log("Setting loading to false with timeout");
+      
+      // Record view if not our own profile
+      if (!isSelf) {
+        try {
+          await api.recordProfileView(userId);
+        } catch (viewError) {
+          console.error('Failed to record profile view:', viewError);
+        }
+      } else {
+        // Get our own view analytics
+        try {
+          const analytics = await api.getProfileViewAnalytics('month');
+          setViewsAnalytics(analytics);
+        } catch (analyticsError) {
+          console.error('Failed to get view analytics:', analyticsError);
+        }
+      }
+      
       setLoading(false);
-    }, 0);
-    
+      
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setError('Failed to load profile data. Please ensure you have a valid user ID.');
+      setLoading(false);
+    }
   } catch (err) {
-    console.error('Error fetching profile:', err);
-    setError('Failed to load profile data');
+    console.error('Unexpected error in fetchUserData:', err);
+    setError('An unexpected error occurred');
     setLoading(false);
   }
-}, [userId, navigate]);
+}, [userId, navigate, location.pathname]);
 
-// Add this effect outside the fetchUserData function
-useEffect(() => {
-  if (profile && loading) {
-    console.log("Profile loaded but still in loading state - forcing update");
-    setLoading(false);
-  }
-}, [profile, loading]);
+    // Add this effect to handle when profile is loaded but loading state is still true
+    useEffect(() => {
+      if (profile && loading) {
+        console.log("Profile loaded but still in loading state - forcing update");
+        setLoading(false);
+      }
+    }, [profile, loading]);
+    
     useEffect(() => {
       // If we're on the edit route, we should handle it differently
       if (location.pathname.endsWith('/edit')) {

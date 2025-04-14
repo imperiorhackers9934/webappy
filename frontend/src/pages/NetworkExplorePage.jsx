@@ -4,6 +4,7 @@ import api from '../services/api';
 import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss, Sidebar, Home, Bell, MessageCircle, Briefcase, Settings, LogOut } from 'lucide-react';
 import Loader from '../components/common/Loader';
 import UserCard from '../components/common/UserCard';
+import networkService from '../services/networkService';
 
 const NetworkExplorePage = () => {
   const [loading, setLoading] = useState({
@@ -82,7 +83,7 @@ const NetworkExplorePage = () => {
 
   const fetchSuggestedUsers = async () => {
     try {
-      const suggestedResponse = await api.getProfessionalSuggestions({ limit: 3 });
+      const suggestedResponse = await networkService.getConnectionSuggestions({ limit: 3 });
       
       if (!Array.isArray(suggestedResponse)) {
         console.error('Invalid response from getProfessionalSuggestions:', suggestedResponse);

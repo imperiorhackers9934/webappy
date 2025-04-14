@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@react-google-maps/api": "^2.20.6",
     "@tailwindcss/vite": "^4.0.9",
     "axios": "^1.8.1",
     "dotenv": "^16.4.7",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.476.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

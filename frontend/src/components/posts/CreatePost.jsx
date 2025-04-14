@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../common/Navbar';
 import api from '../../services/api';
+import postService from '../../services/postService';
 
 const CreatePost = () => {
   const { user, loading } = useAuth();
@@ -86,21 +87,21 @@ const CreatePost = () => {
     setIsSubmitting(true);
 
     try {
-      // Build form data
-      const formData = new FormData();
-      formData.append('content', content);
-      formData.append('type', mediaType || 'text');
+      // Create a post data object
+      const postData = {
+        content,
+        type: mediaType || 'text'
+      };
       
-      if (mediaFile) {
-        formData.append('media', mediaFile);
-      }
-      
+      // Add event details if applicable
       if (mediaType === 'event') {
-        formData.append('eventDetails', JSON.stringify(eventDetails));
+        postData.eventDetails = JSON.stringify(eventDetails);
       }
 
-      // Submit to API
-      const response = await api.createPost(formData);
+      // Submit using the correct pattern for the service
+      const response = mediaFile 
+        ? await postService.createPost(postData, [mediaFile]) // Pass as array for multiple file support
+        : await postService.createPost(postData);
       
       // Redirect to feed/dashboard on success
       navigate('/dashboard');
@@ -139,7 +140,7 @@ const CreatePost = () => {
                 className="flex items-center text-gray-600 hover:text-orange-500"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
                 Back
               </button>

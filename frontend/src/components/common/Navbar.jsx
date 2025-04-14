@@ -1,17 +1,60 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import img from "../../assets/MeetKats.jpg"
-import img1 from "../../assets/messenger.png"
+import img from "../../assets/MeetKats.jpg";
+import img1 from "../../assets/messenger.png";
+import notificationService from '../../services/notificationService';
+
 const Sidebar = ({ user, onLogout }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState(false);
+  const [notificationItems, setNotificationItems] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [messages, setMessages] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
   const messagesRef = useRef(null);
   const navigate = useNavigate();
+
+  // Fetch notifications count on mount
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      try {
+        const count = await notificationService.getUnreadCount();
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('Error fetching notification count:', error);
+      }
+    };
+
+    fetchNotificationCount();
+    
+    // Poll for updates every minute
+    const interval = setInterval(fetchNotificationCount, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Fetch notifications when dropdown is opened
+  useEffect(() => {
+    if (notifications) {
+      const fetchNotifications = async () => {
+        setLoading(true);
+        try {
+          const data = await notificationService.getNotifications(1, 5);
+          setNotificationItems(Array.isArray(data) ? data : []);
+        } catch (error) {
+          console.error('Error fetching notifications:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchNotifications();
+    }
+  }, [notifications]);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
@@ -37,6 +80,43 @@ const Sidebar = ({ user, onLogout }) => {
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      
+      // Update local state
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      setNotificationItems(prev => 
+        prev.map(item => 
+          item.id === notificationId ? { ...item, read: true } : item
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Format timestamp
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return 'Unknown time';
+    
+    const now = new Date();
+    const notificationTime = new Date(timestamp);
+    const diffMs = now - notificationTime;
+    
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffDays = Math.round(diffMs / 86400000);
+    
+    if (diffMins < 60) {
+      return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    } else {
+      return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    }
   };
 
   // Close menus when clicking outside
@@ -69,7 +149,7 @@ const Sidebar = ({ user, onLogout }) => {
   return (
     <div className="flex h-screen">
       {/* Sidebar - Desktop */}
-      <div className={`hidden md:flex flex-col bg-white border-r border-orange-200 ${isCollapsed ? 'w-20' : 'w-'} transition-all duration-300 ease-in-out overflow-hidden fixed h-full z-10`}>
+      <div className={`hidden md:flex flex-col bg-white border-r border-orange-200 ${isCollapsed ? 'w-20' : 'w-64'} transition-all duration-300 ease-in-out overflow-hidden fixed h-full z-10`}>
         {/* Logo */}
         <div className="flex items-center justify-between p-4 border-b border-orange-100">
           <Link to="/dashboard" className="flex items-center">
@@ -198,14 +278,18 @@ const Sidebar = ({ user, onLogout }) => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
-                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </div>
                 {!isCollapsed && <span className="text-sm font-medium">Notifications</span>}
               </button>
 
               {notifications && !isCollapsed && (
                 <div className="absolute left-full top-0 ml-2 w-96 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 overflow-hidden">
-                  <div className="py-1">
+                  <div>
                     <div className="px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-400">
                       <div className="flex justify-between items-center">
                         <h3 className="text-sm font-medium text-white">Notifications</h3>
@@ -214,23 +298,51 @@ const Sidebar = ({ user, onLogout }) => {
                     </div>
                     
                     <div className="max-h-96 overflow-y-auto">
-                      <div className="px-4 py-3 hover:bg-orange-50 border-b border-orange-100">
-                        <div className="flex">
-                          <div className="flex-shrink-0 mr-3">
-                            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                              <span className="text-sm font-semibold text-orange-500">JS</span>
+                      {loading ? (
+                        <div className="px-4 py-6 text-center">
+                          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-orange-500 border-t-transparent"></div>
+                          <p className="mt-2 text-sm text-gray-500">Loading notifications...</p>
+                        </div>
+                      ) : notificationItems.length > 0 ? (
+                        notificationItems.map((notification) => (
+                          <div 
+                            key={notification.id} 
+                            className={`px-4 py-3 hover:bg-orange-50 border-b border-orange-100 ${notification.read ? 'bg-white' : 'bg-orange-50'}`}
+                            onClick={() => !notification.read && handleMarkAsRead(notification.id)}
+                          >
+                            <div className="flex">
+                              <div className="flex-shrink-0 mr-3">
+                                {notification.sender?.profilePicture ? (
+                                  <img 
+                                    className="h-10 w-10 rounded-full"
+                                    src={notification.sender.profilePicture}
+                                    alt={`${notification.sender.firstName} ${notification.sender.lastName}`}
+                                  />
+                                ) : (
+                                  <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                                    <span className="text-sm font-semibold text-orange-500">
+                                      {notification.sender?.firstName?.charAt(0) || 'U'}
+                                      {notification.sender?.lastName?.charAt(0) || 'U'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-900">{notification.content}</p>
+                                <p className="text-xs text-gray-500 mt-1">{formatTimeAgo(notification.createdAt)}</p>
+                              </div>
                             </div>
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-900">John Smith viewed your profile</p>
-                            <p className="text-xs text-gray-500 mt-1">2 hours ago</p>
-                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-6 text-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                          </svg>
+                          <p className="mt-2 text-sm font-medium text-gray-900">No notifications yet</p>
+                          <p className="text-xs text-gray-500">We'll notify you when something new happens</p>
                         </div>
-                      </div>
-                      <div className="px-4 py-3 hover:bg-orange-50">
-                        <p className="text-sm font-medium text-gray-900">More updates coming soon</p>
-                        <p className="text-xs text-gray-500 mt-1">Stay tuned for new notifications</p>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -350,6 +462,8 @@ const Sidebar = ({ user, onLogout }) => {
             </div>
             <span className="ml-2 text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-orange-400">Meetkats</span>
           </Link>
+
+        
 
           <div className="flex items-center space-x-4">
             <button 

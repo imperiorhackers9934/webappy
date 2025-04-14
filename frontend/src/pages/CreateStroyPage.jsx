@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import storyService from '../services/storyService';
 
 const CreateStoryPage = () => {
   const { user } = useAuth();
@@ -89,16 +90,16 @@ const CreateStoryPage = () => {
     try {
       setIsUploading(true);
       
-      // Create form data with correct field name
-      const formData = new FormData();
-      formData.append('media', storyFile); // IMPORTANT: Must match storyUpload.single('media')
-      formData.append('content', content || 'My Story');
-      formData.append('filter', activeFilter);
-      formData.append('textPosition', textPosition);
-      formData.append('textColor', textColor);
+      // Create story data object with all metadata
+      const storyData = {
+        content: content || 'My Story',
+        filter: activeFilter,
+        textPosition: textPosition,
+        textColor: textColor
+      };
   
-      // Send to server
-      const response = await api.createStory(formData);
+      // Send to server - pass storyData and media file separately as expected by storyService
+      const response = await storyService.createStory(storyData, storyFile);
       
       // Navigate back to dashboard after successful creation
       navigate('/dashboard');
