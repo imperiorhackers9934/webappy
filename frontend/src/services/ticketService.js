@@ -100,6 +100,12 @@ const ticketService = {
  * @param {Object} bookingData - Booking data including ticket selections
  * @returns {Promise<Object>} - Booking confirmation
  */
+/**
+ * Book tickets for an event with enhanced error logging
+ * @param {string} eventId - Event ID
+ * @param {Object} bookingData - Booking data including ticket selections
+ * @returns {Promise<Object>} - Booking confirmation
+ */
 bookEventTickets: async (eventId, bookingData) => {
   try {
     console.log(`Booking tickets for event ${eventId} with data:`, JSON.stringify(bookingData, null, 2));
@@ -109,40 +115,34 @@ bookEventTickets: async (eventId, bookingData) => {
       throw new Error('At least one ticket must be selected');
     }
     
-    // Make sure the data structure matches what the API expects
-    const formattedBookingData = {
-      eventId: eventId, // Explicitly include eventId
+    // Add default payment method if not provided
+    if (!bookingData.paymentMethod) {
+      bookingData.paymentMethod = 'pending';
+      console.log('Added default paymentMethod: pending');
+    }
+    
+    // Make sure quantities are numbers, not strings
+    const cleanedBookingData = {
+      ...bookingData,
       ticketSelections: bookingData.ticketSelections.map(selection => ({
         ticketTypeId: selection.ticketTypeId,
         quantity: parseInt(selection.quantity, 10) // Ensure quantity is a number
-      })),
-      contactInformation: {
-        firstName: bookingData.contactInformation.firstName,
-        lastName: bookingData.contactInformation.lastName,
-        email: bookingData.contactInformation.email,
-        phone: bookingData.contactInformation.phone || ''
-      }
+      }))
     };
-
-    console.log('Formatted booking data to send to API:', JSON.stringify(formattedBookingData, null, 2));
     
-    // For debugging, check authentication token
+    console.log('Cleaned booking data to send:', JSON.stringify(cleanedBookingData, null, 2));
+    
+    // Check auth token for debugging
     const token = localStorage.getItem('token');
-    console.log('Auth token present?', !!token);
+    console.log('Auth token present:', !!token);
     if (token) {
-      // Log first 10 chars of token for debugging
       console.log('Token starts with:', token.substring(0, 10) + '...');
     }
     
-    // Log API URL
-    const apiUrl = `/api/bookings/events/${eventId}/book`;
-    console.log('API URL:', apiUrl);
-    
-    // Make the API request with explicit headers
-    const response = await api.post(apiUrl, formattedBookingData, {
+    // Make the API request
+    const response = await api.post(`/api/bookings/events/${eventId}/book`, cleanedBookingData, {
       headers: {
         'Content-Type': 'application/json'
-        // Auth token should be added by your api instance automatically
       }
     });
     
@@ -153,32 +153,24 @@ bookEventTickets: async (eventId, bookingData) => {
     
     // Enhanced error logging
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
       console.error('Error response data:', error.response.data);
       
-      // NEW: Inspect the validation errors in detail
+      // Display validation errors in detail
       if (error.response.data && error.response.data.errors) {
-        console.error('Validation errors:');
+        console.error('Validation errors in detail:');
         error.response.data.errors.forEach((err, index) => {
-          console.error(`Error ${index + 1}:`, err);
+          console.error(`Error ${index + 1}:`, JSON.stringify(err, null, 2));
         });
       }
       
       console.error('Error response status:', error.response.status);
       console.error('Error response headers:', error.response.headers);
     } else if (error.request) {
-      // The request was made but no response was received
       console.error('Error request:', error.request);
     } else {
-      // Something happened in setting up the request that triggered an Error
       console.error('Error message:', error.message);
     }
     
-    // Re-throw error with more context
-    if (error.response && error.response.data && error.response.data.message) {
-      throw new Error(`Booking failed: ${error.response.data.message}`);
-    }
     throw error;
   }
 },

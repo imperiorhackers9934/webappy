@@ -255,87 +255,92 @@ const TicketPurchasePage = () => {
 // Add this to your TicketPurchasePage.jsx file
 
 const handleSubmitBooking = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  try {
+    setSubmitting(true);
     
-    try {
-      setSubmitting(true);
-      
-      // Validate form
-      if (!customerInfo.firstName || !customerInfo.lastName || !customerInfo.email) {
-        setError('Please fill in all required fields');
-        setSubmitting(false);
-        return;
-      }
-      
-      // Check if any tickets are selected
-      const summary = calculateOrderSummary();
-      if (summary.ticketCount === 0) {
-        setError('Please select at least one ticket');
-        setSubmitting(false);
-        return;
-      }
-      
-      // Transform the selected tickets into the format expected by the API
-      const ticketSelections = Object.entries(selectedTickets)
-        .filter(([_, quantity]) => quantity > 0)
-        .map(([ticketId, quantity]) => {
-          console.log(`Selected ticket: ${ticketId} with quantity: ${quantity}`);
-          return {
-            ticketTypeId: ticketId,
-            quantity
-          };
-        });
-      
-      console.log('Prepared ticket selections:', ticketSelections);
-      
-      // Prepare booking data according to the API's expected format
-      const bookingData = {
-        ticketSelections,
-        contactInformation: {
-          firstName: customerInfo.firstName,
-          lastName: customerInfo.lastName,
-          email: customerInfo.email,
-          phone: customerInfo.phone || ''
-        }
-      };
-      
-      console.log('Full booking data before submission:', JSON.stringify(bookingData, null, 2));
-      console.log('Event ID for booking:', eventId);
-      
-      // Call API to book tickets
-      const response = await ticketService.bookEventTickets(eventId, bookingData);
-      
-      console.log('Booking response received:', response);
-      
-      // Handle response and redirect
-      if (response && response.id) {
-        navigate(`/tickets/confirmation/${response.id}`);
-      } else if (response && response.booking && response.booking.id) {
-        navigate(`/tickets/confirmation/${response.booking.id}`);
-      } else if (response && response.success) {
-        navigate(`/tickets/confirmation/success`);
-      } else {
-        // Generic success if we don't have a specific ID
-        navigate(`/tickets/confirmation/success`);
-      }
-      
-    } catch (err) {
-      console.error('Error submitting booking:', err);
-      
-      // Enhanced error display
-      let errorMessage = 'Failed to complete your booking. Please try again later.';
-      
-      if (err.response && err.response.data && err.response.data.error) {
-        errorMessage = `Booking error: ${err.response.data.error}`;
-        console.error('Detailed error from server:', err.response.data);
-      } else if (err.message) {
-        errorMessage = `Booking error: ${err.message}`;
-      }
-      
-      setError(errorMessage);
+    // Validate form
+    if (!customerInfo.firstName || !customerInfo.lastName || !customerInfo.email) {
+      setError('Please fill in all required fields');
       setSubmitting(false);
+      return;
     }
-  };
+    
+    // Check if any tickets are selected
+    const summary = calculateOrderSummary();
+    if (summary.ticketCount === 0) {
+      setError('Please select at least one ticket');
+      setSubmitting(false);
+      return;
+    }
+    
+    // Transform the selected tickets into the format expected by the API
+    const ticketSelections = Object.entries(selectedTickets)
+      .filter(([_, quantity]) => quantity > 0)
+      .map(([ticketId, quantity]) => {
+        console.log(`Selected ticket: ${ticketId} with quantity: ${quantity}`);
+        return {
+          ticketTypeId: ticketId,
+          quantity: parseInt(quantity, 10)  // Ensure quantity is a number
+        };
+      });
+    
+    console.log('Prepared ticket selections:', ticketSelections);
+    
+    // Check if this is a free order
+    const isFreeOrder = summary.subtotal === 0;
+    
+    // Prepare booking data according to the API's expected format
+    const bookingData = {
+      ticketSelections,
+      contactInformation: {
+        firstName: customerInfo.firstName,
+        lastName: customerInfo.lastName,
+        email: customerInfo.email,
+        phone: customerInfo.phone || ''
+      },
+      // Add payment method explicitly based on pricing
+      paymentMethod: isFreeOrder ? 'free' : 'pending'
+    };
+    
+    console.log('Booking data before submission:', JSON.stringify(bookingData, null, 2));
+    console.log('Event ID for booking:', eventId);
+    
+    // Call API to book tickets
+    const response = await ticketService.bookEventTickets(eventId, bookingData);
+    
+    console.log('Booking response received:', response);
+    
+    // Handle response and redirect
+    if (response && response.id) {
+      navigate(`/tickets/confirmation/${response.id}`);
+    } else if (response && response.booking && response.booking.id) {
+      navigate(`/tickets/confirmation/${response.booking.id}`);
+    } else if (response && response.success) {
+      navigate(`/tickets/confirmation/success`);
+    } else {
+      // Generic success if we don't have a specific ID
+      navigate(`/tickets/confirmation/success`);
+    }
+    
+  } catch (err) {
+    console.error('Error submitting booking:', err);
+    
+    // Enhanced error display
+    let errorMessage = 'Failed to complete your booking. Please try again later.';
+    
+    if (err.response && err.response.data && err.response.data.error) {
+      errorMessage = `Booking error: ${err.response.data.error}`;
+      console.error('Detailed error from server:', err.response.data);
+    } else if (err.message) {
+      errorMessage = `Booking error: ${err.message}`;
+    }
+    
+    setError(errorMessage);
+    setSubmitting(false);
+  }
+};
   
   const orderSummary = calculateOrderSummary();
   
