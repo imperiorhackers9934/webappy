@@ -304,7 +304,7 @@ const socialLogin = (provider) => {
   const redirectUri = `${window.location.origin}/auth/callback`;
   
   // Get the API base URL
-  const apiBaseUrl =  'http://localhost:3000';
+  const apiBaseUrl =  'https://new-backend-w86d.onrender.com';
   
   // Properly format the URL with query parameters - use proper encoding
   const oauthUrl = `${apiBaseUrl}/auth/${provider}?redirectTo=${encodeURIComponent(redirectUri)}`;
