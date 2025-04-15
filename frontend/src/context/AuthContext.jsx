@@ -306,17 +306,14 @@ const socialLogin = (provider) => {
   // Get the API base URL
   const apiBaseUrl = process.env.REACT_APP_API_URL || 'https://new-backend-w86d.onrender.com';
   
-  // Create the OAuth URL with the redirect parameter
-  // The backend expects `redirectTo` parameter
+  // Properly format the URL with query parameters
   const oauthUrl = `${apiBaseUrl}/auth/${provider}?redirectTo=${encodeURIComponent(redirectUri)}`;
   
-  // Log the URL for debugging
   console.log(`Redirecting to OAuth provider: ${oauthUrl}`);
   
   // Redirect the user to the OAuth URL
   window.location.href = oauthUrl;
 };
-
   const value = {
     user,
     token,
