@@ -304,9 +304,9 @@ const socialLogin = (provider) => {
   const redirectUri = `${window.location.origin}/auth/callback`;
   
   // Get the API base URL
-  const apiBaseUrl = process.env.REACT_APP_API_URL || 'https://new-backend-w86d.onrender.com';
+  const apiBaseUrl =  'https://new-backend-w86d.onrender.com';
   
-  // Properly format the URL with query parameters
+  // Properly format the URL with query parameters - use proper encoding
   const oauthUrl = `${apiBaseUrl}/auth/${provider}?redirectTo=${encodeURIComponent(redirectUri)}`;
   
   console.log(`Redirecting to OAuth provider: ${oauthUrl}`);
