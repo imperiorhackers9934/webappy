@@ -49,17 +49,26 @@ const ticketService = {
         // First try the public endpoint without authentication
         const response = await api.get(`/api/bookings/events/${eventId}/ticket-types`, { params });
         console.log(`Successfully fetched ${response.data?.length || 0} ticket types from public endpoint`);
-        return normalizeData(response.data);
+        
+        // Return the normalized data directly, not wrapped in an object
+        return {
+          data: normalizeData(response.data) || []
+        };
       } catch (firstError) {
         // Fall back to the authenticated endpoint if public endpoint fails
         console.log('Falling back to bookings endpoint for ticket types');
         const response = await api.get(`/api/bookings/events/${eventId}/ticket-types`, { params });
         console.log(`Successfully fetched ${response.data?.length || 0} ticket types from booking endpoint`);
-        return normalizeData(response.data);
+        
+        // Return the normalized data directly, not wrapped in an object
+        return {
+          data: normalizeData(response.data) || []
+        };
       }
     } catch (error) {
       console.error(`Error fetching ticket types for event ${eventId}:`, error);
-      return []; // Return empty array on error to prevent UI crashes
+      // Return an object with empty array for data to maintain consistent return structure
+      return { data: [] };
     }
   },
 
@@ -79,22 +88,100 @@ const ticketService = {
     }
   },
 
-  /**
-   * Book tickets for an event
-   * @param {string} eventId - Event ID
-   * @param {Object} bookingData - Booking data with ticket selections
-   * @returns {Promise<Object>} - Booking confirmation
-   */
-  bookEventTickets: async (eventId, bookingData) => {
-    try {
-      console.log(`Booking tickets for event ${eventId} with data:`, bookingData);
-      const response = await api.post(`/api/bookings/events/${eventId}/book`, bookingData);
-      return normalizeData(response.data);
-    } catch (error) {
-      console.error(`Error booking tickets for event ${eventId}:`, error);
-      throw error;
+// Corrected bookEventTickets function for eventService.js
+// Add this to your ticketService.js file
+
+// Enhanced bookEventTickets function with detailed error inspection
+// Replace in ticketService.js
+
+/**
+ * Book tickets for an event
+ * @param {string} eventId - Event ID
+ * @param {Object} bookingData - Booking data including ticket selections
+ * @returns {Promise<Object>} - Booking confirmation
+ */
+bookEventTickets: async (eventId, bookingData) => {
+  try {
+    console.log(`Booking tickets for event ${eventId} with data:`, JSON.stringify(bookingData, null, 2));
+    
+    // Validate data before sending
+    if (!bookingData.ticketSelections || !Array.isArray(bookingData.ticketSelections) || bookingData.ticketSelections.length === 0) {
+      throw new Error('At least one ticket must be selected');
     }
-  },
+    
+    // Make sure the data structure matches what the API expects
+    const formattedBookingData = {
+      eventId: eventId, // Explicitly include eventId
+      ticketSelections: bookingData.ticketSelections.map(selection => ({
+        ticketTypeId: selection.ticketTypeId,
+        quantity: parseInt(selection.quantity, 10) // Ensure quantity is a number
+      })),
+      contactInformation: {
+        firstName: bookingData.contactInformation.firstName,
+        lastName: bookingData.contactInformation.lastName,
+        email: bookingData.contactInformation.email,
+        phone: bookingData.contactInformation.phone || ''
+      }
+    };
+
+    console.log('Formatted booking data to send to API:', JSON.stringify(formattedBookingData, null, 2));
+    
+    // For debugging, check authentication token
+    const token = localStorage.getItem('token');
+    console.log('Auth token present?', !!token);
+    if (token) {
+      // Log first 10 chars of token for debugging
+      console.log('Token starts with:', token.substring(0, 10) + '...');
+    }
+    
+    // Log API URL
+    const apiUrl = `/api/bookings/events/${eventId}/book`;
+    console.log('API URL:', apiUrl);
+    
+    // Make the API request with explicit headers
+    const response = await api.post(apiUrl, formattedBookingData, {
+      headers: {
+        'Content-Type': 'application/json'
+        // Auth token should be added by your api instance automatically
+      }
+    });
+    
+    console.log('Booking API response:', response);
+    return response.data;
+  } catch (error) {
+    console.error(`Error booking tickets for event ${eventId}:`, error);
+    
+    // Enhanced error logging
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('Error response data:', error.response.data);
+      
+      // NEW: Inspect the validation errors in detail
+      if (error.response.data && error.response.data.errors) {
+        console.error('Validation errors:');
+        error.response.data.errors.forEach((err, index) => {
+          console.error(`Error ${index + 1}:`, err);
+        });
+      }
+      
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('Error request:', error.request);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Error message:', error.message);
+    }
+    
+    // Re-throw error with more context
+    if (error.response && error.response.data && error.response.data.message) {
+      throw new Error(`Booking failed: ${error.response.data.message}`);
+    }
+    throw error;
+  }
+},
 
   /**
    * Get user bookings

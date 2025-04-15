@@ -18,67 +18,69 @@ const AuthPage = ({ type: propType }) => {
   const [isCallbackProcessed, setIsCallbackProcessed] = useState(false);
   const [callbackError, setCallbackError] = useState(null);
 
-  useEffect(() => {
-    // Handle OAuth callback
-    if (location.pathname === '/auth/callback' && !isCallbackProcessed) {
-      console.log('OAuth callback triggered, params:', searchParams.toString());
-      
-      // Check for error in the URL
-      const error = searchParams.get('error');
-      if (error) {
-        setCallbackError(error);
-        setIsCallbackProcessed(true);
-        return;
-      }
-      
-      // Mark callback as processed to prevent multiple redirect attempts
+ // Update the useEffect hook in AuthPage.js for handling the callback
+
+useEffect(() => {
+  // Handle OAuth callback
+  if (location.pathname === '/auth/callback' && !isCallbackProcessed) {
+    console.log('OAuth callback triggered, params:', searchParams.toString());
+    
+    // Check for error in the URL
+    const error = searchParams.get('error');
+    if (error) {
+      setCallbackError(error);
       setIsCallbackProcessed(true);
-      
-      // Process the callback - handleAuthCallback will handle the redirects
-      handleAuthCallback(searchParams).catch(err => {
-        console.error('Error handling auth callback:', err);
-        setCallbackError('Authentication failed. Please try again.');
-        // Redirect to login on error
-        navigate('/login?error=auth_failed');
-      });
       return;
     }
     
-    // Only run the following logic when auth state is settled (not loading)
-    if (!loading) {
-      // For debugging
-      console.log('Auth state:', { user, isNewSignup, pathname: location.pathname });
+    // Mark callback as processed to prevent multiple redirect attempts
+    setIsCallbackProcessed(true);
+    
+    // Process the callback - handleAuthCallback will handle the redirects
+    handleAuthCallback(searchParams).catch(err => {
+      console.error('Error handling auth callback:', err);
+      setCallbackError('Authentication failed. Please try again.');
+      // Redirect to login on error
+      navigate('/login?error=auth_failed');
+    });
+    return;
+  }
+  
+  // Only run the following logic when auth state is settled (not loading)
+  if (!loading) {
+    // For debugging
+    console.log('Auth state:', { user, isNewSignup, pathname: location.pathname });
+    
+    // If authenticated user...
+    if (user) {
+      // New users should be redirected to profile setup from any auth page
+      if (isNewSignup && 
+          (location.pathname === '/login' || 
+           location.pathname === '/signup' || 
+           location.pathname === '/phone-login')) {
+        console.log('Redirecting new user to profile setup');
+        navigate('/profile-setup');
+        return;
+      }
       
-      // If authenticated user...
-      if (user) {
-        // New users should be redirected to profile setup from any auth page
-        if (isNewSignup && 
-            (location.pathname === '/login' || 
-             location.pathname === '/signup' || 
-             location.pathname === '/phone-login')) {
-          console.log('Redirecting new user to profile setup');
-          navigate('/profile-setup');
-          return;
-        }
-        
-        // Existing users should be redirected to dashboard from any auth page
-        if (!isNewSignup && 
-            (location.pathname === '/login' || 
-             location.pathname === '/signup' || 
-             location.pathname === '/phone-login')) {
-          console.log('Redirecting existing user to dashboard');
-          navigate('/dashboard');
-          return;
-        }
+      // Existing users should be redirected to dashboard from any auth page
+      if (!isNewSignup && 
+          (location.pathname === '/login' || 
+           location.pathname === '/signup' || 
+           location.pathname === '/phone-login')) {
+        console.log('Redirecting existing user to dashboard');
+        navigate('/dashboard');
+        return;
       }
     }
-    
-    // Update auth type if props or params change
-    if (propType || paramType) {
-      setAuthType(propType || paramType);
-    }
-  }, [user, loading, propType, paramType, location.pathname, navigate, searchParams, 
-     handleAuthCallback, isNewSignup, isCallbackProcessed]);
+  }
+  
+  // Update auth type if props or params change
+  if (propType || paramType) {
+    setAuthType(propType || paramType);
+  }
+}, [user, loading, propType, paramType, location.pathname, navigate, searchParams, 
+   handleAuthCallback, isNewSignup, isCallbackProcessed]);
   
   // Render appropriate auth component
   const renderAuthComponent = () => {

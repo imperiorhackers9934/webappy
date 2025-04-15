@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Plus, 
@@ -9,10 +9,78 @@ import {
   Calendar, 
   Clock, 
   MapPin, 
-  Info, 
-  AlertCircle
+  Info
 } from 'lucide-react';
 import eventService from '../services/eventService';
+import ticketService from '../services/ticketService';
+// Add this function somewhere in your component for testing
+
+import axios from 'axios';
+
+const testDirectBooking = async () => {
+  try {
+    // Get authentication token
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      console.error('No authentication token found');
+      return;
+    }
+    
+    // Create test booking data
+    const testBookingData = {
+      ticketSelections: [
+        {
+          ticketTypeId: "67eff60c6f43d944c091a169",  // Use your actual ticket ID
+          quantity: 1
+        }
+      ],
+      contactInformation: {
+        firstName: "Test",
+        lastName: "User",
+        email: "test@example.com",
+        phone: "1234567890"
+      }
+    };
+    
+    console.log('Testing direct booking with data:', JSON.stringify(testBookingData, null, 2));
+    console.log('Using token:', token.substring(0, 10) + '...');
+    
+    // Make direct API call
+    const eventId = "67eff5ec6f43d944c091a157";  // Use your actual event ID
+    const response = await axios.post(
+      `https://new-backend-w86d.onrender.com/api/bookings/events/${eventId}/book`,
+      testBookingData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    
+    console.log('Direct booking test succeeded:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Direct booking test failed:', error);
+    
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error status:', error.response.status);
+      
+      // Display validation errors in detail
+      if (error.response.data && error.response.data.errors) {
+        console.error('Validation errors in detail:');
+        error.response.data.errors.forEach((err, index) => {
+          console.error(`Error ${index + 1}:`, JSON.stringify(err, null, 2));
+        });
+      }
+    }
+    
+    return null;
+  }
+};
+
 
 const TicketPurchasePage = () => {
   const { eventId } = useParams();
@@ -58,7 +126,8 @@ const TicketPurchasePage = () => {
   };
   
   useEffect(() => {
-    const fetchEventAndTickets = async () => {
+    // Combined fetch function to load both event and tickets
+    const fetchData = async () => {
       try {
         if (!eventId) {
           setError('Invalid event ID');
@@ -71,28 +140,35 @@ const TicketPurchasePage = () => {
         setEvent(eventResponse.data);
         
         // Fetch ticket types
-        const ticketsResponse = await eventService.getEventTicketTypes(eventId);
-        console.log('Ticket types:', ticketsResponse);
+        const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
         
-        // Initialize selected tickets with zero quantity for each type
-        const ticketData = ticketsResponse.data || [];
-        setTicketTypes(ticketData);
+        // Log the ticketsResponse for debugging
+        console.log('Ticket types response:', ticketsResponse);
         
-        const initialSelectedTickets = {};
-        ticketData.forEach(ticket => {
-          initialSelectedTickets[ticket._id || ticket.id] = 0;
-        });
-        setSelectedTickets(initialSelectedTickets);
+        if (ticketsResponse && ticketsResponse.data) {
+          console.log('Setting ticket types:', ticketsResponse.data);
+          setTicketTypes(ticketsResponse.data);
+          
+          // Initialize selected tickets
+          const initialSelectedTickets = {};
+          ticketsResponse.data.forEach(ticket => {
+            const ticketId = ticket._id || ticket.id;
+            initialSelectedTickets[ticketId] = 0;
+          });
+          setSelectedTickets(initialSelectedTickets);
+        } else {
+          console.warn('No ticket data available in response');
+        }
         
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching event details and tickets:', err);
-        setError('Failed to load ticket information. Please try again later.');
+        console.error('Error fetching data:', err);
+        setError('Failed to load event or ticket information. Please try again later.');
         setLoading(false);
       }
     };
     
-    fetchEventAndTickets();
+    fetchData();
   }, [eventId]);
   
   // Handle ticket quantity adjustment
@@ -172,7 +248,13 @@ const TicketPurchasePage = () => {
   };
   
   // Handle booking submission
-  const handleSubmitBooking = async (e) => {
+  // Corrected handleSubmitBooking function for TicketPurchasePage.jsx
+
+// Handle booking submission
+// Updated handleSubmitBooking function with enhanced debugging
+// Add this to your TicketPurchasePage.jsx file
+
+const handleSubmitBooking = async (e) => {
     e.preventDefault();
     
     try {
@@ -193,33 +275,74 @@ const TicketPurchasePage = () => {
         return;
       }
       
-      // Prepare booking data
+      // Transform the selected tickets into the format expected by the API
+      const ticketSelections = Object.entries(selectedTickets)
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([ticketId, quantity]) => {
+          console.log(`Selected ticket: ${ticketId} with quantity: ${quantity}`);
+          return {
+            ticketTypeId: ticketId,
+            quantity
+          };
+        });
+      
+      console.log('Prepared ticket selections:', ticketSelections);
+      
+      // Prepare booking data according to the API's expected format
       const bookingData = {
-        eventId,
-        tickets: Object.entries(selectedTickets).map(([ticketId, quantity]) => ({
-          ticketType: ticketId,
-          quantity
-        })).filter(item => item.quantity > 0),
-        customerInfo
+        ticketSelections,
+        contactInformation: {
+          firstName: customerInfo.firstName,
+          lastName: customerInfo.lastName,
+          email: customerInfo.email,
+          phone: customerInfo.phone || ''
+        }
       };
       
-      console.log('Submitting booking:', bookingData);
+      console.log('Full booking data before submission:', JSON.stringify(bookingData, null, 2));
+      console.log('Event ID for booking:', eventId);
       
       // Call API to book tickets
-      const response = await eventService.bookEventTickets(eventId, bookingData);
-      console.log('Booking response:', response);
+      const response = await ticketService.bookEventTickets(eventId, bookingData);
       
-      // Redirect to confirmation page
-      navigate(`/tickets/confirmation/${response.data?.id || 'success'}`);
+      console.log('Booking response received:', response);
+      
+      // Handle response and redirect
+      if (response && response.id) {
+        navigate(`/tickets/confirmation/${response.id}`);
+      } else if (response && response.booking && response.booking.id) {
+        navigate(`/tickets/confirmation/${response.booking.id}`);
+      } else if (response && response.success) {
+        navigate(`/tickets/confirmation/success`);
+      } else {
+        // Generic success if we don't have a specific ID
+        navigate(`/tickets/confirmation/success`);
+      }
       
     } catch (err) {
       console.error('Error submitting booking:', err);
-      setError('Failed to complete your booking. Please try again later.');
+      
+      // Enhanced error display
+      let errorMessage = 'Failed to complete your booking. Please try again later.';
+      
+      if (err.response && err.response.data && err.response.data.error) {
+        errorMessage = `Booking error: ${err.response.data.error}`;
+        console.error('Detailed error from server:', err.response.data);
+      } else if (err.message) {
+        errorMessage = `Booking error: ${err.message}`;
+      }
+      
+      setError(errorMessage);
       setSubmitting(false);
     }
   };
   
   const orderSummary = calculateOrderSummary();
+  
+  // Debug logs for ticket data
+  console.log("Current ticketTypes:", ticketTypes);
+  console.log("Is ticketTypes an array?", Array.isArray(ticketTypes));
+  console.log("ticketTypes length:", ticketTypes.length);
   
   if (loading) {
     return (
@@ -327,7 +450,7 @@ const TicketPurchasePage = () => {
                 </div>
               )}
               
-              {ticketTypes.length === 0 ? (
+              {!ticketTypes || ticketTypes.length === 0 ? (
                 <div className="text-center py-8">
                   <Ticket className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-600">No tickets are currently available for this event.</p>
@@ -335,12 +458,13 @@ const TicketPurchasePage = () => {
               ) : (
                 <div className="space-y-4">
                   {ticketTypes.map(ticket => {
+                    const ticketId = ticket._id || ticket.id;
                     const isAvailable = ticket.available > 0;
-                    const currentQty = selectedTickets[ticket._id || ticket.id] || 0;
+                    const currentQty = selectedTickets[ticketId] || 0;
                     
                     return (
                       <div 
-                        key={ticket._id || ticket.id} 
+                        key={ticketId} 
                         className={`border rounded-lg p-4 ${isAvailable ? 'border-gray-200' : 'border-gray-200 bg-gray-50 opacity-75'}`}
                       >
                         <div className="flex justify-between">
@@ -368,7 +492,7 @@ const TicketPurchasePage = () => {
                             
                             <div className="flex items-center mt-2">
                               <button 
-                                onClick={() => handleTicketQuantityChange(ticket._id || ticket.id, -1)}
+                                onClick={() => handleTicketQuantityChange(ticketId, -1)}
                                 disabled={currentQty === 0 || !isAvailable}
                                 className={`p-1 rounded-full ${
                                   currentQty === 0 || !isAvailable
@@ -384,7 +508,7 @@ const TicketPurchasePage = () => {
                               </span>
                               
                               <button 
-                                onClick={() => handleTicketQuantityChange(ticket._id || ticket.id, 1)}
+                                onClick={() => handleTicketQuantityChange(ticketId, 1)}
                                 disabled={!isAvailable || (ticket.available && currentQty >= ticket.available)}
                                 className={`p-1 rounded-full ${
                                   !isAvailable || (ticket.available && currentQty >= ticket.available)
@@ -417,7 +541,7 @@ const TicketPurchasePage = () => {
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Your Information</h2>
                 
-                <form onSubmit={handleSubmitBooking}>
+                <form onSubmit={handleSubmitBooking} id="checkout-form">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
                       <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -524,7 +648,16 @@ const TicketPurchasePage = () => {
               </div>
             )}
           </div>
-          
+          // Add a button in your component to test this:
+/*
+<button 
+  type="button"
+  onClick={testDirectBooking} 
+  className="mt-4 bg-gray-200 text-gray-800 px-4 py-2 rounded"
+>
+  Test Direct Booking
+</button>
+*/
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
@@ -558,7 +691,6 @@ const TicketPurchasePage = () => {
                       type="submit"
                       form="checkout-form"
                       disabled={submitting}
-                      onClick={handleSubmitBooking}
                       className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
                         submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                       }`}
