@@ -96,7 +96,8 @@ const App = () => {
           <Route path="/events" element={<EventListingPage/>}/>
           <Route path="/events/new" element={<EventCreationPage />} />
           <Route path="/events/:eventId" element={<EventDetailPage />} />
-          <Route path="/events/:eventId/edit" element={<EventCreationPage />} />
+          <Route path="/events/create" element={<EventCreationPage />} />
+          {/* <Route path="/events/:eventId/edit" element={<EventCreationPage />} /> */}
           <Route path="/events/:eventId/tickets" element={<TicketBookingPage />} />
           <Route path="/events/:eventId/manage" element={<EventDashboardPage />} />
           {/* <Route path="/events/:eventId/attendees" element={<AttendeeManagementPage />} /> */}

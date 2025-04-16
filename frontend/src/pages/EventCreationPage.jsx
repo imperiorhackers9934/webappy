@@ -15,6 +15,7 @@ import {
   Link as LinkIcon,
   Users,
   CheckCircle,
+  ChevronRight,
   Eye,
   EyeOff,
   AlertCircle
