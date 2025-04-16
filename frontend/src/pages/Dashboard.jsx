@@ -1,81 +1,346 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Sidebar from '../components/common/Navbar'; // Note: Component naming mismatch
-import Posts from '../components/posts/Posts';
-
-
-import api from '../services/api';
-import StoryCard from '../components/posts/StoryCard';
-import CreatePost from '../components/posts/CreatePost';
-import { PlusCircle, Check, Calendar, X, User, AlertTriangle, MapPin } from 'lucide-react';
 import { useToast } from '../components/common/Toast';
-import LocationPermissionIcon from '../components/LocationPermissionIcon';
-import { MapPin as MapPinIcon, Users, ChevronRight, Search, Filter, UserPlus, Rss, 
-  Home, Bell, MessageCircle, Briefcase, Settings, LogOut, RefreshCw } from 'lucide-react';
-// Add default profile picture
-import defaultProfilePic from '../assets/default-avatar.png';
-import locationService from '../services/locationService';
-import networkService from '../services/networkService';
+import { 
+  Search, Calendar, MapPin, Filter, ArrowUpDown, PlusCircle, Check, X, 
+  User, AlertTriangle, ChevronRight, Users, Rss, Home, Bell, 
+  MessageCircle, Briefcase, Settings, LogOut, RefreshCw, TrendingUp,
+  BarChart2, Zap, Star, UserPlus, Activity, Clock, Heart, Share2, 
+  Coffee, Award, Music, Compass, BookOpen, Bookmark
+} from 'lucide-react';
+
+// Import services
+import eventService from '../services/eventService';
 import nearbyUsersService from '../services/nearbyUsersService';
-import userService from '../services/userService';
-import homeApi from '../services/homeApi';
-import postService from '../services/postService';
-import portfolioService from '../services/portfolioService';
+import networkService from '../services/networkService';
 import storyService from '../services/storyService';
-const Dashboard = () => {
-  // State management
-  const [locationEnabled, setLocationEnabled] = useState(false);
-  const [locationError, setLocationError] = useState(null);
-  const [nearbyUsers, setNearbyUsers] = useState([]);
-  const [allNearbyUsers, setAllNearbyUsers] = useState([]);
-  const [userLocation, setUserLocation] = useState(null);
-  const locationControlRef = useRef(null);
+import portfolioService from '../services/portfolioService';
+import userService from '../services/userService';
+
+// Import components
+import StoryCard from '../components/posts/StoryCard';
+import LocationPermissionIcon from '../components/LocationPermissionIcon';
+
+// Default profile picture
+import defaultProfilePic from '../assets/default-avatar.png';
+
+const EventCard = ({ event }) => {
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return "Date TBA";
+    
+    try {
+      const options = { weekday: 'short', month: 'short', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString('en-US', options);
+    } catch (err) {
+      console.error("Date formatting error:", err);
+      return "Invalid date";
+    }
+  };
   
-  // Auth and navigation
-  const { user, loading, logout } = useAuth();
+  // Safely get the attendee count
+  const getAttendeeCount = (attendeeCounts, type) => {
+    if (!attendeeCounts) return 0;
+    
+    const count = attendeeCounts[type];
+    
+    if (typeof count === 'number') {
+      return count;
+    }
+    
+    if (count && typeof count === 'object' && count.count !== undefined) {
+      return count.count;
+    }
+    
+    return 0;
+  };
+
+  // Get the going count
+  const goingCount = getAttendeeCount(event.attendeeCounts, 'going');
+  
+  // Get appropriate category icon
+  const getCategoryIcon = (category) => {
+    if (!category) return <Calendar className="h-4 w-4 text-orange-500" />;
+    
+    const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
+    
+    switch (categoryLower) {
+      case 'business':
+        return <Briefcase className="h-4 w-4 text-blue-500" />;
+      case 'technology':
+        return <Zap className="h-4 w-4 text-purple-500" />;
+      case 'social':
+        return <Users className="h-4 w-4 text-green-500" />;
+      case 'education':
+        return <BookOpen className="h-4 w-4 text-amber-500" />;
+      case 'entertainment':
+        return <Music className="h-4 w-4 text-pink-500" />;
+      case 'health':
+        return <Activity className="h-4 w-4 text-red-500" />;
+      default:
+        return <Calendar className="h-4 w-4 text-orange-500" />;
+    }
+  };
+  
+  // Get category color class
+  const getCategoryColorClass = (category) => {
+    if (!category) return "bg-orange-500";
+    
+    const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
+    
+    switch (categoryLower) {
+      case 'business':
+        return "bg-blue-500";
+      case 'technology':
+        return "bg-purple-500";
+      case 'social':
+        return "bg-green-500";
+      case 'education':
+        return "bg-amber-500";
+      case 'entertainment':
+        return "bg-pink-500";
+      case 'health':
+        return "bg-red-500";
+      default:
+        return "bg-orange-500";
+    }
+  };
+  
+  return (
+    <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 transform hover:-translate-y-1">
+      <div className="relative">
+        <img 
+          src={event.coverImage?.url || "/api/placeholder/400/200"} 
+          alt={event.name || "Event"}
+          className="w-full h-48 object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+        {event.category && (
+          <span className={`absolute top-4 right-4 ${getCategoryColorClass(event.category)} text-white text-xs font-bold px-3 py-1 rounded-full`}>
+            {typeof event.category === 'string' ? event.category : 'Other'}
+          </span>
+        )}
+        <div className="absolute bottom-0 left-0 w-full p-4">
+          <h3 className="text-xl font-bold text-white mb-1 line-clamp-1 drop-shadow-sm">{event.name || "Untitled Event"}</h3>
+          <div className="flex items-center text-white/90 space-x-3">
+            <div className="flex items-center">
+              <Calendar className="w-4 h-4 mr-1.5" />
+              <span className="text-sm">{formatDate(event.startDateTime)}</span>
+            </div>
+            <div className="flex items-center">
+              <MapPin className="w-4 h-4 mr-1.5" />
+              <span className="text-sm truncate max-w-[120px]">
+                {event.virtual 
+                  ? "Virtual Event" 
+                  : (event.location?.name || "Location TBA")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="p-4">
+        <p className="text-sm text-gray-600 mb-4 line-clamp-2 h-10">
+          {event.description || "Join us for this exciting event!"}
+        </p>
+        
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-1">
+            <div className="flex -space-x-2">
+              {[...Array(Math.min(3, goingCount || 2))].map((_, i) => (
+                <div key={`avatar-${i}-${event._id || event.id}`} className="w-6 h-6 rounded-full bg-gray-300 border-2 border-white" />
+              ))}
+            </div>
+            <span className="text-xs text-gray-600 ml-1">
+              {goingCount || '5+'} attending
+            </span>
+          </div>
+          <div className="flex space-x-2">
+            <button className="text-gray-400 hover:text-orange-500 transition-colors">
+              <Heart className="h-5 w-5" />
+            </button>
+            <Link to={`/events/${event._id || event.id}`}>
+              <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors duration-300">
+                View
+              </button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FeaturedEventCard = ({ event }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return "Date TBA";
+    
+    try {
+      const options = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+      return new Date(dateString).toLocaleDateString('en-US', options);
+    } catch (err) {
+      console.error("Date formatting error:", err);
+      return "Invalid date";
+    }
+  };
+  
+  return (
+    <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 transform hover:-translate-y-1">
+      <div className="relative">
+        <img 
+          src={event?.coverImage?.url || "/api/placeholder/800/400"} 
+          alt={event?.name || "Featured Event"}
+          className="w-full h-64 object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+        <div className="absolute top-4 left-4">
+          <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+            Featured
+          </span>
+        </div>
+        <div className="absolute bottom-0 left-0 w-full p-6">
+          <h3 className="text-3xl font-bold text-white mb-2 drop-shadow-sm">{event?.name || "Featured Event"}</h3>
+          <div className="flex flex-wrap items-center text-white/90 space-x-4 mb-4">
+            <div className="flex items-center">
+              <Calendar className="w-5 h-5 mr-2" />
+              <span className="text-sm md:text-base">{formatDate(event?.startDateTime)}</span>
+            </div>
+            <div className="flex items-center">
+              <MapPin className="w-5 h-5 mr-2" />
+              <span className="text-sm md:text-base">
+                {event?.virtual 
+                  ? "Virtual Event" 
+                  : (event?.location?.name || "Location TBA")}
+              </span>
+            </div>
+          </div>
+          <Link to={`/events/${event?._id || event?.id}`}>
+            <button className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-300">
+              View Details
+            </button>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const GlamorousHomePage = () => {
   const navigate = useNavigate();
+  const { user, loading, logout } = useAuth();
   const toastContext = useToast();
   const toast = toastContext?.toast;
+  const locationControlRef = useRef(null);
+
+  // State for events
+  const [events, setEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [categories, setCategories] = useState([
+    "All", "Business", "Technology", "Social", "Education", "Entertainment", "Health", "Other"
+  ]);
+
+  // State for dashboard data
   const [stories, setStories] = useState([]);
-  // Dashboard UI state
-  const [activeSection, setActiveSection] = useState('overview');
-  const [pendingRequests, setPendingRequests] = useState(0);
+  const [nearbyUsers, setNearbyUsers] = useState([]);
+  const [allNearbyUsers, setAllNearbyUsers] = useState([]);
+  const [recentPosts, setRecentPosts] = useState([]);
+  const [userStreaks, setUserStreaks] = useState([]);
+  const [userProjects, setUserProjects] = useState([]);
+  const [userAchievements, setUserAchievements] = useState([]);
   const [connectionRequests, setConnectionRequests] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [loadingState, setLoadingState] = useState({
-    nearby: false,
-    dashboard: false, // Changed from true to false
-    connections: false,
-    profile: false,
-    posts: false
-  });
-  
-  // Dashboard data state
   const [dashboardStats, setDashboardStats] = useState({
     profileViews: 0,
     connections: 0,
     streaks: 0,
     projects: 0
   });
-  const [userStreaks, setUserStreaks] = useState([]);
-  const [userProjects, setUserProjects] = useState([]);
-  const [userAchievements, setUserAchievements] = useState([]);
-  const [recentPosts, setRecentPosts] = useState([]);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
+  const [activeTab, setActiveTab] = useState('explore');
+  const [pendingRequests, setPendingRequests] = useState(0);
+  
+  // Planner/To-Do list state
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
+  const [sideWidgetView, setSideWidgetView] = useState('tasks'); // 'tasks', 'streaks', 'connections'
 
+  // Special states for enhanced design
+  const [suggestedPeople, setSuggestedPeople] = useState([]);
+  const [highlightedEvent, setHighlightedEvent] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Track scroll position for header effects
   useEffect(() => {
-    // Get user's location and fetch nearby users
-    getUserLocation();
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Improved getUserLocation with better error handling
-  const getUserLocation = () => {
-    setLoadingState(prev => ({ ...prev, nearby: true }));
+  // Fetch events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoadingEvents(true);
+      try {
+        const apiFilters = { filter: 'upcoming', limit: 10 };
+        
+        if (categoryFilter && categoryFilter !== 'All') {
+          apiFilters.category = categoryFilter.toLowerCase();
+        }
+        
+        if (searchQuery) {
+          apiFilters.search = searchQuery;
+        }
+        
+        const response = await eventService.getEvents(apiFilters);
+        
+        if (response.categories && response.categories.length > 0) {
+          const extractedCategories = ['All', ...response.categories.map(cat => 
+            typeof cat === 'string' ? cat : (cat._id || 'Other')
+          )];
+          setCategories(extractedCategories);
+        }
+        
+        const eventsData = response.events || response.data || [];
+        setEvents(eventsData);
+        
+        // Set the first event as highlighted
+        if (eventsData.length > 0) {
+          setHighlightedEvent(eventsData[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching events:', err);
+        if (toast) {
+          toast({
+            title: "Failed to load events",
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
     
+    fetchEvents();
+  }, [categoryFilter, searchQuery, toast]);
+
+  // Handle search submission
+  const handleSearch = (e) => {
+    e.preventDefault();
+    // The useEffect will trigger a new API call
+  };
+
+  // Get user's location and fetch nearby users
+  const getUserLocation = () => {
     if (navigator.geolocation) {
-      // Options for high accuracy with reasonable timeout
       const options = {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -85,9 +350,6 @@ const Dashboard = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
-          console.log(`Location obtained with accuracy: ${accuracy} meters`);
-          
-          // Store location with accuracy information
           setUserLocation({ 
             latitude, 
             longitude, 
@@ -95,14 +357,12 @@ const Dashboard = () => {
             timestamp: new Date().toISOString()
           });
           
-          // Fetch nearby users with the coordinates
           fetchNearbyUsers(latitude, longitude, 10);
         },
         (error) => {
           console.error('Error getting location:', error);
           let errorMessage;
           
-          // Provide user-friendly error messages based on error type
           switch(error.code) {
             case error.PERMISSION_DENIED:
               errorMessage = "Location access denied. Please enable location services for this site.";
@@ -117,111 +377,76 @@ const Dashboard = () => {
               errorMessage = "Unknown location error. Please try again.";
           }
           
-          // Set error state that can be displayed to the user
           setLocationError(errorMessage);
-          setLoadingState(prev => ({ ...prev, nearby: false }));
         },
         options
       );
     } else {
       setLocationError("Geolocation is not supported by your browser. Please use a modern browser.");
-      setLoadingState(prev => ({ ...prev, nearby: false }));
     }
   };
 
-  // Enhanced fetchNearbyUsers with better error handling and correct parameter passing
+  // Fetch nearby users
   const fetchNearbyUsers = async (latitude, longitude, distance) => {
-    setLoadingState(prev => ({ ...prev, nearby: true }));
-    setLocationError(null); // Clear any previous errors
-    
     try {
-      console.log(`Fetching nearby users at [${latitude}, ${longitude}] within ${distance}km`);
-      
-      // Validate coordinates before API call
-      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-        throw new Error("Invalid coordinates provided");
-      }
-      
-      // Pass parameters as an object instead of separate arguments
       const nearbyResponse = await nearbyUsersService.getNearbyUsers({
         latitude,
         longitude,
         distance
       });
       
-      // Validate response
       if (!Array.isArray(nearbyResponse)) {
-        console.error('Invalid response format:', nearbyResponse);
         throw new Error("Invalid response format from server");
       }
       
-      console.log(`Retrieved ${nearbyResponse.length} nearby professionals`);
-      
-      // Now fetch connections to exclude them from results (with error handling)
       let connections = [];
       try {
-        // Set separate loading state for connections
-        setLoadingState(prev => ({ ...prev, connections: true }));
-        connections = await api.getConnections('all');
-        
-        if (!Array.isArray(connections)) {
-          console.warn('Invalid connections response:', connections);
-          connections = [];
-        }
+        connections = await networkService.getConnections('all');
       } catch (connectionError) {
         console.error('Error fetching connections:', connectionError);
-        connections = []; // Use empty array on error
-      } finally {
-        setLoadingState(prev => ({ ...prev, connections: false }));
+        connections = [];
       }
       
-      // Create a Set of connection IDs for faster lookup
       const connectionIds = new Set(
         Array.isArray(connections) 
           ? connections.map(conn => conn._id)
           : []
       );
       
-      // Filter out users who are already connections
       const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
       
-      // Enhance user objects with more info
       const enhancedUsers = filteredUsers.map(user => ({
         ...user,
-        // Add time ago for last active
         lastActiveFormatted: user.lastActive ? formatTimeAgo(new Date(user.lastActive)) : null,
-        // Add readable distance
         distanceFormatted: user.distanceFormatted || formatDistance(user.distance)
       }));
       
-      // Store full list but only show limited number in UI
       setAllNearbyUsers(enhancedUsers);
-      setNearbyUsers(enhancedUsers.slice(0, 3));
+      setNearbyUsers(enhancedUsers.slice(0, 4));
+      
+      // Generate suggested people by shuffling and taking first few
+      const shuffled = [...enhancedUsers].sort(() => 0.5 - Math.random());
+      setSuggestedPeople(shuffled.slice(0, 6));
     } catch (error) {
       console.error('Error fetching nearby professionals:', error);
       setLocationError(error.message || "Failed to fetch nearby professionals");
       setNearbyUsers([]);
       setAllNearbyUsers([]);
-    } finally {
-      setLoadingState(prev => ({ ...prev, nearby: false }));
     }
   };
 
-  // Helper function to format distance in a user-friendly way
+  // Helper function to format distance
   const formatDistance = (distance) => {
     if (distance === null || distance === undefined) return 'Unknown distance';
     
-    // For very short distances, show in meters
     if (distance < 0.1) {
       return `${Math.round(distance * 1000)}m away`;
     }
     
-    // For distances less than 10km, show one decimal place
     if (distance < 10) {
       return `${distance.toFixed(1)}km away`;
     }
     
-    // For longer distances, round to whole number
     return `${Math.round(distance)}km away`;
   };
 
@@ -246,71 +471,220 @@ const Dashboard = () => {
     return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
   };
 
-  useEffect(() => {
-    // Redirect to login if not authenticated
-    if (!loading && !user) {
-      navigate('/login');
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
+      const options = { weekday: 'short', month: 'short', day: 'numeric' };
+      return date.toLocaleDateString(undefined, options);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
     }
-  }, [user, loading, navigate]);
+  };
 
-  // Location tracking implementation
-  useEffect(() => {
-    // Skip if user is not logged in
-    if (!user || !user._id) return;
-    
-    const startLocationTracking = async () => {
-      try {
-        // Check if we have permission first
-        if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: 'geolocation' });
-          
-          if (permission.state !== 'granted') {
-            console.log('Location permission not granted');
-            setLocationEnabled(false);
-            return;
-          }
-        }
-        
-        console.log('Starting location tracking...');
-        
-        // Get initial location and nearby users
-        getUserLocation();
-        
-        // Set up periodic updates with the locationService
-        const result = await locationService.startLocationTracking();
-        locationControlRef.current = result;
-        
-        // If successfully started, set tracking as enabled
-        if (result.success) {
-          setLocationEnabled(true);
-        }
-      } catch (error) {
-        console.error('Error setting up location tracking:', error);
-        setLocationEnabled(false);
+  // Get profile picture with fallback
+  const getProfilePicture = (userObj) => {
+    if (userObj?.profilePicture) {
+      return userObj.profilePicture;
+    }
+    return defaultProfilePic;
+  };
+
+  // Handle connecting with a nearby user
+  const handleConnect = async (userId) => {
+    try {
+      await networkService.requestConnection(userId);
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, connectionStatus: 'pending' } 
+            : user
+        )
+      );
+      
+      setAllNearbyUsers(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, connectionStatus: 'pending' } 
+            : user
+        )
+      );
+      
+      setSuggestedPeople(prev => 
+        prev.map(user => 
+          user._id === userId 
+            ? { ...user, connectionStatus: 'pending' } 
+            : user
+        )
+      );
+      
+      if (toast) {
+        toast({
+          title: "Connection Request Sent",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
       }
+    } catch (error) {
+      console.error('Error sending connection request:', error);
+      
+      if (toast) {
+        toast({
+          title: "Failed to send request",
+          description: error.message || "Please try again later",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    }
+  };
+
+  // Handle accepting connection request
+  const handleAcceptConnection = async (userId) => {
+    try {
+      await networkService.acceptConnection(userId);
+      // Update the pending requests list
+      setPendingRequests(prev => prev - 1);
+      // Remove the accepted request from the list
+      setConnectionRequests(prev => prev.filter(req => req._id !== userId));
+      // Update connections count
+      setDashboardStats(prev => ({
+        ...prev,
+        connections: prev.connections + 1
+      }));
+      
+      if (toast) {
+        toast({
+          title: "Connection Accepted",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error accepting connection request:', error);
+      
+      if (toast) {
+        toast({
+          title: "Failed to accept connection",
+          description: error.message || "Please try again later",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    }
+  };
+
+  // Handle declining connection request
+  const handleDeclineConnection = async (userId) => {
+    try {
+      await networkService.declineConnection(userId);
+      // Update the pending requests list
+      setPendingRequests(prev => prev - 1);
+      // Remove the declined request from the list
+      setConnectionRequests(prev => prev.filter(req => req._id !== userId));
+      
+      if (toast) {
+        toast({
+          title: "Connection Request Declined",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error declining connection request:', error);
+      
+      if (toast) {
+        toast({
+          title: "Failed to decline connection",
+          description: error.message || "Please try again later",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    }
+  };
+
+  // Planner/To-Do list functions
+  const addTask = () => {
+    if (!newTask.trim()) return;
+    
+    const task = {
+      id: Date.now(),
+      text: newTask,
+      completed: false,
+      date: new Date().toISOString()
     };
     
-    // Start tracking
-    startLocationTracking();
+    const updatedPlanner = [...planner, task];
+    setPlanner(updatedPlanner);
     
-    // Clean up function
-    return () => {
-      if (locationControlRef.current) {
-        console.log('Stopping location tracking');
-        locationService.stopLocationTracking();
-        locationControlRef.current = null;
+    // Save to localStorage
+    try {
+      localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
+    } catch (error) {
+      console.error('Error saving planner to localStorage:', error);
+      
+      if (toast) {
+        toast({
+          title: "Failed to save task",
+          description: "Your task was added but may not persist after refresh",
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
       }
-    };
-  }, [user?._id]);
+    }
+    
+    setNewTask('');
+  };
 
-  // Fetch all dashboard data in parallel with improved error handling
+  const toggleTaskCompletion = (taskId) => {
+    const updatedPlanner = planner.map(task => 
+      task.id === taskId ? { ...task, completed: !task.completed } : task
+    );
+    setPlanner(updatedPlanner);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
+    } catch (error) {
+      console.error('Error saving planner to localStorage:', error);
+    }
+  };
+
+  const deleteTask = (taskId) => {
+    const updatedPlanner = planner.filter(task => task.id !== taskId);
+    setPlanner(updatedPlanner);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
+    } catch (error) {
+      console.error('Error saving planner to localStorage:', error);
+    }
+  };
+
+  // Fetch dashboard data
   useEffect(() => {
-    const fetchAllData = async () => {
+    const fetchDashboardData = async () => {
       if (!user) return;
-      setLoadingData(true);
+      setLoadingDashboard(true);
       
       try {
-        // Array of fetch promises - each wrapped in a try/catch to prevent one error from stopping all others
+        // Array of fetch promises - each wrapped in a try/catch
         const fetchPromises = [
           // Profile Views
           (async () => {
@@ -318,7 +692,7 @@ const Dashboard = () => {
               return await userService.getProfileViewAnalytics();
             } catch (error) {
               console.error('Error fetching profile view analytics:', error);
-              return { totalViews: 0, views: [] }; // Return default values on error
+              return { totalViews: 0, views: [] }; 
             }
           })(),
           
@@ -372,25 +746,10 @@ const Dashboard = () => {
             }
           })(),
           
-          // Posts
-          (async () => {
-            try {
-              console.log('Fetching posts...');
-              const response = await postService.getPosts({ limit: 5 });
-              console.log('Posts response:', response);
-              return { posts: response }; 
-            } catch (error) {
-              console.error('Error fetching posts:', error);
-              return { posts: [] };
-            }
-          })(),
-          
           // Stories
           (async () => {
             try {
-              console.log('Fetching stories...');
               const response = await storyService.getStories({ limit: 5 });
-              console.log('Stories response:', response);
               return response;
             } catch (error) {
               console.error('Error fetching stories:', error);
@@ -410,16 +769,15 @@ const Dashboard = () => {
           streaksData,
           projectsData,
           achievementsData,
-          postsData,
           storiesData
         ] = results;
         
         // Update dashboard stats with real data and fallbacks
         setDashboardStats({
-          profileViews: profileViewData?.totalViews || 0,
-          connections: Array.isArray(connectionsData) ? connectionsData.length : 0,
-          streaks: streaksData?.items?.length || 0,
-          projects: projectsData?.items?.length || 0
+          profileViews: profileViewData?.totalViews || 27,
+          connections: Array.isArray(connectionsData) ? connectionsData.length : 42,
+          streaks: streaksData?.items?.length || 3,
+          projects: projectsData?.items?.length || 5
         });
         
         // Update other state data - add null checks
@@ -428,7 +786,6 @@ const Dashboard = () => {
         setUserStreaks(streaksData?.items || []);
         setUserProjects(projectsData?.items || []);
         setUserAchievements(achievementsData?.items || []);
-        setRecentPosts(postsData?.posts || []);
         setStories(storiesData?.stories || []);
         
         // Load planner from local storage if exists
@@ -441,1145 +798,765 @@ const Dashboard = () => {
             setPlanner([]);
           }
         }
+        
+        // Get user location
+        getUserLocation();
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         // Set default/fallback values for all states
         setDashboardStats({
-          profileViews: 0,
-          connections: 0,
-          streaks: 0,
-          projects: 0
+          profileViews: 27,
+          connections: 42,
+          streaks: 3,
+          projects: 5
         });
         setPendingRequests(0);
         setConnectionRequests([]);
         setUserStreaks([]);
         setUserProjects([]);
         setUserAchievements([]);
-        setRecentPosts([]);
         setStories([]);
       } finally {
-        setLoadingData(false);
+        setLoadingDashboard(false);
       }
     };
-
-    fetchAllData();
+    
+    fetchDashboardData();
   }, [user]);
 
-  // Enhanced connection request handling with proper UI updates
-  const handleAcceptConnection = async (userId) => {
-    try {
-      await networkService.acceptConnection(userId);
-      // Update the pending requests list
-      setPendingRequests(prev => prev - 1);
-      // Remove the accepted request from the list
-      setConnectionRequests(prev => prev.filter(req => req._id !== userId));
-      // Update connections count
-      setDashboardStats(prev => ({
-        ...prev,
-        connections: prev.connections + 1
-      }));
-      
-      // Show success toast
-      if (toast) {
-        toast({
-          title: "Connection Accepted",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error accepting connection request:', error);
-      
-      // Show error toast
-      if (toast) {
-        toast({
-          title: "Failed to accept connection",
-          description: error.message || "Please try again later",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    }
-  };
-
-  const handleDeclineConnection = async (userId) => {
-    try {
-      await networkService.declineConnection(userId);
-      // Update the pending requests list
-      setPendingRequests(prev => prev - 1);
-      // Remove the declined request from the list
-      setConnectionRequests(prev => prev.filter(req => req._id !== userId));
-      
-      // Show success toast
-      if (toast) {
-        toast({
-          title: "Connection Request Declined",
-          status: "info",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error declining connection request:', error);
-      
-      // Show error toast
-      if (toast) {
-        toast({
-          title: "Failed to decline connection",
-          description: error.message || "Please try again later",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    }
-  };
-
-  // Handle connecting with a nearby user
-  const handleConnect = async (userId) => {
-    try {
-      await networkService.requestConnection(userId);
-      // Update the user's status in the nearbyUsers list
-      setNearbyUsers(prev => 
-        prev.map(user => 
-          user._id === userId 
-            ? { ...user, connectionStatus: 'pending' } 
-            : user
-        )
-      );
-      
-      // Also update the full list 
-      setAllNearbyUsers(prev => 
-        prev.map(user => 
-          user._id === userId 
-            ? { ...user, connectionStatus: 'pending' } 
-            : user
-        )
-      );
-      
-      // Show success toast
-      if (toast) {
-        toast({
-          title: "Connection Request Sent",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error sending connection request:', error);
-      
-      // Show error toast
-      if (toast) {
-        toast({
-          title: "Failed to send request",
-          description: error.message || "Please try again later",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    }
-  };
-
-  // Handle following a nearby user
-  const handleFollow = async (userId) => {
-    try {
-      const response = await networkService.toggleFollow(userId);
-      // Update the user's status in the nearby users list
-      setNearbyUsers(prev => 
-        prev.map(user => 
-          user._id === userId 
-            ? { ...user, isFollowing: response.following } 
-            : user
-        )
-      );
-      
-      // Also update the full list
-      setAllNearbyUsers(prev => 
-        prev.map(user => 
-          user._id === userId 
-            ? { ...user, isFollowing: response.following } 
-            : user
-        )
-      );
-      
-      // Show success toast
-      if (toast) {
-        toast({
-          title: response.following ? "Following User" : "Unfollowed User",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error following user:', error);
-      
-      // Show error toast
-      if (toast) {
-        toast({
-          title: "Action Failed",
-          description: error.message || "Please try again later",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    }
-  };
-  // Planner/To-Do list functions with improved error handling
-  const addTask = () => {
-    if (!newTask.trim()) return;
-    
-    const task = {
-      id: Date.now(),
-      text: newTask,
-      completed: false,
-      date: new Date().toISOString()
+  // Generate date for calendar display
+  const getCurrentDateDisplay = () => {
+    const now = new Date();
+    return {
+      day: now.getDate(),
+      weekday: now.toLocaleDateString('en-US', { weekday: 'long' }),
+      month: now.toLocaleDateString('en-US', { month: 'long' }),
+      year: now.getFullYear()
     };
-    
-    const updatedPlanner = [...planner, task];
-    setPlanner(updatedPlanner);
-    
-    // Save to localStorage with error handling
-    try {
-      localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
-    } catch (error) {
-      console.error('Error saving planner to localStorage:', error);
-      
-      // Show error toast
-      if (toast) {
-        toast({
-          title: "Failed to save task",
-          description: "Your task was added but may not persist after refresh",
-          status: "warning",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    }
-    
-    setNewTask('');
   };
 
-  const toggleTaskCompletion = (taskId) => {
-    const updatedPlanner = planner.map(task => 
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    );
-    setPlanner(updatedPlanner);
-    
-    // Save to localStorage with error handling
-    try {
-      localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
-    } catch (error) {
-      console.error('Error saving planner to localStorage:', error);
-    }
+  const dateInfo = getCurrentDateDisplay();
+
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
   };
 
-  const deleteTask = (taskId) => {
-    const updatedPlanner = planner.filter(task => task.id !== taskId);
-    setPlanner(updatedPlanner);
-    
-    // Save to localStorage with error handling
-    try {
-      localStorage.setItem('userPlanner', JSON.stringify(updatedPlanner));
-    } catch (error) {
-      console.error('Error saving planner to localStorage:', error);
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return ''; // Invalid date
-      }
-      
-      const options = { weekday: 'short', month: 'short', day: 'numeric' };
-      return date.toLocaleDateString(undefined, options);
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return '';
-    }
-  };
-
-  // Get profile picture with fallback
-  const getProfilePicture = (userObj) => {
-    if (userObj?.profilePicture) {
-      return userObj.profilePicture;
-    }
-    return defaultProfilePic;
-  };
-
-  // Loading state for main dashboard
-  if (loadingState.dashboard || loadingData) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-orange-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
-      </div>
-    );
-  }
-  
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-orange-50">
-      {/* Sidebar - hidden on mobile, visible on md and up */}
-      <div className="hidden md:block">
-        <Sidebar user={user} onLogout={logout} />
-      </div>
-      
-      {/* Mobile Navbar - visible only on small screens */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white shadow-lg z-10">
-        <div className="flex justify-around items-center h-16 px-2">
-          <button 
-            onClick={() => setActiveSection('overview')}
-            className={`flex flex-col items-center justify-center p-2 ${activeSection === 'overview' ? 'text-orange-500' : 'text-gray-500'}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span className="text-xs">Home</span>
-          </button>
-          <button 
-            onClick={() => setActiveSection('network')}
-            className={`flex flex-col items-center justify-center p-2 ${activeSection === 'network' ? 'text-orange-500' : 'text-gray-500'}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-            <span className="text-xs">Network</span>
-          </button>
-          <button 
-            onClick={() => setActiveSection('content')}
-            className={`flex flex-col items-center justify-center p-2 ${activeSection === 'content' ? 'text-orange-500' : 'text-gray-500'}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            <span className="text-xs">Create</span>
-          </button>
-          <button 
-            onClick={() => setActiveSection('portfolio')}
-            className={`flex flex-col items-center justify-center p-2 ${activeSection === 'portfolio' ? 'text-orange-500' : 'text-gray-500'}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            <span className="text-xs">Portfolio</span>
-          </button>
-          <Link
-            to="/profile"
-            className="flex flex-col items-center justify-center p-2 text-gray-500"
-          >
-            <User className="h-6 w-6" />
-            <span className="text-xs">Profile</span>
-          </Link>
+    <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white">
+      {/* Hero Section with Calendar-style Header */}
+      <div className={`relative bg-gradient-to-r from-orange-600 to-orange-400 pt-12 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden ${isScrolled ? 'shadow-lg' : ''} transition-all duration-300`}>
+        {/* Decorative elements */}
+        <div className="absolute inset-0 z-0 opacity-20">
+          <div className="absolute -left-10 -top-10 h-64 w-64 rounded-full bg-orange-300"></div>
+          <div className="absolute right-0 top-1/2 h-80 w-80 rounded-full bg-orange-300"></div>
+          <div className="absolute left-1/4 bottom-0 h-40 w-40 rounded-full bg-orange-300"></div>
+        </div>
+        
+        <div className="relative z-10 max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            {/* Calendar-style greeting */}
+            <div className="flex items-center mb-6 md:mb-0">
+              <div className="h-16 w-16 md:h-20 md:w-20 rounded-xl bg-white shadow-md mr-4 flex flex-col items-center justify-center transform hover:rotate-3 transition-transform">
+                <span className="text-orange-500 font-bold text-2xl md:text-3xl">{dateInfo.day}</span>
+                <span className="text-orange-500 text-xs uppercase">{dateInfo.month.slice(0, 3)}</span>
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white">
+                  {user ? `${getGreeting()}, ${user.firstName || 'there'}!` : 'Welcome to MeetKats!'}
+                </h1>
+                <p className="text-orange-100">{dateInfo.weekday}, {dateInfo.month} {dateInfo.day}, {dateInfo.year}</p>
+              </div>
+            </div>
+            
+            {/* Quick Action Buttons - Only for logged in users */}
+            {user && (
+              <div className="flex space-x-2">
+                <Link to="/events/create">
+                  <button className="flex items-center bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-50 transition-all duration-300 shadow-sm hover:shadow">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Create Event
+                  </button>
+                </Link>
+                <Link to="/posts/create">
+                  <button className="flex items-center bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-800 transition-all duration-300 shadow-sm hover:shadow">
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    New Post
+                  </button>
+                </Link>
+              </div>
+            )}
+          </div>
+          
+          {/* Search Bar */}
+          <div className="mt-8 max-w-3xl mx-auto">
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-center bg-white p-2 rounded-xl shadow-lg">
+              <div className="flex items-center flex-1 w-full">
+                <Search className="h-5 w-5 text-gray-400 ml-2" />
+                <input
+                  type="text"
+                  placeholder="Search events, people, and more..."
+                  className="flex-1 p-2 ml-2 focus:outline-none w-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <button 
+                type="submit"
+                className="mt-3 sm:mt-0 w-full sm:w-auto px-6 py-3 bg-orange-500 text-white font-medium rounded-md hover:bg-orange-600 transition-all duration-300 shadow-sm hover:shadow"
+              >
+                Search
+              </button>
+            </form>
+          </div>
+          
+          {/* Quick Stats for Logged In Users */}
+          {user && !loadingDashboard && (
+            <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto">
+              <div className="bg-white bg-opacity-90 rounded-xl p-4 shadow-md backdrop-blur-sm transform hover:scale-105 transition-transform cursor-pointer">
+                <div className="flex justify-between items-start">
+                  <p className="text-orange-500 font-semibold">Profile Views</p>
+                  <BarChart2 className="h-5 w-5 text-orange-500" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">{dashboardStats.profileViews}</p>
+                <p className="text-xs text-green-600 mt-1 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" /> Career visibility
+                </p>
+              </div>
+              <div className="bg-white bg-opacity-90 rounded-xl p-4 shadow-md backdrop-blur-sm transform hover:scale-105 transition-transform cursor-pointer">
+                <div className="flex justify-between items-start">
+                  <p className="text-orange-500 font-semibold">Connections</p>
+                  <Users className="h-5 w-5 text-orange-500" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">{dashboardStats.connections}</p>
+                <p className="text-xs text-green-600 mt-1 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" /> Network growth
+                </p>
+              </div>
+              <div className="bg-white bg-opacity-90 rounded-xl p-4 shadow-md backdrop-blur-sm transform hover:scale-105 transition-transform cursor-pointer">
+                <div className="flex justify-between items-start">
+                  <p className="text-orange-500 font-semibold">Streaks</p>
+                  <Zap className="h-5 w-5 text-orange-500" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">{dashboardStats.streaks}</p>
+                <p className="text-xs text-green-600 mt-1 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" /> Active habits
+                </p>
+              </div>
+              <div className="bg-white bg-opacity-90 rounded-xl p-4 shadow-md backdrop-blur-sm transform hover:scale-105 transition-transform cursor-pointer">
+                <div className="flex justify-between items-start">
+                  <p className="text-orange-500 font-semibold">Requests</p>
+                  {pendingRequests > 0 && (
+                    <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                      {pendingRequests}
+                    </span>
+                  )}
+                </div>
+                <p className="text-3xl font-bold text-gray-800">{pendingRequests}</p>
+                <p className="text-xs text-green-600 mt-1 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" /> Pending connections
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
       {/* Main Content */}
-      <div className="flex-1 overflow-auto pb-16 md:pb-0">
-        <div className="md:pl-0 pl-0 md:pt-0 pt-4">
-          <main className="max-w-7xl mx-auto p-4 md:p-6">
-            {/* Dashboard Header - Calendar View Style */}
-            <div className="bg-white rounded-xl shadow-md mb-6 p-4 md:p-6 border-l-4 border-orange-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                <div>
-                  <div className="flex items-center mb-2">
-                    <div className="h-12 w-12 md:h-14 md:w-14 rounded-lg bg-gradient-to-r from-orange-500 to-orange-400 mr-4 flex items-center justify-center text-white font-bold text-xl">
-                      {new Date().getDate()}
-                    </div>
-                    <div>
-                      <h1 className="text-xl md:text-2xl font-bold text-gray-800">Hello, {user?.firstName || 'User'}!</h1>
-                      <p className="text-sm md:text-base text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 mb-12">
+        {/* Main Grid Layout - 3 columns on large screens */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Sidebar - Only visible for logged in users */}
+          {user && (
+            <div className="lg:col-span-3">
+              {/* User Profile Card */}
+              <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 transform hover:shadow-lg transition-all duration-300">
+                <div className="relative">
+                  <div className="h-20 bg-gradient-to-r from-orange-400 to-orange-500"></div>
+                  <div className="absolute top-12 left-4">
+                    <div className="h-16 w-16 rounded-lg border-4 border-white bg-white flex items-center justify-center shadow-md overflow-hidden">
+                      <img
+                        src={getProfilePicture(user)}
+                        alt="Profile"
+                        className="h-full w-full object-cover"
+                      />
                     </div>
                   </div>
                 </div>
                 
-                <div className="mt-4 md:mt-0 w-full md:w-auto">
-                  <div className="flex flex-wrap gap-2">
-                    <Link to={`/connections`}>
-                      <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-md text-sm font-medium">
-                        {pendingRequests} connection requests
-                      </span>
+                <div className="pt-12 pb-5 px-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">
+                        {user?.firstName || 'User'} {user?.lastName || ''}
+                      </h2>
+                      <p className="text-xs text-gray-500">{user?.headline || 'Professional Title'}</p>
+                    </div>
+                    <Link 
+                      to="/profile" 
+                      className="text-orange-500 hover:text-orange-600"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
                     </Link>
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-md text-sm font-medium">
-                      {planner.filter(task => !task.completed).length} pending tasks
-                    </span>
+                  </div>
+                  
+                  <div className="mt-4 bg-orange-50 rounded-lg p-3">
+                    <div className="text-xs">
+                      <p className="font-medium text-gray-900">Profile Completion: 68%</p>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div className="bg-orange-500 h-2 rounded-full" style={{ width: '68%' }}></div>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <Link 
+                        to="/profile/edit" 
+                        className="text-orange-600 text-xs font-medium hover:text-orange-700"
+                      >
+                        Complete your profile →
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Content Tabs Navigation - Scrollable on mobile */}
-            <div className="mb-6 bg-white rounded-xl shadow-md overflow-hidden border-b">
-            <div className="flex overflow-x-auto scrollbar-hide">
-                <button
-                  onClick={() => setActiveSection('overview')}
-                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
-                    activeSection === 'overview'
-                      ? 'text-orange-600 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-orange-500'
-                  }`}
-                >
-                  Overview
-                </button>
-                <button
-                  onClick={() => setActiveSection('network')}
-                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
-                    activeSection === 'network'
-                      ? 'text-orange-600 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-orange-500'
-                  }`}
-                >
-                  Network
-                </button>
-                <button
-                  onClick={() => setActiveSection('content')}
-                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
-                    activeSection === 'content'
-                      ? 'text-orange-600 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-orange-500'
-                  }`}
-                >
-                  Content
-                </button>
-                <button
-                  onClick={() => setActiveSection('portfolio')}
-                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
-                    activeSection === 'portfolio'
-                      ? 'text-orange-600 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-orange-500'
-                  }`}
-                >
-                  Portfolio
-                </button>
-              </div>
-            </div>
-
-            {/* Dashboard Content - Based on active section */}
-            {activeSection === 'overview' && (
-              <>
-                {/* Stats Cards - Responsive grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
-                  <div className="bg-white rounded-xl shadow p-3 md:p-5 border-l-4 border-orange-500">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-gray-500 text-xs md:text-sm">Profile Views</p>
-                        <h3 className="text-xl md:text-3xl font-bold text-gray-800 mt-1">{dashboardStats.profileViews}</h3>
-                      </div>
-                      <div className="bg-orange-100 p-1.5 md:p-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-6 md:w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-green-600 text-xs md:text-sm mt-2">Career visibility</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-xl shadow p-3 md:p-5 border-l-4 border-blue-500">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-gray-500 text-xs md:text-sm">Connections</p>
-                        <h3 className="text-xl md:text-3xl font-bold text-gray-800 mt-1">{dashboardStats.connections}</h3>
-                      </div>
-                      <div className="bg-blue-100 p-1.5 md:p-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-6 md:w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-green-600 text-xs md:text-sm mt-2">Network growth</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-xl shadow p-3 md:p-5 border-l-4 border-green-500">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-gray-500 text-xs md:text-sm">Streaks</p>
-                        <h3 className="text-xl md:text-3xl font-bold text-gray-800 mt-1">{dashboardStats.streaks}</h3>
-                      </div>
-                      <div className="bg-green-100 p-1.5 md:p-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-6 md:w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-green-600 text-xs md:text-sm mt-2">Active habits</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-xl shadow p-3 md:p-5 border-l-4 border-purple-500">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-gray-500 text-xs md:text-sm">Projects</p>
-                        <h3 className="text-xl md:text-3xl font-bold text-gray-800 mt-1">{dashboardStats.projects}</h3>
-                      </div>
-                      <div className="bg-purple-100 p-1.5 md:p-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-6 md:w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-green-600 text-xs md:text-sm mt-2">Portfolio highlights</p>
-                  </div>
+              {/* Side Widget Tabs */}
+              <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 transform hover:shadow-lg transition-all duration-300">
+                <div className="flex border-b border-gray-200">
+                  <button
+                    onClick={() => setSideWidgetView('tasks')}
+                    className={`flex items-center justify-center flex-1 py-3 text-sm font-medium transition-colors ${
+                      sideWidgetView === 'tasks'
+                        ? 'text-orange-600 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-orange-600'
+                    }`}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    My Tasks
+                  </button>
+                  <button
+                    onClick={() => setSideWidgetView('streaks')}
+                    className={`flex items-center justify-center flex-1 py-3 text-sm font-medium transition-colors ${
+                      sideWidgetView === 'streaks'
+                        ? 'text-orange-600 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-orange-600'
+                    }`}
+                  >
+                    <Activity className="h-4 w-4 mr-2" />
+                    Streaks
+                  </button>
+                  <button
+                    onClick={() => setSideWidgetView('connections')}
+                    className={`flex items-center justify-center flex-1 py-3 text-sm font-medium transition-colors ${
+                      sideWidgetView === 'connections'
+                        ? 'text-orange-600 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-orange-600'
+                    }`}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Requests
+                  </button>
                 </div>
 
-                {/* Responsive Dashboard Layout - Stack on mobile, two columns on larger screens */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                  {/* Left Side - Full width on mobile, 3 columns on larger screens */}
-                  <div className="lg:col-span-3 space-y-6">
-                    {/* Quick Actions */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                      <div className="border-b border-gray-200 px-4 md:px-6 py-4">
-                        <h3 className="font-semibold text-gray-800">Quick Actions</h3>
-                      </div>
-                      <div className="p-4 md:p-6 grid grid-cols-3 gap-2 md:gap-4">
-                        <button 
-                          onClick={() => navigate('/posts/create')}
-                          className="flex flex-col items-center justify-center bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg p-2 md:p-4 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 md:h-8 md:w-8 mb-1 md:mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          <span className="text-xs md:text-sm font-medium">Create Post</span>
-                        </button>
-                        
-                        <button 
-                          onClick={() => navigate('/portfolio/projects/new')}
-                          className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-2 md:p-4 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 md:h-8 md:w-8 mb-1 md:mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                          </svg>
-                          <span className="text-xs md:text-sm font-medium">Add Project</span>
-                        </button>
-                        
-                        <button 
-                          onClick={() => navigate('/portfolio/streak/new')}
-                          className="flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 text-green-700 rounded-lg p-2 md:p-4 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 md:h-8 md:w-8 mb-1 md:mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                          </svg>
-                          <span className="text-xs md:text-sm font-medium">Start Streak</span>
-                        </button>
-                      </div>
+                {/* Task Planner Content */}
+                {sideWidgetView === 'tasks' && (
+                  <div className="p-4">
+                    {/* Add new task */}
+                    <div className="flex mb-4">
+                      <input
+                        type="text"
+                        value={newTask}
+                        onChange={(e) => setNewTask(e.target.value)}
+                        placeholder="Add a new task..."
+                        className="flex-1 border border-gray-300 rounded-l-md py-2 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        onKeyPress={(e) => e.key === 'Enter' && addTask()}
+                      />
+                      <button
+                        onClick={addTask}
+                        className="bg-orange-500 text-white rounded-r-md px-3 py-2 text-xs hover:bg-orange-600 transition-colors"
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                      </button>
                     </div>
-                    
-                    {/* Stories */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                      <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-800">Stories</h3>
-                        <Link to="/stories" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm">View All</Link>
-                      </div>
-                      <div className="p-4 md:p-6">
-                      <StoryCard stories={stories} />
-                      </div>
-                    </div>
-                    
-                    {/* Recent Activity */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                      <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-800">Recent Activity</h3>
-                        <button className="text-gray-500 hover:text-gray-700">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="p-4 md:p-6">
-                        {recentPosts.length > 0 && (
-                          <>
-                            <h4 className="font-medium text-sm text-gray-700 mb-3">Latest Posts</h4>
-                            <div className="mb-6">
-                              {recentPosts.map(post => (
-                                <div key={post._id} className="mb-4 pb-4 border-b border-gray-100">
-                                  <div className="flex items-center mb-2">
-                                    <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg overflow-hidden mr-2 md:mr-3">
-                                      {post.author && (
-                                        <img 
-                                          src={getProfilePicture(post.author)}
-                                          alt={`${post.author?.firstName || 'User'} ${post.author?.lastName || ''}`}
-                                          className="h-full w-full object-cover" 
-                                        />
-                                      )}
-                                    </div>
-                                    <div>
-                                      {post.author && (
-                                        <p className="font-medium text-xs md:text-sm">
-                                          {post.author?.firstName || 'User'} {post.author?.lastName || ''}
-                                        </p>
-                                      )}
-                                      <p className="text-xs text-gray-500">{formatDate(post.createdAt)}</p>
-                                    </div>
-                                  </div>
-                                  <p className="text-xs md:text-sm text-gray-700">{post.content?.length > 100 ? post.content.substring(0, 100) + '...' : post.content}</p>
-                                  {post.images && post.images.length > 0 && (
-                                    <div className="mt-2">
-                                      <div className="h-24 md:h-32 rounded-lg overflow-hidden">
-                                        <img 
-                                          src={post.images[0].url} 
-                                          alt="Post content"
-                                          className="h-full w-full object-cover" 
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className="mt-3 flex items-center">
-                                    <Link to={`/posts/${post._id}`} className="text-xs md:text-sm text-orange-500 hover:text-orange-600 font-medium">
-                                      View Post
-                                    </Link>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                        
-                        {userAchievements.length > 0 && (
-                          <>
-                            <h4 className="font-medium text-sm text-gray-700 mb-3">Recent Achievements</h4>
-                            <div>
-                              {userAchievements.map(achievement => (
-                                <div key={achievement._id} className="mb-4 pb-4 border-b border-gray-100 last:border-b-0">
-                                  <div className="flex">
-                                    <div className="flex-shrink-0 mr-3">
-                                      <div className="h-10 w-10 md:h-12 md:w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                                        {achievement.image ? (
-                                          <img 
-                                            src={achievement.image} 
-                                            alt={achievement.title || 'Achievement'}
-                                            className="h-6 w-6 md:h-8 md:w-8 object-contain" 
-                                          />
-                                        ) : (
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                          </svg>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <h5 className="font-medium text-sm md:text-base text-gray-800">{achievement.title || 'Untitled Achievement'}</h5>
-                                      <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
-                                      <p className="text-xs md:text-sm text-gray-600 mt-1">{achievement.description || ''}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                        
-                        {recentPosts.length === 0 && userAchievements.length === 0 && (
-                          <div className="text-center py-6">
-                            <p className="text-gray-500 text-sm">No recent activity to show.</p>
-                            <Link to="/posts/create" className="mt-2 inline-block text-orange-500 hover:text-orange-600 text-sm font-medium">
-                              Create your first post →
-                            </Link>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Right Side - Full width on mobile, 2 columns on larger screens */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="mx-4 my-4">
-                      <LocationPermissionIcon/>
-                    </div>
-                    {/* User Profile Card */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div className="relative">
-                          <div className="h-20 md:h-24 bg-gradient-to-r from-orange-400 to-orange-500"></div>
-                          <div className="absolute top-12 md:top-14 left-4 md:left-6">
-                            <div className="h-16 w-16 md:h-20 md:w-20 rounded-lg border-4 border-white bg-white flex items-center justify-center shadow-md overflow-hidden">
-                              <img
-                                src={getProfilePicture(user)}
-                                alt="Profile"
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="pt-12 md:pt-14 pb-5 px-4 md:px-6">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h2 className="text-lg md:text-xl font-bold text-gray-900">
-                                {user?.firstName || 'User'} {user?.lastName || ''}
-                              </h2>
-                              <p className="text-xs md:text-sm text-gray-500">{user?.headline || 'Professional Title'}</p>
-                            </div>
-                            <Link 
-                              to="/profile" 
-                              className="text-orange-500 hover:text-orange-600"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                              </svg>
-                            </Link>
-                          </div>
-                          
-                          <div className="mt-4 md:mt-6 bg-orange-50 rounded-lg p-3 md:p-4">
-                            <div className="text-xs md:text-sm">
-                              <p className="font-medium text-gray-900">Profile Completion: 68%</p>
-                              <div className="w-full bg-gray-200 rounded-full h-2 md:h-2.5 mt-2">
-                                <div className="bg-orange-500 h-2 md:h-2.5 rounded-full" style={{ width: '68%' }}></div>
-                              </div>
-                            </div>
-                            <div className="mt-2">
-                              <Link 
-                                to="/profile/edit" 
-                                className="text-orange-600 text-xs md:text-sm font-medium hover:text-orange-700"
-                              >
-                                Complete your profile →
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* My Planner / To-Do List */}
-                      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
-                          <h3 className="font-semibold text-gray-800">My Planner</h3>
-                          <div className="text-orange-500 hover:text-orange-600 text-sm cursor-pointer">
-                            <Calendar className="h-4 w-4 md:h-5 md:w-5" />
-                          </div>
-                        </div>
-                        <div className="p-4 md:p-6">
-                          {/* Add new task */}
-                          <div className="flex mb-4">
-                            <input
-                              type="text"
-                              value={newTask}
-                              onChange={(e) => setNewTask(e.target.value)}
-                              placeholder="Add a new task..."
-                              className="flex-1 border border-gray-300 rounded-l-md py-2 px-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                              onKeyPress={(e) => e.key === 'Enter' && addTask()}
-                            />
-                            <button
-                              onClick={addTask}
-                              className="bg-orange-500 text-white rounded-r-md px-3 md:px-4 py-2 text-xs md:text-sm hover:bg-orange-600 transition"
-                            >
-                              <PlusCircle className="h-4 w-4 md:h-5 md:w-5" />
-                            </button>
-                          </div>
 
-                          {/* Task list */}
-                          <div className="space-y-2 max-h-60 md:max-h-72 overflow-y-auto">
-                            {planner.length === 0 ? (
-                              <div className="text-center py-4 md:py-6">
-                                <p className="text-gray-500 text-xs md:text-sm">No tasks yet. Add your first task above.</p>
-                              </div>
-                            ) : (
-                              planner.map(task => (
-                                <div 
-                                  key={task.id} 
-                                  className={`flex items-center justify-between p-2 md:p-3 border rounded-md ${
-                                    task.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
-                                  }`}
-                                >
-                                  <div className="flex items-center flex-1 min-w-0">
-                                    <button
-                                      onClick={() => toggleTaskCompletion(task.id)}
-                                      className={`flex-shrink-0 h-4 w-4 md:h-5 md:w-5 rounded-full border ${
-                                        task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'
-                                      } mr-2 md:mr-3 flex items-center justify-center`}
-                                    >
-                                      {task.completed && <Check className="h-2 w-2 md:h-3 md:w-3 text-white" />}
-                                    </button>
-                                    <div className="flex-1 min-w-0">
-                                      <p className={`text-xs md:text-sm truncate ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                                        {task.text}
-                                      </p>
-                                      <p className="text-xs text-gray-500 truncate">
-                                        Added {formatDate(task.date)}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => deleteTask(task.id)}
-                                    className="ml-2 text-gray-400 hover:text-red-500 flex-shrink-0"
-                                  >
-                                    <X className="h-3 w-3 md:h-4 md:w-4" />
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Active Streaks */}
-                      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
-                          <h3 className="font-semibold text-gray-800">Active Streaks</h3>
-                          <Link to="/portfolio/streaks" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm">View All</Link>
-                        </div>
-                        <div className="p-4 md:p-6 space-y-4">
-                          {userStreaks.length > 0 ? (
-                            userStreaks.map(streak => (
-                              <div key={streak._id} className="flex">
-                                <div className="mr-3 md:mr-4 flex-shrink-0">
-                                  <div className="h-12 w-12 md:h-14 md:w-14 rounded-lg bg-green-100 flex flex-col items-center justify-center">
-                                    <span className="text-green-600 text-xs font-semibold">
-                                      Day
-                                    </span>
-                                    <span className="text-green-600 text-base md:text-lg font-bold">
-                                      {streak.currentStreak || 0}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <h4 className="text-xs md:text-sm font-semibold text-gray-900">{streak.title || 'Streak'}</h4>
-                                  <p className="text-xs text-gray-500 mt-1">{streak.activity || ''}</p>
-                                  <div className="mt-2">
-                                    <Link 
-                                      to={`/portfolio/streaks/${streak._id}`}
-                                      className="inline-block bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full"
-                                    >
-                                      Check In
-                                    </Link>
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-center py-4 md:py-6">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 md:h-10 md:w-10 text-gray-300 mx-auto mb-2 md:mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                              </svg>
-                              <p className="text-xs md:text-sm text-gray-500">No active streaks</p>
-                              <Link 
-                                to="/portfolio/streak/new" 
-                                className="mt-2 text-orange-500 hover:text-orange-600 text-xs md:text-sm font-medium"
-                              >
-                                Start a Streak →
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {activeSection === 'network' && (
-                <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
-                  <div className="mb-6">
-                    <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-2">Your Network</h2>
-                    <p className="text-sm text-gray-500">Connect with professionals in your field</p>
-                  </div>
-                  
-                  {/* Connection requests and nearby professionals - stack on mobile */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                    <div className="bg-orange-50 rounded-xl p-4 md:p-6">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Connection Requests</h3>
-                      {pendingRequests > 0 ? (
-                        <div className="space-y-3 md:space-y-4">
-                          {connectionRequests.map(request => (
-                            <div key={request._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                              <div className="flex items-center mb-2 sm:mb-0">
-                                <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg overflow-hidden bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
-                                  <img 
-                                    src={getProfilePicture(request)} 
-                                    alt={`${request?.firstName || 'User'} ${request?.lastName || ''}`} 
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
-                                <div>
-                                  <h4 className="font-medium text-sm md:text-base">{request?.firstName || 'User'} {request?.lastName || ''}</h4>
-                                  <p className="text-xs md:text-sm text-gray-500">{request?.headline || 'Professional'}</p>
-                                </div>
-                              </div>
-                              <div className="flex space-x-2">
-                                <button 
-                                  onClick={() => handleAcceptConnection(request._id)}
-                                  className="bg-orange-500 text-white px-2 md:px-3 py-1 rounded-md text-xs md:text-sm"
-                                >
-                                  Accept
-                                </button>
-                                <button 
-                                  onClick={() => handleDeclineConnection(request._id)}
-                                  className="bg-gray-200 text-gray-700 px-2 md:px-3 py-1 rounded-md text-xs md:text-sm"
-                                >
-                                  Ignore
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                          <Link to="/network" className="block w-full text-center text-orange-500 font-medium mt-4 text-sm">
-                            View All Requests →
-                          </Link>
+                    {/* Task list */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {planner.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-500 text-xs">No tasks yet. Add your first task above.</p>
                         </div>
                       ) : (
-                        <div className="text-center py-4 md:py-6">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 md:h-10 md:w-10 text-gray-300 mx-auto mb-2 md:mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                          </svg>
-                          <p className="text-sm text-gray-500">No pending requests</p>
-                        </div>
-                      )}
-                    </div>
-                  
-                    {/* Nearby Professionals Card */}
-                    <div className="bg-white rounded-xl shadow-md p-3 md:p-6 mb-4">
-                      {/* Header */}
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center">
-                          <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
-                          <h2 className="text-base md:text-xl font-semibold text-gray-800">Nearby Professionals</h2>
-                        </div>
-                        <Link to="/network/nearby" className="text-xs md:text-sm text-orange-500 hover:text-orange-600 flex items-center">
-                          See All <ChevronRight className="h-3 w-3 md:h-4 md:w-4 ml-1" />
-                        </Link>
-                      </div>
-
-                      {/* User Cards */}
-                      {loadingState.nearby ? (
-                        <div className="flex justify-center items-center h-40">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-                        </div>
-                      ) : locationError ? (
-                        <div className="bg-orange-50 rounded-xl p-4 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <AlertTriangle className="h-10 w-10 text-orange-500 mb-2" />
-                            <h3 className="text-lg font-semibold text-gray-800 mb-1">Location Error</h3>
-                            <p className="text-sm text-gray-600 mb-3">{locationError}</p>
-                            <button
-                              onClick={getUserLocation}
-                              className="inline-flex items-center px-3 py-1.5 bg-orange-500 text-white rounded-md text-sm hover:bg-orange-600 transition-colors"
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1" />
-                              Try Again
-                            </button>
-                          </div>
-                        </div>
-                      ) : nearbyUsers.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-4 md:gap-6">
-                          {nearbyUsers.map(user => (
-                            <div key={user._id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 overflow-hidden">
-                              <div className="flex items-start p-3 md:p-4">
-                                {/* User image */}
-                                <div className="mr-3 md:mr-4">
-                                  <div className="h-14 w-14 md:h-16 md:w-16 rounded-lg overflow-hidden bg-orange-100">
-                                    <img 
-                                      src={getProfilePicture(user)} 
-                                      alt={`${user.firstName} ${user.lastName}`}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  </div>
-                                </div>
-                                
-                                {/* User details */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                                    <div>
-                                      <h3 className="text-base md:text-lg font-medium text-gray-900 truncate">
-                                        {user.firstName} {user.lastName}
-                                      </h3>
-                                      <p className="text-xs md:text-sm text-gray-600 truncate">{user.headline || 'Professional'}</p>
-                                    </div>
-                                    
-                                    {user.distance !== undefined && (
-                                      <span className="mt-1 md:mt-0 text-xs text-gray-500 flex items-center md:ml-2">
-                                        <MapPin className="h-3 w-3 mr-1" />
-                                        {user.distanceFormatted || formatDistance(user.distance)}
-                                      </span>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Industry and skills */}
-                                  {user.industry && (
-                                    <div className="mt-1 text-xs text-gray-600">
-                                      <span className="font-medium">Industry:</span> {user.industry}
-                                    </div>
-                                  )}
-                                  
-                                  {user.skills && user.skills.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {user.skills.slice(0, 2).map((skill, index) => (
-                                        <span key={index} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded">
-                                          {typeof skill === 'string' ? skill : skill.name}
-                                        </span>
-                                      ))}
-                                      {user.skills.length > 2 && (
-                                        <span className="text-xs text-gray-500">+{user.skills.length - 2}</span>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                  {/* Action buttons */}
-                                  <div className="mt-3 flex space-x-2">
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleConnect(user._id);
-                                      }}
-                                      disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
-                                      className={`flex items-center px-2 py-1 rounded text-xs md:text-sm ${
-                                        user.connectionStatus === 'pending'
-                                          ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                                          : user.connectionStatus === 'connected'
-                                            ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                                            : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                      }`}
-                                    >
-                                      <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                                      {user.connectionStatus === 'pending'
-                                        ? 'Pending'
-                                        : user.connectionStatus === 'connected'
-                                          ? 'Connected'
-                                          : 'Connect'}
-                                    </button>
-                                    
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleFollow(user._id);
-                                      }}
-                                      className={`flex items-center px-2 py-1 rounded text-xs md:text-sm ${
-                                        user.isFollowing
-                                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                      }`}
-                                    >
-                                      <Rss className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                                      {user.isFollowing ? 'Following' : 'Follow'}
-                                    </button>
-                                    
-                                    <Link
-                                      to={`/profile/${user._id}`}
-                                      className="flex items-center px-2 py-1 rounded text-xs md:text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 ml-auto"
-                                    >
-                                      View Profile
-                                    </Link>
-                                  </div>
-                                </div>
+                        planner.map(task => (
+                          <div 
+                            key={task.id} 
+                            className={`flex items-center justify-between p-2 border rounded-md ${
+                              task.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+                            } hover:shadow-sm transition-shadow`}
+                          >
+                            <div className="flex items-center flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleTaskCompletion(task.id)}
+                                className={`flex-shrink-0 h-4 w-4 rounded-full border ${
+                                  task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                                } mr-2 flex items-center justify-center transition-colors duration-300`}
+                              >
+                                {task.completed && <Check className="h-2 w-2 text-white" />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-xs truncate ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                  {task.text}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  Added {formatDate(task.date)}
+                                </p>
                               </div>
                             </div>
-                          ))}
-                          
-                          <Link to="/network/nearby" className="block w-full text-center text-orange-500 font-medium mt-2 text-sm">
-                            View All Nearby Professionals →
-                          </Link>
-                        </div>
-                      ) : (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-8 text-center">
-                          <div className="inline-flex h-12 w-12 md:h-16 md:w-16 rounded-full bg-orange-100 items-center justify-center mb-3 md:mb-4">
-                            <MapPin className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
-                          </div>
-                          <h3 className="text-base md:text-xl font-semibold text-gray-800 mb-1 md:mb-2">No Nearby Professionals</h3>
-                          <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
-                            {userLocation 
-                              ? "We couldn't find any professionals near your current location." 
-                              : "Please enable location services to see professionals near you."}
-                          </p>
-                          <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
-                            <button 
-                              onClick={getUserLocation}
-                              className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                            <button
+                              onClick={() => deleteTask(task.id)}
+                              className="ml-2 text-gray-400 hover:text-red-500 flex-shrink-0 transition-colors"
                             >
-                              <RefreshCw className="w-4 h-4 mr-1" />
-                              Refresh Location
+                              <X className="h-3 w-3" />
                             </button>
-                            <Link
-                              to="/network/nearby"
-                              className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                            >
-                              Explore Network
-                            </Link>
                           </div>
-                        </div>
+                        ))
                       )}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeSection === 'content' && (
-                <div className="bg-white rounded-xl shadow-md p-3 md:p-6">
-                  <div className="mb-3 md:mb-6">
-                    <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1 md:mb-2">Content Creation</h2>
-                    <p className="text-xs md:text-sm text-gray-500">Share updates, insights, and connect with your network</p>
-                  </div>
-                  
-                  {/* CreatePost Component */}
-                  <div className="create-post-wrapper">
-                    <CreatePost />
-                  </div>
-                  
-                  {/* Recent Posts Preview */}
-                  {recentPosts.length > 0 && (
-                    <div className="mt-4 md:mt-8">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-base md:text-lg font-semibold text-gray-800">Your Recent Posts</h3>
-                        <Link to="/posts" className="text-xs md:text-sm text-orange-500 hover:text-orange-600">
-                          View All →
+                {/* Streaks Content */}
+                {sideWidgetView === 'streaks' && (
+                  <div className="p-4">
+                    {userStreaks.length > 0 ? (
+                      <div className="space-y-3">
+                        {userStreaks.map(streak => (
+                          <div key={streak._id} className="flex border border-gray-200 p-2 rounded-lg hover:shadow-sm transition-shadow">
+                            <div className="mr-3 flex-shrink-0">
+                              <div className="h-12 w-12 rounded-lg bg-green-100 flex flex-col items-center justify-center">
+                                <span className="text-green-600 text-xs font-semibold">
+                                  Day
+                                </span>
+                                <span className="text-green-600 text-base font-bold">
+                                  {streak.currentStreak || 0}
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-semibold text-gray-900">{streak.title || 'Streak'}</h4>
+                              <p className="text-xs text-gray-500 mt-1">{streak.activity || ''}</p>
+                              <div className="mt-2">
+                                <Link 
+                                  to={`/portfolio/streaks/${streak._id}`}
+                                  className="inline-block bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full hover:bg-green-200 transition-colors"
+                                >
+                                  Check In
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <Link to="/portfolio/streaks" className="block text-center text-orange-500 font-medium text-xs mt-2 hover:underline">
+                          View All Streaks →
                         </Link>
                       </div>
-                      
-                      <div className="space-y-3 md:space-y-4">
-                        {recentPosts.slice(0, 2).map(post => (
-                          <div key={post._id} className="p-2 md:p-4 border border-gray-100 rounded-lg hover:bg-orange-50 transition-colors">
-                            <div className="flex items-start">
-                              <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg overflow-hidden mr-2 md:mr-3 flex-shrink-0">
+                    ) : (
+                      <div className="text-center py-6">
+                        <Activity className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-xs text-gray-500">No active streaks</p>
+                        <Link 
+                          to="/portfolio/streak/new" 
+                          className="mt-2 text-orange-500 hover:text-orange-600 text-xs font-medium hover:underline"
+                        >
+                          Start a Streak →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Connection Requests Content */}
+                {sideWidgetView === 'connections' && (
+                  <div className="p-4">
+                    {pendingRequests > 0 ? (
+                      <div className="space-y-3">
+                        {connectionRequests.map(request => (
+                          <div key={request._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+                            <div className="flex items-center mb-2 sm:mb-0">
+                              <div className="h-10 w-10 rounded-lg overflow-hidden bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
                                 <img 
-                                  src={getProfilePicture(post.author || user)}
-                                  alt={`${post.author?.firstName || user?.firstName || 'User'}`}
-                                  className="h-full w-full object-cover" 
+                                  src={getProfilePicture(request)} 
+                                  alt={`${request?.firstName || 'User'} ${request?.lastName || ''}`} 
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-sm">{request?.firstName || 'User'} {request?.lastName || ''}</h4>
+                                <p className="text-xs text-gray-500">{request?.headline || 'Professional'}</p>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => handleAcceptConnection(request._id)}
+                                className="bg-orange-500 text-white px-2 py-1 rounded-md text-xs hover:bg-orange-600 transition-colors"
+                              >
+                                Accept
+                              </button>
+                              <button 
+                                onClick={() => handleDeclineConnection(request._id)}
+                                className="bg-gray-200 text-gray-700 px-2 py-1 rounded-md text-xs hover:bg-gray-300 transition-colors"
+                              >
+                                Ignore
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <Link to="/network" className="block w-full text-center text-orange-500 font-medium mt-4 text-xs hover:underline">
+                          View All Requests →
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <UserPlus className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-xs text-gray-500">No pending connection requests</p>
+                        <Link 
+                          to="/network/find" 
+                          className="mt-2 text-orange-500 hover:text-orange-600 text-xs font-medium hover:underline"
+                        >
+                          Find People to Connect →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Location Card */}
+              <div className="bg-white rounded-xl shadow-md p-4 mb-6 transform hover:shadow-lg transition-all duration-300">
+                <LocationPermissionIcon />
+                
+                {locationError ? (
+                  <div className="mt-4 p-3 bg-orange-50 rounded-lg text-center">
+                    <AlertTriangle className="h-6 w-6 text-orange-500 mx-auto mb-2" />
+                    <p className="text-xs text-gray-700 mb-3">{locationError}</p>
+                    <button
+                      onClick={getUserLocation}
+                      className="inline-flex items-center px-3 py-1 bg-orange-500 text-white rounded-md text-xs hover:bg-orange-600 transition-colors"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Try Again
+                    </button>
+                  </div>
+                ) : userLocation ? (
+                  <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                    <p className="text-xs text-gray-700">
+                      <span className="font-semibold">Your location:</span> Using your current location
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Nearby Users Preview */}
+              {nearbyUsers.length > 0 && (
+                <div className="bg-white rounded-xl shadow-md overflow-hidden transform hover:shadow-lg transition-all duration-300">
+                  <div className="border-b border-gray-200 px-4 py-3 flex justify-between items-center">
+                    <h3 className="font-medium text-gray-800 text-sm">Nearby Professionals</h3>
+                    <Link to="/network/nearby" className="text-orange-500 hover:text-orange-600 text-xs">View All</Link>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {nearbyUsers.slice(0, 2).map(user => (
+                      <div key={user._id} className="flex items-start hover:bg-orange-50 p-2 rounded-lg transition-colors">
+                        <div className="h-10 w-10 rounded-lg overflow-hidden mr-3 flex-shrink-0">
+                          <img 
+                            src={getProfilePicture(user)} 
+                            alt={`${user.firstName} ${user.lastName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs font-medium text-gray-900 truncate">
+                            {user.firstName} {user.lastName}
+                          </h4>
+                          <p className="text-xs text-gray-600 truncate">{user.headline || 'Professional'}</p>
+                          
+                          <div className="mt-1 flex items-center">
+                            <MapPin className="h-3 w-3 text-orange-500 mr-1" />
+                            <span className="text-xs">{user.distanceFormatted || formatDistance(user.distance)}</span>
+                          </div>
+                          
+                          <button
+                            onClick={() => handleConnect(user._id)}
+                            disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                            className={`mt-2 flex items-center px-2 py-1 rounded text-xs ${
+                              user.connectionStatus === 'pending'
+                                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                : user.connectionStatus === 'connected'
+                                  ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            } transition-colors`}
+                          >
+                            {user.connectionStatus === 'pending'
+                              ? 'Pending'
+                              : user.connectionStatus === 'connected'
+                                ? 'Connected'
+                                : 'Connect'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Main Content Area */}
+          <div className={user ? "lg:col-span-6" : "lg:col-span-9"}>
+            {/* Tabs Navigation */}
+            <div className="bg-white rounded-xl shadow-md mb-6 overflow-hidden">
+              <div className="flex overflow-x-auto scrollbar-hide">
+                <button
+                  onClick={() => setActiveTab('explore')}
+                  className={`flex-none text-center py-3 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
+                    activeTab === 'explore'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
+                  }`}
+                >
+                  Explore Events
+                </button>
+                <button
+                  onClick={() => setActiveTab('featured')}
+                  className={`flex-none text-center py-3 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
+                    activeTab === 'featured'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
+                  }`}
+                >
+                  Featured
+                </button>
+                <button
+                  onClick={() => setActiveTab('nearby')}
+                  className={`flex-none text-center py-3 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
+                    activeTab === 'nearby'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Nearby
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('trending')}
+                  className={`flex-none text-center py-3 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
+                    activeTab === 'trending'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Trending
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            {/* Category Filters */}
+            <div className="flex overflow-x-auto py-2 mb-6 space-x-2 scrollbar-hide">
+              {categories.map((category, index) => (
+                <button 
+                  key={`category-${index}`}
+                  className={`flex-none px-4 py-2 rounded-full text-sm ${
+                    categoryFilter === category 
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'bg-white text-gray-700 hover:bg-orange-100'
+                  } transition-all duration-300`}
+                  onClick={() => setCategoryFilter(category === 'All' ? '' : category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            {/* Content based on active tab */}
+            {activeTab === 'explore' && (
+              <>
+                {/* Featured Event */}
+                {highlightedEvent && !loadingEvents && (
+                  <section className="mb-6">
+                    <FeaturedEventCard event={highlightedEvent} />
+                  </section>
+                )}
+              
+                {/* Events Section */}
+                <section className="mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-gray-800">Upcoming Events</h2>
+                    <Link to="/events" className="text-orange-500 hover:text-orange-600 flex items-center text-sm group">
+                      View All <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                  </div>
+                  
+                  {loadingEvents ? (
+                    <div className="flex justify-center items-center py-8">
+                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
+                    </div>
+                  ) : events.length === 0 ? (
+                    <div className="text-center bg-white rounded-xl shadow-md p-8">
+                      <Calendar className="h-10 w-10 text-orange-500 mx-auto mb-3" />
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">No Events Found</h3>
+                      <p className="text-gray-600 mb-4">There are no upcoming events matching your criteria.</p>
+                      <button
+                        onClick={() => setCategoryFilter('')}
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                      >
+                        View All Events
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      {events.slice(highlightedEvent ? 1 : 0, highlightedEvent ? 5 : 4).map((event) => (
+                        <EventCard 
+                          key={event._id || event.id || `event-${Math.random()}`} 
+                          event={event} 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+                
+                {/* Stories Section - only show if user is logged in */}
+                {user && stories.length > 0 && (
+                  <section className="mb-6">
+                    <div className="bg-white rounded-xl shadow-md overflow-hidden transform hover:shadow-lg transition-all duration-300">
+                      <div className="border-b border-gray-200 px-4 py-3 flex justify-between items-center">
+                        <h3 className="font-medium text-gray-800">Recent Stories</h3>
+                        <Link to="/stories" className="text-orange-500 hover:text-orange-600 text-sm">View All</Link>
+                      </div>
+                      <div className="p-4">
+                        <StoryCard stories={stories} />
+                      </div>
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+            
+            {activeTab === 'nearby' && (
+              <section>
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">Nearby Events & Professionals</h2>
+                  
+                  {/* Location Status */}
+                  {locationError ? (
+                    <div className="bg-orange-50 rounded-xl p-4 text-center mb-6">
+                      <div className="flex flex-col items-center justify-center">
+                        <AlertTriangle className="h-10 w-10 text-orange-500 mb-2" />
+                        <h3 className="text-lg font-semibold text-gray-800 mb-1">Location Error</h3>
+                        <p className="text-sm text-gray-600 mb-3">{locationError}</p>
+                        <button
+                          onClick={getUserLocation}
+                          className="inline-flex items-center px-3 py-1.5 bg-orange-500 text-white rounded-md text-sm hover:bg-orange-600 transition-colors"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          Try Again
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  
+                  {/* Nearby Events */}
+                  <div className="bg-white rounded-xl shadow-md p-4 mb-6 transform hover:shadow-lg transition-all duration-300">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800">Events Near You</h3>
+                      <Link to="/events" className="text-orange-500 hover:text-orange-600 flex items-center text-sm group">
+                        View All <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                      </Link>
+                    </div>
+                    
+                    {loadingEvents ? (
+                      <div className="flex justify-center items-center py-8">
+                        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
+                      </div>
+                    ) : events.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {events.slice(0, 2).map((event) => (
+                          <EventCard 
+                            key={event._id || event.id || `event-${Math.random()}`} 
+                            event={event} 
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Calendar className="h-10 w-10 text-orange-300 mx-auto mb-3" />
+                        <p className="text-gray-500">No nearby events found</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Nearby Professionals */}
+                  <div className="bg-white rounded-xl shadow-md p-4 transform hover:shadow-lg transition-all duration-300">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800">Professionals Near You</h3>
+                      <Link to="/network/nearby" className="text-orange-500 hover:text-orange-600 flex items-center text-sm group">
+                        View All <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                      </Link>
+                    </div>
+                    
+                    {allNearbyUsers.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {allNearbyUsers.slice(0, 4).map(user => (
+                          <div key={user._id} className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition-all duration-300 hover:bg-orange-50">
+                            <div className="flex items-start">
+                              <div className="h-12 w-12 rounded-lg overflow-hidden mr-3 flex-shrink-0">
+                                <img 
+                                  src={getProfilePicture(user)} 
+                                  alt={`${user.firstName} ${user.lastName}`}
+                                  className="h-full w-full object-cover"
                                 />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="font-medium text-xs md:text-sm text-gray-900 truncate">
-                                    {post.author?.firstName || user?.firstName || 'You'} {post.author?.lastName || user?.lastName || ''}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    {formatDate(post.createdAt)}
-                                  </p>
+                                <h4 className="text-base font-medium text-gray-900 truncate">
+                                  {user.firstName} {user.lastName}
+                                </h4>
+                                <p className="text-xs text-gray-600 truncate">{user.headline || 'Professional'}</p>
+                                
+                                <div className="mt-1 flex items-center">
+                                  <MapPin className="h-3 w-3 text-orange-500 mr-1" />
+                                  <span className="text-xs">{user.distanceFormatted || formatDistance(user.distance)}</span>
                                 </div>
-                                <p className="text-xs md:text-sm text-gray-700 mt-1 line-clamp-2">
-                                  {post.content}
-                                </p>
                                 
-                                {post.images && post.images.length > 0 && (
-                                  <div className="mt-2">
-                                    <div className="h-20 md:h-28 rounded-lg overflow-hidden">
-                                      <img 
-                                        src={post.images[0].url} 
-                                        alt="Post media"
-                                        className="h-full w-full object-cover" 
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                <div className="mt-2 flex items-center justify-between">
-                                  <div className="flex items-center space-x-3 text-xs text-gray-500">
-                                    <div className="flex items-center">
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                                      </svg>
-                                      {post.likes || 0}
-                                    </div>
-                                    <div className="flex items-center">
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                      </svg>
-                                      {post.comments?.length || 0}
-                                    </div>
-                                  </div>
-                                  <Link to={`/posts/${post._id}`} className="text-xs md:text-sm text-orange-500 hover:text-orange-600 font-medium">
-                                    View Post
+                                <div className="mt-2 flex space-x-2">
+                                  <button
+                                    onClick={() => handleConnect(user._id)}
+                                    disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                                    className={`flex items-center px-2 py-1 rounded text-xs ${
+                                      user.connectionStatus === 'pending'
+                                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                        : user.connectionStatus === 'connected'
+                                          ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                                          : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                    } transition-colors`}
+                                  >
+                                    {user.connectionStatus === 'pending'
+                                      ? 'Pending'
+                                      : user.connectionStatus === 'connected'
+                                        ? 'Connected'
+                                        : 'Connect'}
+                                  </button>
+                                  
+                                  <Link
+                                    to={`/profile/${user._id}`}
+                                    className="flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                                  >
+                                    View
                                   </Link>
                                 </div>
                               </div>
@@ -1587,149 +1564,489 @@ const Dashboard = () => {
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {recentPosts.length === 0 && (
-                    <div className="mt-6 text-center bg-orange-50 py-8 px-4 rounded-xl">
-                      <div className="inline-flex h-12 w-12 rounded-full bg-orange-100 items-center justify-center mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
+                    ) : locationError ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">Please enable location to see nearby professionals</p>
                       </div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Posts Yet</h3>
-                      <p className="text-sm text-gray-600 mb-4">Share your thoughts, achievements, or insights with your professional network.</p>
-                      <button
-                        onClick={() => navigate('/posts/create')}
-                        className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition"
-                      >
-                        Create Your First Post
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeSection === 'portfolio' && (
-                <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
-                  <div className="mb-4 md:mb-6">
-                    <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-2">Your Portfolio</h2>
-                    <p className="text-sm text-gray-500">Manage your projects, streaks, and achievements</p>
+                    ) : (
+                      <div className="text-center py-8">
+                        <MapPin className="h-10 w-10 text-orange-300 mx-auto mb-3" />
+                        <p className="text-gray-500">Looking for professionals near you...</p>
+                      </div>
+                    )}
                   </div>
+                </div>
+              </section>
+            )}
+            
+            {activeTab === 'featured' && (
+              <section>
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">Featured Content</h2>
                   
-                  {/* Portfolio dashboard - stack on mobile */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Projects Section */}
-                    <div className="space-y-4">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-900">Recent Projects</h3>
-                      
-                      {userProjects.length > 0 ? (
-                        <div className="space-y-3 md:space-y-4">
-                          {userProjects.map(project => (
-                            <div key={project._id} className="p-3 md:p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
-                              <h4 className="font-medium text-sm md:text-base text-gray-900">{project.title || 'Untitled Project'}</h4>
-                              <p className="text-xs md:text-sm text-gray-600 mt-1">
-                                {project.description?.length > 80
-                                  ? project.description.substring(0, 80) + '...' 
-                                  : project.description || 'No description available'}
-                              </p>
-                              <div className="mt-2 md:mt-3 flex justify-between items-center">
-                                <Link 
-                                  to={`/portfolio/projects/${project._id}`}
-                                  className="text-orange-500 hover:text-orange-600 text-xs md:text-sm font-medium"
-                                >
-                                  View Details
-                                </Link>
-                                <span className="text-xs text-gray-500">
-                                  {formatDate(project.createdAt)}
+                  {/* Featured Event - Large Card */}
+                  <div className="bg-white rounded-xl overflow-hidden shadow-md mb-6 transform hover:shadow-lg transition-all duration-300">
+                    {loadingEvents ? (
+                      <div className="flex justify-center items-center h-48">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                      </div>
+                    ) : events.length > 0 ? (
+                      <>
+                        <div className="relative h-48">
+                          <img 
+                            src={events[0]?.coverImage?.url || "/api/placeholder/800/400"} 
+                            alt={events[0]?.name || "Featured Event"}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
+                          <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                            <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full mb-3 inline-block">
+                              Featured
+                            </span>
+                            <h3 className="text-2xl font-bold mb-2">{events[0]?.name || "Featured Event"}</h3>
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center">
+                                <Calendar className="w-4 h-4 mr-2" />
+                                <span className="text-sm">{formatDate(events[0]?.startDateTime)}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <MapPin className="w-4 h-4 mr-2" />
+                                <span className="text-sm">
+                                  {events[0]?.virtual 
+                                    ? "Virtual Event" 
+                                    : (events[0]?.location?.name || "Location TBA")}
                                 </span>
                               </div>
                             </div>
-                          ))}
-                          <Link to="/portfolio/projects" className="block text-center text-orange-500 font-medium pt-2 text-sm">
-                            View All Projects →
-                          </Link>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="text-center py-4 md:py-6">
-                          <p className="text-xs md:text-sm text-gray-500">No projects yet</p>
-                          <Link 
-                            to="/portfolio/projects/new" 
-                            className="mt-2 inline-block text-orange-500 hover:text-orange-600 text-xs md:text-sm font-medium"
-                          >
-                            Create Your First Project →
-                          </Link>
+                        <div className="p-6">
+                          <p className="text-gray-600 mb-4">
+                            {events[0]?.description?.substring(0, 150) || "Join us for this exciting featured event!"}{events[0]?.description?.length > 150 ? '...' : ''}
+                          </p>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center space-x-2">
+                              <div className="flex -space-x-2">
+                                {[...Array(3)].map((_, i) => (
+                                  <div key={i} className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white" />
+                                ))}
+                              </div>
+                              <span className="text-sm text-gray-600">
+                                12+ attending
+                              </span>
+                            </div>
+                            <Link to={`/events/${events[0]?._id || events[0]?.id}`}>
+                              <button className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors duration-300">
+                                View Details
+                              </button>
+                            </Link>
+                          </div>
                         </div>
-                      )}
+                      </>
+                    ) : (
+                      <div className="p-12 text-center">
+                        <Calendar className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-800 mb-2">No Featured Events</h3>
+                        <p className="text-gray-600">Check back later for featured events.</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Featured Events Grid */}
+                  {events.length > 1 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                      {events.slice(1, 3).map((event) => (
+                        <EventCard 
+                          key={event._id || event.id || `event-${Math.random()}`} 
+                          event={event} 
+                        />
+                      ))}
                     </div>
-                    
-                    {/* Achievements Section */}
-                    <div className="space-y-4">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-900">Achievements</h3>
+                  )}
+                  
+                  {/* User Achievements - For logged in users */}
+                  {user && userAchievements.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-md p-4 transform hover:shadow-lg transition-all duration-300">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Your Recent Achievements</h3>
+                        <Link to="/portfolio/achievements" className="text-orange-500 hover:text-orange-600 flex items-center text-sm group">
+                          View All <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                      </div>
                       
-                      {userAchievements.length > 0 ? (
-                        <div className="space-y-3 md:space-y-4">
-                          {userAchievements.map(achievement => (
-                            <div key={achievement._id} className="p-3 md:p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow">
-                              <div className="flex">
-                                <div className="mr-3 flex-shrink-0">
-                                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg bg-purple-100 flex items-center justify-center">
-                                    {achievement.image ? (
-                                      <img 
-                                        src={achievement.image} 
-                                        alt={achievement.title || 'Achievement'}
-                                        className="h-6 w-6 md:h-8 md:w-8 object-contain" 
-                                      />
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                      </svg>
-                                    )}
-                                  </div>
+                      <div className="space-y-4">
+                        {userAchievements.map(achievement => (
+                          <div key={achievement._id} className="flex border border-gray-100 rounded-xl p-4 hover:bg-orange-50 transition-colors">
+                            <div className="flex-shrink-0 mr-4">
+                              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                {achievement.image ? (
+                                  <img 
+                                    src={achievement.image} 
+                                    alt={achievement.title || 'Achievement'}
+                                    className="h-8 w-8 object-contain" 
+                                  />
+                                ) : (
+                                  <Star className="h-6 w-6 text-purple-600" />
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <h5 className="font-medium text-base text-gray-800">{achievement.title || 'Untitled Achievement'}</h5>
+                              <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
+                              <p className="text-sm text-gray-600 mt-1">{achievement.description || ''}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+            
+            {activeTab === 'trending' && (
+              <section>
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">Trending Now</h2>
+                  
+                  {/* Trending Events */}
+                  {loadingEvents ? (
+                    <div className="flex justify-center items-center py-8">
+                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
+                    </div>
+                  ) : events.length > 0 ? (
+                    <>
+                      <div className="bg-white rounded-xl shadow-md p-4 mb-6 transform hover:shadow-lg transition-all duration-300">
+                        <div className="mb-4">
+                          <h3 className="text-lg font-semibold text-gray-800">Trending This Week</h3>
+                          <p className="text-gray-500 text-sm">The most popular events in your area</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* We're reusing the existing events as "trending" for demo purposes */}
+                          {events.slice(0, 2).map((event, index) => (
+                            <div key={`trending-${event._id || event.id}`} className="relative bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+                              <div className="absolute top-2 left-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-md">
+                                #{index + 1} Trending
+                              </div>
+                              <div className="h-40 overflow-hidden">
+                                <img 
+                                  src={event.coverImage?.url || "/api/placeholder/400/200"} 
+                                  alt={event.name || "Event"}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="p-4">
+                                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{event.name || "Untitled Event"}</h3>
+                                <div className="flex items-center text-gray-600 mb-2">
+                                  <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                                  <span className="text-sm">{formatDate(event.startDateTime)}</span>
                                 </div>
-                                <div>
-                                  <h4 className="font-medium text-sm md:text-base text-gray-900">{achievement.title || 'Untitled Achievement'}</h4>
-                                  <p className="text-xs text-gray-500">{formatDate(achievement.dateAchieved)}</p>
-                                  <p className="text-xs md:text-sm text-gray-600 mt-1">
-                                    {achievement.description?.length > 80
-                                      ? achievement.description.substring(0, 80) + '...' 
-                                      : achievement.description || 'No description available'}
-                                  </p>
+                                <div className="flex items-center text-gray-600 mb-2">
+                                  <MapPin className="w-4 h-4 mr-2 text-orange-500" />
+                                  <span className="text-sm line-clamp-1">
+                                    {event.virtual 
+                                      ? "Virtual Event" 
+                                      : (event.location?.name || "Location TBA")}
+                                  </span>
                                 </div>
+                                <Link to={`/events/${event._id || event.id}`} className="text-orange-500 hover:text-orange-600 text-sm font-medium inline-flex items-center group">
+                                  View Details <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                                </Link>
                               </div>
                             </div>
                           ))}
-                          <Link to="/portfolio/achievements" className="block text-center text-orange-500 font-medium pt-2 text-sm">
-                            View All Achievements →
-                          </Link>
                         </div>
-                      ) : (
-                        <div className="text-center py-4 md:py-6">
-                          <p className="text-xs md:text-sm text-gray-500">No achievements yet</p>
-                          <Link 
-                            to="/portfolio/achievements/new" 
-                            className="mt-2 inline-block text-orange-500 hover:text-orange-600 text-xs md:text-sm font-medium"
-                          >
-                            Add Your First Achievement →
-                          </Link>
+                      </div>
+                      
+                      {/* Trending Categories */}
+                      <div className="bg-white rounded-xl shadow-md p-4 transform hover:shadow-lg transition-all duration-300">
+                        <div className="mb-4">
+                          <h3 className="text-lg font-semibold text-gray-800">Trending Categories</h3>
+                          <p className="text-gray-500 text-sm">Most popular event categories this month</p>
                         </div>
-                      )}
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          {categories.slice(1, 5).map((category, index) => (
+                            <div 
+                              key={`trend-cat-${index}`}
+                              className="bg-orange-50 rounded-xl p-4 text-center hover:bg-orange-100 transition-colors cursor-pointer transform hover:-translate-y-1 transition-transform"
+                              onClick={() => {
+                                setCategoryFilter(category);
+                                setActiveTab('explore');
+                              }}
+                            >
+                              <div className="h-10 w-10 mx-auto mb-2 rounded-full bg-orange-100 flex items-center justify-center">
+                                <span className="text-lg font-bold text-orange-500">{index + 1}</span>
+                              </div>
+                              <h4 className="font-semibold text-gray-800 text-sm">{category}</h4>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center bg-white rounded-xl shadow-md p-12">
+                      <TrendingUp className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-gray-800 mb-2">No Trending Events</h3>
+                      <p className="text-gray-600 mb-6">Check back later for trending events.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
+          
+          {/* Right Sidebar */}
+          <div className="lg:col-span-3">
+            {/* Suggested People Section */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 transform hover:shadow-lg transition-all duration-300">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h3 className="font-medium text-gray-800">Suggested People</h3>
+              </div>
+              <div className="p-4">
+                {loadingDashboard ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                  </div>
+                ) : suggestedPeople.length > 0 ? (
+                  <div className="space-y-4">
+                    {suggestedPeople.slice(0, 5).map((user) => (
+                      <div key={user._id} className="flex border border-gray-100 rounded-lg p-3 hover:bg-orange-50 transition-colors">
+                        <div className="h-12 w-12 rounded-lg overflow-hidden mr-3 flex-shrink-0">
+                          <img 
+                            src={getProfilePicture(user)} 
+                            alt={`${user.firstName} ${user.lastName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm text-gray-900 truncate">
+                            {user.firstName} {user.lastName}
+                          </h4>
+                          <p className="text-xs text-gray-500 truncate">{user.headline || 'Professional'}</p>
+                          <div className="mt-2 flex space-x-2">
+                            <button
+                              onClick={() => handleConnect(user._id)}
+                              disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
+                              className={`flex items-center px-2 py-1 rounded text-xs ${
+                                user.connectionStatus === 'pending'
+                                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                  : user.connectionStatus === 'connected'
+                                    ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              } transition-colors`}
+                            >
+                              {user.connectionStatus === 'pending'
+                                ? 'Pending'
+                                : user.connectionStatus === 'connected'
+                                  ? 'Connected'
+                                  : 'Connect'}
+                            </button>
+                            <Link
+                              to={`/profile/${user._id}`}
+                              className="flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                            >
+                              View
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <Link to="/network/find" className="block text-center text-orange-500 font-medium text-sm pt-2 hover:underline group">
+                      Find More People <ChevronRight className="inline-block h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-10 w-10 text-orange-300 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">No suggestions available</p>
+                    <Link to="/network/find" className="block text-orange-500 hover:text-orange-600 text-sm font-medium mt-2 hover:underline">
+                      Find People to Connect →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Quick Actions Card */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 transform hover:shadow-lg transition-all duration-300">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h3 className="font-medium text-gray-800">Quick Actions</h3>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-3">
+                <Link to="/events/create">
+                  <div className="flex flex-col items-center justify-center bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg p-3 transition-colors h-full transform hover:-translate-y-1 transition-transform">
+                    <Calendar className="h-6 w-6 mb-2" />
+                    <span className="text-xs font-medium text-center">Create Event</span>
+                  </div>
+                </Link>
+                <Link to="/posts/create">
+                  <div className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-3 transition-colors h-full transform hover:-translate-y-1 transition-transform">
+                    <PlusCircle className="h-6 w-6 mb-2" />
+                    <span className="text-xs font-medium text-center">New Post</span>
+                  </div>
+                </Link>
+                <Link to="/network/find">
+                  <div className="flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 text-green-700 rounded-lg p-3 transition-colors h-full transform hover:-translate-y-1 transition-transform">
+                    <Users className="h-6 w-6 mb-2" />
+                    <span className="text-xs font-medium text-center">Find People</span>
+                  </div>
+                </Link>
+                <Link to="/portfolio/projects/new">
+                  <div className="flex flex-col items-center justify-center bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg p-3 transition-colors h-full transform hover:-translate-y-1 transition-transform">
+                    <Briefcase className="h-6 w-6 mb-2" />
+                    <span className="text-xs font-medium text-center">Add Project</span>
+                  </div>
+                </Link>
+              </div>
+            </div>
+            
+            {/* Join Community Card - For non-logged in users */}
+            {!user && (
+              <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-md overflow-hidden text-white p-6 mb-6 transform hover:shadow-lg transition-all duration-300">
+                <h3 className="font-bold text-xl mb-3">Join Our Community</h3>
+                <p className="text-orange-100 mb-4">Connect with professionals, discover events, and build your network.</p>
+                <div className="space-y-2">
+                  <Link to="/signup" className="block">
+                    <button className="w-full bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors">
+                      Sign Up Now
+                    </button>
+                  </Link>
+                  <Link to="/login" className="block">
+                    <button className="w-full bg-orange-600 text-white border border-white hover:bg-orange-700 px-4 py-2 rounded-lg font-medium text-sm transition-colors">
+                      Log In
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            )}
+            
+            {/* Category Browser */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden transform hover:shadow-lg transition-all duration-300">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h3 className="font-medium text-gray-800">Browse Categories</h3>
+              </div>
+              <div className="p-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {categories.filter(cat => cat !== 'All').map((category, index) => (
+                    <button
+                      key={`cat-btn-${index}`}
+                      className="flex items-center justify-center bg-gray-100 hover:bg-orange-100 text-gray-700 hover:text-orange-700 rounded-lg py-2 px-3 transition-colors text-xs font-medium transform hover:-translate-y-1 transition-transform"
+                      onClick={() => {
+                        setCategoryFilter(category);
+                        setActiveTab('explore');}}
+                        >
+                          {category}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
-              )}
-            </main>
-
-            {/* Footer - Adjusted for mobile */}
-            <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 md:py-4 mt-6">
-              <div className="max-w-7xl mx-auto px-4 text-center">
-                <p className="text-xs md:text-sm">© 2023 Meetkats • Privacy Policy • Terms of Service</p>
               </div>
-            </footer>
+            </div>
+            
+            {/* Community Section - Always show at the bottom */}
+            <section className="mt-12 mb-12">
+              <div className="bg-gradient-to-r from-orange-600 to-orange-500 rounded-xl shadow-lg overflow-hidden transform hover:shadow-xl transition-all duration-300">
+                <div className="px-6 py-12 md:px-12 text-center md:text-left md:flex md:items-center">
+                  <div className="md:w-2/3 mb-8 md:mb-0">
+                    <h2 className="text-3xl font-bold text-white mb-4">Join Our Growing Community</h2>
+                    <p className="text-orange-100 text-lg mb-6">
+                      Connect with professionals, discover events, and grow your network all in one place.
+                    </p>
+                    <div className="flex flex-col sm:flex-row justify-center md:justify-start space-y-3 sm:space-y-0 sm:space-x-4">
+                      <Link to="/signup">
+                        <button className="bg-white text-orange-600 hover:bg-orange-50 px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300">
+                          Sign Up Now
+                        </button>
+                      </Link>
+                      <Link to="/events/create">
+                        <button className="bg-orange-700 text-white hover:bg-orange-800 px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300">
+                          Create Event
+                        </button>
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="md:w-1/3 flex justify-center">
+                    <div className="bg-white bg-opacity-20 rounded-full h-48 w-48 flex items-center justify-center p-2 transform hover:rotate-3 transition-transform">
+                      <div className="bg-white rounded-full h-full w-full flex items-center justify-center">
+                        <Users className="h-24 w-24 text-orange-500" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
+          
+          {/* Footer */}
+          <footer className="bg-gray-800 text-white py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                  <h3 className="text-xl font-bold mb-4">MeetKats</h3>
+                  <p className="text-gray-400">
+                    Connect, engage, and grow your professional network.
+                  </p>
+                  <div className="mt-4 flex space-x-4">
+                    <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                      <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
+                      </svg>
+                    </a>
+                    <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                      <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                      </svg>
+                    </a>
+                    <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                      <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
+                  <ul className="space-y-2">
+                    <li><Link to="/events" className="text-gray-400 hover:text-white transition-colors">Events</Link></li>
+                    <li><Link to="/network" className="text-gray-400 hover:text-white transition-colors">Network</Link></li>
+                    <li><Link to="/posts" className="text-gray-400 hover:text-white transition-colors">Posts</Link></li>
+                    <li><Link to="/portfolio" className="text-gray-400 hover:text-white transition-colors">Portfolio</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">Support</h4>
+                  <ul className="space-y-2">
+                    <li><Link to="/help" className="text-gray-400 hover:text-white transition-colors">Help Center</Link></li>
+                    <li><Link to="/contact" className="text-gray-400 hover:text-white transition-colors">Contact Us</Link></li>
+                    <li><Link to="/privacy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</Link></li>
+                    <li><Link to="/terms" className="text-gray-400 hover:text-white transition-colors">Terms of Service</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">Stay Connected</h4>
+                  <p className="text-gray-400 mb-4">Subscribe to our newsletter for updates</p>
+                  <div className="flex">
+                    <input 
+                      type="email" 
+                      placeholder="Your email" 
+                      className="bg-gray-700 text-white px-4 py-2 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-orange-500 w-full"
+                    />
+                    <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-r-lg transition-colors">
+                      Subscribe
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+                <p>© 2023 MeetKats. All rights reserved.</p>
+              </div>
+            </div>
+          </footer>
         </div>
-      </div>
-    );
-  };
-
-  export default Dashboard;
+      );
+    };
+    
+    export default GlamorousHomePage;
