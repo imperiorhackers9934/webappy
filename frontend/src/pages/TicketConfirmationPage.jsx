@@ -13,6 +13,7 @@ import {
   Mail
 } from 'lucide-react';
 import eventService from '../services/eventService';
+import ticketService from '../services/ticketService'; // Import ticketService
 
 const TicketConfirmationPage = () => {
   const { bookingId } = useParams();
@@ -60,18 +61,29 @@ const TicketConfirmationPage = () => {
           return;
         }
         
-        // Fetch booking details
-        const bookingResponse = await eventService.getBooking(bookingId);
-        setBooking(bookingResponse.data);
+        // Fetch booking details using ticketService instead of eventService
+        const bookingResponse = await ticketService.getBooking(bookingId);
+        console.log('Booking response:', bookingResponse);
+        
+        // Check different possible response structures
+        const bookingData = bookingResponse.data || bookingResponse;
+        setBooking(bookingData);
         
         // Fetch related event details if not included in booking
-        if (bookingResponse.data && bookingResponse.data.event) {
-          if (typeof bookingResponse.data.event === 'object') {
-            setEvent(bookingResponse.data.event);
-          } else {
-            // If only event ID is provided, fetch the event details
-            const eventResponse = await eventService.getEvent(bookingResponse.data.event);
-            setEvent(eventResponse.data);
+        if (bookingData) {
+          if (bookingData.event) {
+            if (typeof bookingData.event === 'object') {
+              setEvent(bookingData.event);
+            } else {
+              // If only event ID is provided, fetch the event details
+              const eventId = bookingData.event;
+              const eventResponse = await eventService.getEvent(eventId);
+              setEvent(eventResponse.data || eventResponse);
+            }
+          } else if (bookingData.eventId) {
+            // Try with eventId if event property doesn't exist
+            const eventResponse = await eventService.getEvent(bookingData.eventId);
+            setEvent(eventResponse.data || eventResponse);
           }
         }
         
@@ -105,7 +117,7 @@ const TicketConfirmationPage = () => {
       if (tickets.length === 1) {
         const ticket = tickets[0];
         const ticketId = ticket.id || ticket._id;
-        const blob = await eventService.downloadTicketPdf(ticketId);
+        const blob = await ticketService.downloadTicketPdf(ticketId);
         
         // Create a URL for the blob
         const url = window.URL.createObjectURL(blob);
@@ -130,7 +142,7 @@ const TicketConfirmationPage = () => {
           const ticketId = ticket.id || ticket._id;
           
           setTimeout(async () => {
-            const blob = await eventService.downloadTicketPdf(ticketId);
+            const blob = await ticketService.downloadTicketPdf(ticketId);
             
             // Create a URL for the blob
             const url = window.URL.createObjectURL(blob);
@@ -157,12 +169,13 @@ const TicketConfirmationPage = () => {
   // Function to handle adding event to calendar
   const handleAddToCalendar = async () => {
     try {
-      if (!event || !event._id) {
+      if (!event || (!event._id && !event.id)) {
         console.error('No event ID available for calendar');
         return;
       }
       
-      const response = await eventService.addToCalendar(event._id);
+      const eventId = event._id || event.id;
+      const response = await ticketService.addToCalendar(eventId);
       console.log('Calendar response:', response);
       
       alert('Event added to your calendar');
@@ -222,7 +235,7 @@ const TicketConfirmationPage = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
-          <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
+          <div className="w-16 h-16 border-t-4 border-orange-500 border-solid rounded-full animate-spin mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading your booking confirmation...</p>
         </div>
       </div>
@@ -239,7 +252,7 @@ const TicketConfirmationPage = () => {
           </div>
           <button 
             onClick={() => navigate('/events')} 
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
           >
             Browse Events
           </button>
@@ -255,7 +268,7 @@ const TicketConfirmationPage = () => {
           <p className="text-gray-600">Booking information not found</p>
           <button 
             onClick={() => navigate('/events')} 
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
           >
             Browse Events
           </button>
@@ -295,30 +308,30 @@ const TicketConfirmationPage = () => {
             <div className="h-48 w-full">
               <img 
                 src={displayEvent.coverImage.url} 
-                alt={displayEvent.name}
+                alt={displayEvent.name || displayEvent.title}
                 className="w-full h-full object-cover"
               />
             </div>
           )}
           
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-3">{displayEvent.name}</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">{displayEvent.name || displayEvent.title}</h2>
             
             <div className="flex flex-col md:flex-row md:items-center text-gray-600 mb-4 space-y-2 md:space-y-0 md:space-x-4">
               <div className="flex items-center">
                 <Calendar className="w-5 h-5 mr-2 flex-shrink-0 text-gray-500" />
-                <span>{formatDate(displayEvent.startDateTime)}</span>
+                <span>{formatDate(displayEvent.startDateTime || displayEvent.startDate)}</span>
               </div>
               
               <div className="flex items-center">
                 <Clock className="w-5 h-5 mr-2 flex-shrink-0 text-gray-500" />
-                <span>{formatTime(displayEvent.startDateTime)}</span>
+                <span>{formatTime(displayEvent.startDateTime || displayEvent.startDate)}</span>
               </div>
               
               <div className="flex items-center">
                 <MapPin className="w-5 h-5 mr-2 flex-shrink-0 text-gray-500" />
                 <span>
-                  {displayEvent.virtual 
+                  {displayEvent.virtual || displayEvent.isOnline
                     ? "Virtual Event" 
                     : `${displayEvent.location?.name || ''}${displayEvent.location?.city ? `, ${displayEvent.location.city}` : ''}`}
                 </span>
@@ -431,7 +444,7 @@ const TicketConfirmationPage = () => {
           <div className="space-y-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
                   <Mail className="h-5 w-5" />
                 </div>
               </div>
@@ -445,7 +458,7 @@ const TicketConfirmationPage = () => {
             
             <div className="flex">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
                   <Ticket className="h-5 w-5" />
                 </div>
               </div>
@@ -459,7 +472,7 @@ const TicketConfirmationPage = () => {
             
             <div className="flex">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
                   <Calendar className="h-5 w-5" />
                 </div>
               </div>
@@ -475,7 +488,7 @@ const TicketConfirmationPage = () => {
           <div className="mt-8 space-x-4 flex">
             <Link 
               to="/events" 
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
             >
               Browse More Events
             </Link>

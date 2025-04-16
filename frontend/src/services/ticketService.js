@@ -402,40 +402,56 @@ verifyTicketByCode : async (eventId, code) => {
    * @param {string} eventId - Event ID
    * @returns {Promise<Object>} - Calendar addition result
    */
-  addToCalendar: async (eventId) => {
-    try {
-      // Check if eventId is valid
-      if (!eventId) {
-        throw new Error('Invalid event ID');
-      }
-      
-      console.log(`Attempting to add event ${eventId} to calendar from ticketService`);
-      
-      const response = await api.post(`/api/events/${eventId}/calendar`, {
-        // Include any API-required parameters
-        platform: Platform.OS, // 'ios' or 'android'
-        calendarType: 'default'
-      });
-      
-      return response.data;
-    } catch (error) {
-      // Log detailed error information
-      console.error(`Error adding event ${eventId} to calendar:`, error);
-      console.log('API error details:', error.response?.data);
-      
-      // Provide a useful error message based on the error code
-      if (error.response?.status === 400) {
-        throw new Error('Calendar request was invalid: missing event details');
-      } else if (error.response?.status === 404) {
-        throw new Error('Calendar service not available');
-      } else if (error.response?.status === 401) {
-        throw new Error('Calendar access not authorized');
-      }
-      
-      // Default error
-      throw new Error(`Calendar error: ${error.message || 'Unknown error'}`);
+// Replace the existing addToCalendar function in ticketService.js with this updated version
+
+/**
+ * Add event to calendar (fixed implementation)
+ * @param {string} eventId - Event ID
+ * @returns {Promise<Object>} - Calendar addition result
+ */
+addToCalendar: async (eventId) => {
+  try {
+    // Check if eventId is valid
+    if (!eventId) {
+      throw new Error('Invalid event ID');
     }
+    
+    console.log(`Attempting to add event ${eventId} to calendar from ticketService`);
+    
+    // Get browser platform instead of Platform.OS which might not be defined
+    const platform = navigator.userAgent.toLowerCase().includes('android') 
+      ? 'android' 
+      : navigator.userAgent.toLowerCase().includes('iphone') || navigator.userAgent.toLowerCase().includes('ipad')
+        ? 'ios'
+        : 'web';
+    
+    const response = await api.post(`/api/events/${eventId}/calendar`, {
+      platform: platform,
+      calendarType: 'default'
+    });
+    
+    return response.data;
+  } catch (error) {
+    // Log detailed error information
+    console.error(`Error adding event ${eventId} to calendar:`, error);
+    
+    if (error.response?.data) {
+      console.log('API error details:', error.response.data);
+    }
+    
+    // Provide a useful error message based on the error code
+    if (error.response?.status === 400) {
+      throw new Error('Calendar request was invalid: missing event details');
+    } else if (error.response?.status === 404) {
+      throw new Error('Calendar service not available');
+    } else if (error.response?.status === 401) {
+      throw new Error('Calendar access not authorized');
+    }
+    
+    // Default error
+    throw new Error(`Calendar error: ${error.message || 'Unknown error'}`);
   }
+}
 };
 
 export default ticketService;
