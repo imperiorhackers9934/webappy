@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Html5Qrcode } from 'html5-qrcode'; // Make sure to install this package
 import ticketService from '../services/ticketService';
 
 const CheckInPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   
   // State management
@@ -22,13 +24,10 @@ const CheckInPage = () => {
   });
 
   // Refs
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const inputRef = useRef(null);
+  const html5QrCodeRef = useRef(null);
+  const scannerRef = useRef(null);
   
-  // Stream reference for cleanup
-  const streamRef = useRef(null);
-
   useEffect(() => {
     if (searchParams.get('code')) {
       // If code is provided in URL, focus on the submit button
@@ -44,7 +43,7 @@ const CheckInPage = () => {
     fetchEventStats();
     fetchRecentCheckIns();
     
-    // Cleanup function for camera
+    // Cleanup function
     return () => {
       stopScanner();
     };
@@ -53,10 +52,11 @@ const CheckInPage = () => {
   const fetchEventStats = async () => {
     try {
       const statsData = await ticketService.getEventBookingStats(eventId);
+      console.log("Stats data:", statsData);
       setStats({
         total: statsData.totalTickets || 0,
-        checkedIn: statsData.checkedIn || 0,
-        remaining: (statsData.totalTickets || 0) - (statsData.checkedIn || 0)
+        checkedIn: statsData.ticketsCheckedIn || statsData.checkedIn || 0,
+        remaining: Math.max(0, (statsData.totalTickets || 0) - (statsData.ticketsCheckedIn || statsData.checkedIn || 0))
       });
     } catch (err) {
       console.error('Failed to fetch event stats:', err);
@@ -95,16 +95,19 @@ const CheckInPage = () => {
     setAttendeeInfo(null);
     
     try {
+      console.log(`Verifying ticket with code: ${verificationCode}`);
       // Verify ticket by code
       const result = await ticketService.verifyTicketByCode(eventId, verificationCode.trim());
+      console.log("Verification result:", result);
       
       // If the ticket exists but hasn't been checked in
       if (result && result.ticket) {
         setAttendeeInfo(result.ticket);
         
-        if (result.ticket.isCheckedIn) {
+        if (result.ticket.isCheckedIn || result.ticket.checkedIn) {
           // Already checked in
-          setError(`Ticket already checked in at ${new Date(result.ticket.checkInTime).toLocaleString()}`);
+          const checkInTime = result.ticket.checkInTime || result.ticket.checkedInAt;
+          setError(`Ticket already checked in ${checkInTime ? 'at ' + new Date(checkInTime).toLocaleString() : ''}`);
         } else {
           // Ready for check-in
           setSuccess('Ticket verified! Ready for check-in.');
@@ -134,25 +137,43 @@ const CheckInPage = () => {
     setSuccess(null);
     
     try {
+      console.log(`Checking in ticket with ID: ${ticketId}`);
+      console.log('Attendee info:', attendeeInfo);
+      
       // Use the ticketId variable which contains whichever ID is available
       await ticketService.checkInTicket(ticketId, {
         verificationCode: verificationCode.trim()
       });
       
       // Update UI with success
-      setSuccess(`Successfully checked in ${attendeeInfo.attendeeName || 'attendee'}`);
+      setSuccess(`Successfully checked in ${attendeeInfo.attendeeName || attendeeInfo.owner?.firstName || 'attendee'}`);
       
-      // Clear form and reset
-      setVerificationCode('');
-      setAttendeeInfo(null);
+      // Check if we need to return to attendee list
+      const returnTo = searchParams.get('returnTo') || location?.state?.returnTo;
       
-      // Refresh stats and recent check-ins
-      fetchEventStats();
-      fetchRecentCheckIns();
-      
-      // Focus back on the input field
-      if (inputRef.current) {
-        inputRef.current.focus();
+      if (returnTo === 'attendee-management') {
+        // Add a small delay so the user can see the success message
+        setTimeout(() => {
+          navigate(`/events/${eventId}/attendees`, { 
+            state: { checkedIn: true } 
+          });
+        }, 1500);
+      } else {
+        // Clear form and reset for next check-in
+        setTimeout(() => {
+          setVerificationCode('');
+          setAttendeeInfo(null);
+          setSuccess(null);
+          
+          // Refresh stats and recent check-ins
+          fetchEventStats();
+          fetchRecentCheckIns();
+          
+          // Focus back on the input field
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 2000);
       }
     } catch (err) {
       console.error('Check-in error:', err);
@@ -166,72 +187,75 @@ const CheckInPage = () => {
     try {
       setError(null);
       
-      const constraints = {
-        video: { facingMode: 'environment' }
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setScannerActive(true);
-        
-        // Start scanning for QR codes
-        requestAnimationFrame(scanQRCode);
+      if (html5QrCodeRef.current) {
+        await stopScanner();
       }
+      
+      // Create a new instance of the scanner
+      html5QrCodeRef.current = new Html5Qrcode("qr-reader");
+      
+      await html5QrCodeRef.current.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+        },
+        (decodedText) => {
+          console.log(`QR Code detected: ${decodedText}`);
+          // Stop scanner once a code is found
+          stopScanner().then(() => {
+            try {
+              // Try to parse the QR code as JSON
+              const qrData = JSON.parse(decodedText);
+              console.log("Parsed QR data:", qrData);
+              
+              // If the QR contains a secret, use it as verification code
+              if (qrData && qrData.secret) {
+                setVerificationCode(qrData.secret.substring(0, 6));
+                setTimeout(() => {
+                  handleVerifyTicket();
+                }, 500);
+              } else if (typeof decodedText === 'string') {
+                // If it's not valid JSON but a string, use it directly
+                setVerificationCode(decodedText);
+                setTimeout(() => {
+                  handleVerifyTicket();
+                }, 500);
+              }
+            } catch (e) {
+              // If it's not valid JSON, just use the text
+              console.log("Could not parse QR data as JSON, using raw text");
+              setVerificationCode(decodedText);
+              setTimeout(() => {
+                handleVerifyTicket();
+              }, 500);
+            }
+          });
+        },
+        (errorMessage) => {
+          // Just log the error, don't display to user unless scanning fails completely
+          console.log(`QR Code scanning error: ${errorMessage}`);
+        }
+      );
+      
+      setScannerActive(true);
     } catch (err) {
-      console.error('Error accessing camera:', err);
+      console.error('Error starting scanner:', err);
       setError('Failed to access camera. Please check permissions and try again.');
       setScannerActive(false);
     }
   };
 
-  const stopScanner = () => {
-    if (streamRef.current) {
-      const tracks = streamRef.current.getTracks();
-      tracks.forEach(track => track.stop());
-      streamRef.current = null;
+  const stopScanner = async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current = null;
+      } catch (e) {
+        console.error('Error stopping scanner:', e);
+      }
     }
-    
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    
     setScannerActive(false);
-  };
-
-  const scanQRCode = () => {
-    if (!scannerActive || !videoRef.current || !canvasRef.current) {
-      return;
-    }
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      const ctx = canvas.getContext('2d');
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
-      
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Here you would typically use a QR code library to detect codes
-      // For example, with jsQR or similar library:
-      // const code = jsQR(imageData.data, imageData.width, imageData.height);
-      // if (code) {
-      //   setVerificationCode(code.data);
-      //   handleVerifyTicket();
-      //   stopScanner();
-      // }
-      
-      // Since we can't directly import jsQR here, this is a placeholder
-      // In a real implementation, you would add the QR scanning logic here
-    }
-    
-    if (scannerActive) {
-      requestAnimationFrame(scanQRCode);
-    }
   };
 
   const toggleScanner = () => {
@@ -246,6 +270,26 @@ const CheckInPage = () => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getAttendeeName = (attendee) => {
+    if (attendee.attendeeName) return attendee.attendeeName;
+    if (attendee.owner && attendee.owner.firstName) {
+      return `${attendee.owner.firstName} ${attendee.owner.lastName || ''}`;
+    }
+    return 'Unknown';
+  };
+
+  const getAttendeeEmail = (attendee) => {
+    return attendee.attendeeEmail || (attendee.owner && attendee.owner.email) || '';
+  };
+
+  const getTicketType = (attendee) => {
+    return (attendee.ticketType && attendee.ticketType.name) || 'Standard Ticket';
+  };
+
+  const getCheckInTime = (attendee) => {
+    return formatTime(attendee.checkInTime || attendee.checkedInAt);
   };
 
   return (
@@ -334,17 +378,7 @@ const CheckInPage = () => {
             {/* Scanner */}
             {scannerActive && (
               <div className="mb-4">
-                <div className="relative">
-                  <video 
-                    ref={videoRef}
-                    className="w-full h-64 object-cover rounded"
-                    autoPlay
-                    playsInline
-                    muted
-                  ></video>
-                  <canvas ref={canvasRef} className="hidden"></canvas>
-                  <div className="absolute inset-0 border-2 border-green-500 pointer-events-none"></div>
-                </div>
+                <div id="qr-reader" style={{ width: '100%' }}></div>
                 <p className="text-sm text-gray-600 mt-2">
                   Position the QR code within the frame to scan
                 </p>
@@ -375,26 +409,38 @@ const CheckInPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Name</p>
-                    <p className="font-semibold">{attendeeInfo.attendeeName}</p>
+                    <p className="font-semibold">
+                      {attendeeInfo.attendeeName || 
+                       (attendeeInfo.owner && `${attendeeInfo.owner.firstName} ${attendeeInfo.owner.lastName || ''}`) || 
+                       'Unknown'}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-semibold">{attendeeInfo.attendeeEmail}</p>
+                    <p className="font-semibold">
+                      {attendeeInfo.attendeeEmail || 
+                       (attendeeInfo.owner && attendeeInfo.owner.email) || 
+                       'Not provided'}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Ticket Type</p>
-                    <p className="font-semibold">{attendeeInfo.ticketType?.name || 'Standard'}</p>
+                    <p className="font-semibold">{(attendeeInfo.ticketType && attendeeInfo.ticketType.name) || 'Standard'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Status</p>
-                    <p className={`font-semibold ${attendeeInfo.isCheckedIn ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {attendeeInfo.isCheckedIn ? 'Checked In' : 'Not Checked In'}
+                    <p className={`font-semibold ${
+                      attendeeInfo.isCheckedIn || attendeeInfo.checkedIn 
+                        ? 'text-green-600' 
+                        : 'text-yellow-600'
+                    }`}>
+                      {attendeeInfo.isCheckedIn || attendeeInfo.checkedIn ? 'Checked In' : 'Not Checked In'}
                     </p>
                   </div>
                 </div>
               </div>
               
-              {!attendeeInfo.isCheckedIn && (
+              {!(attendeeInfo.isCheckedIn || attendeeInfo.checkedIn) && (
                 <div className="flex justify-end">
                   <button
                     onClick={handleCheckIn}
@@ -418,19 +464,19 @@ const CheckInPage = () => {
           ) : (
             <div className="overflow-y-auto max-h-96">
               {recentCheckIns.map((attendee) => (
-                <div key={attendee.id} className="border-b py-3 last:border-b-0">
+                <div key={attendee.id || attendee._id} className="border-b py-3 last:border-b-0">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-semibold">{attendee.attendeeName}</p>
-                      <p className="text-sm text-gray-600">{attendee.attendeeEmail}</p>
+                      <p className="font-semibold">{getAttendeeName(attendee)}</p>
+                      <p className="text-sm text-gray-600">{getAttendeeEmail(attendee)}</p>
                       <p className="text-xs text-gray-500">
-                        {attendee.ticketType?.name || 'Standard Ticket'}
+                        {getTicketType(attendee)}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-green-600">Checked In</p>
                       <p className="text-xs text-gray-500">
-                        {formatTime(attendee.checkInTime)}
+                        {getCheckInTime(attendee)}
                       </p>
                     </div>
                   </div>
