@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/common/Navbar';
+import api from '../services/api';
 import { 
   PlusCircle, Check, Calendar, X, User, AlertTriangle, MapPin,
   Users, ChevronRight, Search, Filter, UserPlus, Rss, 
@@ -20,7 +21,7 @@ const MergedDashboard = () => {
   const navigate = useNavigate();
   const toastContext = useToast();
   const toast = toastContext?.toast;
-  
+  const [loadings, setLoadings] = useState(true);
   // State management
   const [activeSection, setActiveSection] = useState('overview');
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -33,10 +34,31 @@ const MergedDashboard = () => {
   const [categories, setCategories] = useState([
     "All", "Business", "Technology", "Social", "Education", "Health"
   ]);
-  
+  const [professionals, setProfessionals] = useState([]);
+    const [error, setError] = useState(null);
+    const [distance, setDistance] = useState(10); // Default 10km radius
+    const [currentLocation, setCurrentLocation] = useState(null);
+    const [locationError, setLocationError] = useState(false);
+    const [viewMode, setViewMode] = useState('map'); // 'map' or 'list'
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [mapLoaded, setMapLoaded] = useState(false);
+    const [unit, setUnit] = useState('km');
+    const [filters, setFilters] = useState({
+      industry: null,
+      skills: [],
+      interests: [],
+      connectionStatus: 'all',
+      lastActive: null
+    });
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [notificationPrefs, setNotificationPrefs] = useState({
+      enabled: false,
+      radius: 1,
+      unit: 'km'
+    });
+    const [refreshing, setRefreshing] = useState(false);
   // Location state
   const [locationEnabled, setLocationEnabled] = useState(false);
-  const [locationError, setLocationError] = useState(null);
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const locationControlRef = useRef(null);
@@ -167,53 +189,59 @@ const MergedDashboard = () => {
   }, [user]);
 
   // Fetch nearby users function
-  const fetchNearbyUsers = async (latitude, longitude, distance) => {
-    try {
-      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-        throw new Error("Invalid coordinates provided");
-      }
-      
-      const nearbyResponse = await nearbyUsersService.getNearbyUsers({
-        latitude,
-        longitude,
-        distance
-      });
-      
-      if (!Array.isArray(nearbyResponse)) {
-        throw new Error("Invalid response format from server");
-      }
-      
-      // Get connections to exclude them from results
-      let connections = [];
-      try {
-        connections = await networkService.getConnections('all');
-      } catch (connectionError) {
-        console.error('Error fetching connections:', connectionError);
-        connections = [];
-      }
-      
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set(
-        Array.isArray(connections) ? connections.map(conn => conn._id) : []
-      );
-      
-      // Filter out users who are already connections
-      const filteredUsers = nearbyResponse.filter(user => !connectionIds.has(user._id));
-      
-      // Enhance user objects with more info
-      const enhancedUsers = filteredUsers.map(user => ({
-        ...user,
-        distanceFormatted: formatDistance(user.distance)
-      }));
-      
-      // Keep only the closest 3 users
-      setNearbyUsers(enhancedUsers.slice(0, 3));
-    } catch (error) {
-      console.error('Error fetching nearby professionals:', error);
-      setLocationError(error.message || "Failed to fetch nearby professionals");
-      setNearbyUsers([]);
+  // Updated fetchNearbyUsers function
+const fetchNearbyUsers = async (latitude, longitude, distance) => {
+  try {
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+      throw new Error("Invalid coordinates provided");
     }
-  };
+    
+    const nearbyResponse = await nearbyUsersService.getNearbyUsers({
+      latitude,
+      longitude,
+      distance
+    });
+    
+    // Extract the users array from the response
+    const nearbyUsersArray = nearbyResponse.users || nearbyResponse || [];
+    
+    if (!Array.isArray(nearbyUsersArray)) {
+      throw new Error("Invalid response format from server");
+    }
+    
+    // Get connections to exclude them from results
+    let connections = [];
+    try {
+      connections = await networkService.getConnections('all');
+    } catch (connectionError) {
+      console.error('Error fetching connections:', connectionError);
+      connections = [];
+    }
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(
+      Array.isArray(connections) ? connections.map(conn => conn._id || conn.id) : []
+    );
+    
+    // Filter out users who are already connections
+    const filteredUsers = nearbyUsersArray.filter(user => 
+      user._id && !connectionIds.has(user._id) && !connectionIds.has(user.id)
+    );
+    
+    // Enhance user objects with more info
+    const enhancedUsers = filteredUsers.map(user => ({
+      ...user,
+      distanceFormatted: formatDistance(user.distance)
+    }));
+    
+    // Keep only the closest 3 users
+    setNearbyUsers(enhancedUsers.slice(0, 3));
+  } catch (error) {
+    console.error('Error fetching nearby professionals:', error);
+    setLocationError(error.message || "Failed to fetch nearby professionals");
+    setNearbyUsers([]);
+  }
+};
 
   // Task management functions
   const addTask = () => {
@@ -617,6 +645,10 @@ const MergedDashboard = () => {
                           <Link to="/events/create" className="text-white bg-orange-500 hover:bg-orange-600 rounded-md px-2 py-1 text-xs flex items-center">
                             <PlusCircle className="h-3 w-3 mr-1" />
                             Host Event
+                          </Link>
+                          <Link to="/my-events" className="text-white bg-orange-500 hover:bg-orange-600 rounded-md px-2 py-1 text-xs flex items-center">
+                           
+                            My Events
                           </Link>
                           <Link to="/events" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm">View All</Link>
                         </div>

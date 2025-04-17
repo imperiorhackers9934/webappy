@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Search,
   Filter,
-  RefreshCw
+  RefreshCw,
+  UserCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
@@ -84,11 +85,11 @@ const MyEventsPage = () => {
     const endDate = new Date(event.endDate || event.endDateTime || startDate);
     
     if (endDate < now) {
-      return { label: 'Past', color: 'bg-gray-500' };
+      return { label: 'Past', color: 'bg-gray-500', isUpcoming: false };
     } else if (startDate > now) {
-      return { label: 'Upcoming', color: 'bg-green-500' };
+      return { label: 'Upcoming', color: 'bg-green-500', isUpcoming: true };
     } else {
-      return { label: 'In Progress', color: 'bg-blue-500' };
+      return { label: 'In Progress', color: 'bg-blue-500', isUpcoming: true };
     }
   };
   
@@ -101,6 +102,11 @@ const MyEventsPage = () => {
     
     if (total === 0) return 0;
     return Math.round((sold / total) * 100);
+  };
+
+  // Navigate to check-in page
+  const navigateToCheckIn = (eventId) => {
+    navigate(`/events/${eventId}/checkin`);
   };
   
   return (
@@ -246,6 +252,15 @@ const MyEventsPage = () => {
                             
                             {/* Action Buttons */}
                             <div className="flex space-x-2">
+                              {status.isUpcoming && (
+                                <button
+                                  onClick={() => navigateToCheckIn(event._id || event.id)}
+                                  className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5 mr-1" />
+                                  Check-in
+                                </button>
+                              )}
                               <Link 
                                 to={`/events/${event._id || event.id}/tickets/create`}
                                 className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
