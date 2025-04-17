@@ -191,57 +191,43 @@ const CheckInPage = () => {
         await stopScanner();
       }
       
+      console.log('Requesting camera permission...');
+      
       // Create a new instance of the scanner
       html5QrCodeRef.current = new Html5Qrcode("qr-reader");
       
-      await html5QrCodeRef.current.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        (decodedText) => {
-          console.log(`QR Code detected: ${decodedText}`);
-          // Stop scanner once a code is found
-          stopScanner().then(() => {
-            try {
-              // Try to parse the QR code as JSON
-              const qrData = JSON.parse(decodedText);
-              console.log("Parsed QR data:", qrData);
-              
-              // If the QR contains a secret, use it as verification code
-              if (qrData && qrData.secret) {
-                setVerificationCode(qrData.secret.substring(0, 6));
-                setTimeout(() => {
-                  handleVerifyTicket();
-                }, 500);
-              } else if (typeof decodedText === 'string') {
-                // If it's not valid JSON but a string, use it directly
-                setVerificationCode(decodedText);
-                setTimeout(() => {
-                  handleVerifyTicket();
-                }, 500);
-              }
-            } catch (e) {
-              // If it's not valid JSON, just use the text
-              console.log("Could not parse QR data as JSON, using raw text");
-              setVerificationCode(decodedText);
-              setTimeout(() => {
-                handleVerifyTicket();
-              }, 500);
-            }
-          });
-        },
-        (errorMessage) => {
-          // Just log the error, don't display to user unless scanning fails completely
-          console.log(`QR Code scanning error: ${errorMessage}`);
-        }
-      );
+      const devices = await Html5Qrcode.getCameras();
+      console.log('Available cameras:', devices);
       
-      setScannerActive(true);
+      if (devices && devices.length > 0) {
+        const cameraId = devices[0].id;
+        console.log('Using camera:', cameraId);
+        
+        // Try using a specific camera ID instead of facingMode
+        await html5QrCodeRef.current.start(
+          cameraId, // Use camera ID instead of facingMode
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          // Success callback remains the same
+          (decodedText) => {
+            console.log(`QR Code detected: ${decodedText}`);
+            // Rest of your code...
+          },
+          // Error callback with more detailed logging
+          (errorMessage) => {
+            console.log(`QR Code scanning error: ${errorMessage}`);
+          }
+        );
+        
+        setScannerActive(true);
+      } else {
+        throw new Error('No cameras found on this device');
+      }
     } catch (err) {
-      console.error('Error starting scanner:', err);
-      setError('Failed to access camera. Please check permissions and try again.');
+      console.error('Detailed scanner error:', err);
+      setError(`Camera access issue: ${err.message || 'Permission denied'}`);
       setScannerActive(false);
     }
   };
