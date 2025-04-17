@@ -227,14 +227,20 @@ bookEventTickets: async (eventId, bookingData) => {
  * @param {Object} data - Data object with qrData or verificationCode
  * @returns {Promise<Object>} - Check-in result
  */
-checkInTicket : async (ticketId, data) => {
+/**
+ * Check in a ticket using either QR data or verification code
+ * @param {string} ticketId - The ticket ID
+ * @param {Object} data - Data object with qrData or verificationCode
+ * @returns {Promise<Object>} - Check-in result
+ */
+checkInTicket: async (ticketId, data) => {
   try {
     // Add logging to help debug the issue
     console.log(`Checking in ticket: ${ticketId}`);
     console.log('Check-in data:', JSON.stringify(data));
 
-    // Make API request to check in the ticket
-    const response = await api.post(`/bookings/tickets/${ticketId}/check-in`, data);
+    // Fix: Add /api prefix to the URL
+    const response = await api.post(`/api/bookings/tickets/${ticketId}/check-in`, data);
     
     // Log the response
     console.log('Check-in response:', response.data);
@@ -275,9 +281,16 @@ checkInTicket : async (ticketId, data) => {
  * @param {string} code - The verification code
  * @returns {Promise<Object>} - Verification result
  */
-verifyTicketByCode : async (eventId, code) => {
+verifyTicketByCode: async (eventId, code) => {
   try {
-    const response = await api.post(`/events/${eventId}/verify-ticket`, { verificationCode: code });
+    console.log(`Verifying ticket for event ${eventId} with code: ${code}`);
+    
+    // Update the endpoint path to use the /api/bookings prefix
+    const response = await api.post(`/api/bookings/events/${eventId}/verify-ticket`, { 
+      verificationCode: code 
+    });
+    
+    console.log('Verification response:', response.data);
     return response.data;
   } catch (error) {
     if (!error.response) {

@@ -42,9 +42,9 @@ import MyEventsPage from './pages/MyEventsPage';
 import MyTicketsPage from './pages/MyTicketsPage';
 import EventDashboardPage from './pages/EventsDashboard';
 import CreateTicketsPage from './pages/CreateTicketsPage';
-// import AttendeeManagementPage from './pages/AttendeeManagementPage'; 
-// import TicketManagementPage from './pages/TicketManagementPage';
-// import CheckInPage from './pages/CheckInPage';
+import AttendeeManagementPage from './pages/AttendeeManagementPage'; 
+import TicketManagementPage from './pages/TicketManagementPage';
+import CheckInPage from './pages/CheckInPage';
 
 const App = () => {
   return (
@@ -98,12 +98,12 @@ const App = () => {
           <Route path="/events/new" element={<EventCreationPage />} />
           <Route path="/events/:eventId" element={<EventDetailPage />} />
           <Route path="/events/create" element={<EventCreationPage />} />
-          {/* <Route path="/events/:eventId/edit" element={<EventCreationPage />} /> */}
+          <Route path="/events/:eventId/edit" element={<EventCreationPage />} />
           <Route path="/events/:eventId/tickets" element={<TicketBookingPage />} />
           <Route path="/events/:eventId/manage" element={<EventDashboardPage />} />
-          {/* <Route path="/events/:eventId/attendees" element={<AttendeeManagementPage />} /> */}
+          <Route path="/events/:eventId/attendees" element={<AttendeeManagementPage />} />
           <Route path="/events/:eventId/tickets/create" element={<CreateTicketsPage/>} />
-          {/* <Route path="/events/:eventId/checkin" element={<CheckInPage />} /> */}
+          <Route path="/events/:eventId/checkin" element={<CheckInPage />} />
           
           {/* My Events & Tickets */}
           <Route path="/my-events" element={<MyEventsPage />} />
