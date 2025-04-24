@@ -680,7 +680,7 @@ const NearbyProfessionalsPage = ({ user }) => {
       {/* Map View */}
       {viewMode === 'map' && currentLocation && (
         <div className="relative">
-          <LoadScript googleMapsApiKey={import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY}>
+          <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
             <GoogleMap
               mapContainerStyle={mapContainerStyle}
               center={{
