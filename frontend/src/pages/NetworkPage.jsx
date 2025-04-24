@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
-import 'leaflet/dist/leaflet.css';
+import { GoogleMap, LoadScript, Marker, Circle } from '@react-google-maps/api';
+import networkService from '../services/networkService';
+import nearbyUsersService from '../services/nearbyUsersService';
 
-// Dynamically import Leaflet components to avoid SSR issues
 const NearbyProfessionalsPage = ({ user }) => {
   // State management
   const [professionals, setProfessionals] = useState([]);
@@ -14,7 +14,6 @@ const NearbyProfessionalsPage = ({ user }) => {
   const [locationError, setLocationError] = useState(false);
   const [viewMode, setViewMode] = useState('map'); // 'map' or 'list'
   const [selectedUser, setSelectedUser] = useState(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
   const [unit, setUnit] = useState('km');
   const [filters, setFilters] = useState({
     industry: null,
@@ -33,10 +32,32 @@ const NearbyProfessionalsPage = ({ user }) => {
   
   // Refs
   const mapRef = useRef(null);
-  const leafletMapRef = useRef(null);
   const markersRef = useRef([]);
-  const circleRef = useRef(null);
-  const mapContainerRef = useRef(null);
+
+  // Google Maps styles and settings
+  const mapContainerStyle = {
+    width: '100%',
+    height: '550px'
+  };
+
+  const defaultOptions = {
+    fullscreenControl: false,
+    zoomControl: true,
+    streetViewControl: false,
+    mapTypeControl: false,
+    styles: [
+      {
+        featureType: "poi",
+        elementType: "labels",
+        stylers: [{ visibility: "off" }]
+      },
+      {
+        featureType: "transit",
+        elementType: "labels",
+        stylers: [{ visibility: "off" }]
+      }
+    ]
+  };
 
   // Safe distance formatting function
   const formatDistance = (distance) => {
@@ -95,97 +116,48 @@ const NearbyProfessionalsPage = ({ user }) => {
     getUserLocation();
   }, []);
 
-  // Function to fetch nearby professionals
+  // Function to fetch nearby professionals using services
   const fetchNearbyProfessionals = useCallback(async (loc, dist) => {
     if (!loc) return;
     
     try {
       setLoading(true);
       
-      try {
-        // First try using the NetworkPage endpoint
-        const params = { 
-          distance: dist,
-          latitude: loc.latitude,
-          longitude: loc.longitude
-        };
-        
-        console.log('Attempting to fetch from primary endpoint');
-        const response = await api.get('/api/network/nearby', { params });
-        
-        // Process the response
-        const professionalsData = Array.isArray(response.data) ? response.data : 
-                          (response.data.professionals || []);
-        
-        // Map and safely process each professional
-        const processedProfessionals = professionalsData.map(prof => {
-          return {
-            ...prof,
-            _id: prof._id || prof.id,
-            firstName: prof.firstName || '',
-            lastName: prof.lastName || '',
-            connectionStatus: prof.connectionStatus || 'none',
-            formattedDistance: formatDistance(prof.distance),
-            distanceValue: typeof prof.distance === 'number' ? prof.distance : 
-                          (typeof prof.distance === 'string' ? parseFloat(prof.distance) || null : null),
-            // Generate random coordinates if none are provided
-            latitude: prof.latitude || (loc.latitude + (Math.random() - 0.5) * 0.01),
-            longitude: prof.longitude || (loc.longitude + (Math.random() - 0.5) * 0.01)
-          };
-        });
-        
-        setProfessionals(processedProfessionals);
-        
-      } catch (primaryError) {
-        console.error('Primary endpoint failed:', primaryError);
-        
-        // Try the alternate endpoint
-        try {
-          console.log('Attempting to fetch from alternate endpoint');
-          const response = await api.get('/api/nearby-users', { 
-            params: { 
-              distance: dist,
-              latitude: loc.latitude,
-              longitude: loc.longitude
-            }
-          });
-          
-          // Extract users from the response
-          const professionalsData = response.data.users || [];
-          
-          // Process the data
-          const processedProfessionals = professionalsData.map(prof => {
-            return {
-              ...prof,
-              _id: prof._id || prof.id,
-              firstName: prof.firstName || '',
-              lastName: prof.lastName || '',
-              connectionStatus: prof.connectionStatus || 'none',
-              formattedDistance: formatDistance(prof.distance),
-              distanceValue: typeof prof.distance === 'number' ? prof.distance : 
-                            (typeof prof.distance === 'string' ? parseFloat(prof.distance) || null : null),
-              // Generate random coordinates if none are provided
-              latitude: prof.latitude || (loc.latitude + (Math.random() - 0.5) * 0.01),
-              longitude: prof.longitude || (loc.longitude + (Math.random() - 0.5) * 0.01)
-            };
-          });
-          
-          setProfessionals(processedProfessionals);
-          
-        } catch (secondaryError) {
-          console.error('Both API endpoints failed:', { primaryError, secondaryError });
-          throw new Error('Failed to load nearby professionals. Please try again later.');
-        }
-      }
+      // Use nearbyUsersService to get nearby users
+      console.log('Fetching nearby users with service');
+      const params = { 
+        distance: dist,
+        latitude: loc.latitude,
+        longitude: loc.longitude
+      };
       
-      // Update location separately
+      const response = await nearbyUsersService.getNearbyUsers(params);
+      
+      // Extract users from the response
+      const professionalsData = response.users || [];
+      
+      // Process the data
+      const processedProfessionals = professionalsData.map(prof => {
+        return {
+          ...prof,
+          _id: prof._id || prof.id,
+          firstName: prof.firstName || '',
+          lastName: prof.lastName || '',
+          connectionStatus: prof.connectionStatus || 'none',
+          formattedDistance: formatDistance(prof.distance),
+          distanceValue: typeof prof.distance === 'number' ? prof.distance : 
+                        (typeof prof.distance === 'string' ? parseFloat(prof.distance) || null : null),
+          // Generate random coordinates if none are provided
+          latitude: prof.latitude || (loc.latitude + (Math.random() - 0.5) * 0.01),
+          longitude: prof.longitude || (loc.longitude + (Math.random() - 0.5) * 0.01)
+        };
+      });
+      
+      setProfessionals(processedProfessionals);
+      
+      // Update location using the service
       try {
-        // Try to update location using different methods
-        if (typeof api.updateLocation === 'function') {
-          await api.updateLocation(loc.latitude, loc.longitude);
-        } else {
-          console.log('updateLocation not available in api, skipping');
-        }
+        await nearbyUsersService.updateLocation(loc.latitude, loc.longitude, true);
       } catch (locationError) {
         console.log('Location update failed, but professionals were fetched');
       }
@@ -214,214 +186,10 @@ const NearbyProfessionalsPage = ({ user }) => {
     }
   }, [currentLocation, distance, fetchNearbyProfessionals]);
 
-  // Initialize Leaflet map
-  useEffect(() => {
-    // Only run this effect in the browser, not during SSR
-    if (typeof window === 'undefined') return;
-    
-    // Dynamically import Leaflet
-    const initMap = async () => {
-      try {
-        // Dynamic import of Leaflet
-        const L = await import('leaflet');
-        
-        // Fix for marker icons in webpack
-        delete L.Icon.Default.prototype._getIconUrl;
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-          iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-          shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-        });
-        
-        setMapLoaded(true);
-        
-        // If location already exists, initialize map
-        if (currentLocation && mapContainerRef.current && !leafletMapRef.current) {
-          // Create map instance
-          const map = L.map(mapContainerRef.current).setView(
-            [currentLocation.latitude, currentLocation.longitude], 
-            13
-          );
-          
-          // Add tile layer (OpenStreetMap)
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19,
-          }).addTo(map);
-          
-          // Add user location marker
-          const userIcon = L.divIcon({
-            className: 'current-user-marker',
-            html: `<div class="current-user-dot"></div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-          });
-          
-          const userMarker = L.marker(
-            [currentLocation.latitude, currentLocation.longitude],
-            { icon: userIcon }
-          ).addTo(map);
-          
-          // Add radius circle
-          const radiusInMeters = distance * (unit === 'km' ? 1000 : 1609.34);
-          const circle = L.circle(
-            [currentLocation.latitude, currentLocation.longitude],
-            {
-              radius: radiusInMeters,
-              color: '#FF6B00',
-              fillColor: '#FF6B00',
-              fillOpacity: 0.1,
-              weight: 2
-            }
-          ).addTo(map);
-          
-          circleRef.current = circle;
-          leafletMapRef.current = map;
-          
-          // Add markers for professionals
-          if (professionals.length > 0) {
-            addProfessionalsToMap(professionals, L, map);
-          }
-        }
-      } catch (error) {
-        console.error('Error initializing map:', error);
-      }
-    };
-
-    if (currentLocation && !leafletMapRef.current) {
-      initMap();
-    }
-  }, [currentLocation, professionals, distance, unit]);
-
-  // Update map when professionals change
-  useEffect(() => {
-    if (mapLoaded && leafletMapRef.current && professionals.length > 0) {
-      // Dynamically import Leaflet
-      import('leaflet').then(L => {
-        addProfessionalsToMap(professionals, L, leafletMapRef.current);
-      });
-    }
-  }, [professionals, mapLoaded]);
-
-  // Update circle radius when distance changes
-  useEffect(() => {
-    if (circleRef.current && currentLocation) {
-      const radiusInMeters = distance * (unit === 'km' ? 1000 : 1609.34);
-      circleRef.current.setRadius(radiusInMeters);
-    }
-  }, [distance, unit, currentLocation]);
-
-  // Function to add professional markers to map
-  const addProfessionalsToMap = (professionals, L, map) => {
-    // Clear existing markers
-    if (markersRef.current.length) {
-      markersRef.current.forEach(marker => map.removeLayer(marker));
-      markersRef.current = [];
-    }
-    
-    // Add new markers
-    const newMarkers = professionals.map(professional => {
-      // Create custom icon based on connection status
-      const iconColor = getMarkerColor(professional.connectionStatus);
-      const isSelected = selectedUser && selectedUser._id === professional._id;
-      
-      const customIcon = L.divIcon({
-        className: `professional-marker ${isSelected ? 'selected-marker' : ''}`,
-        html: `
-          <div class="marker-container" style="background-color: ${iconColor}; border: 2px solid white; width: ${isSelected ? '44px' : '40px'}; height: ${isSelected ? '44px' : '40px'}; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-            ${professional.profilePicture 
-              ? `<img src="${professional.profilePicture}" alt="${professional.firstName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" />`
-              : `<div style="color: white; font-weight: bold; font-size: 14px;">${getInitials(professional.firstName, professional.lastName)}</div>`
-            }
-          </div>
-          ${isSelected ? `
-            <div class="marker-info" style="background: white; padding: 5px 10px; border-radius: 4px; margin-top: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: nowrap; text-align: center;">
-              <div style="font-weight: bold; font-size: 12px;">${professional.firstName} ${professional.lastName}</div>
-              <div style="font-size: 11px; color: #666;">${professional.formattedDistance}</div>
-            </div>
-          ` : ''}
-        `,
-        iconSize: [isSelected ? 44 : 40, isSelected ? 44 : 40],
-        iconAnchor: [isSelected ? 22 : 20, isSelected ? 22 : 20],
-        popupAnchor: [0, -20]
-      });
-      
-      // Create marker
-      const marker = L.marker(
-        [professional.latitude, professional.longitude], 
-        { icon: customIcon }
-      ).addTo(map);
-      
-      // Add popup with professional details
-      marker.bindPopup(`
-        <div class="popup-content" style="width: 200px; padding: 10px;">
-          <div style="display: flex; align-items: center; margin-bottom: 10px;">
-            ${professional.profilePicture 
-              ? `<img src="${professional.profilePicture}" alt="${professional.firstName}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover;" />`
-              : `<div style="width: 40px; height: 40px; border-radius: 50%; background-color: #f0f0f0; margin-right: 10px; display: flex; justify-content: center; align-items: center; font-weight: bold;">${getInitials(professional.firstName, professional.lastName)}</div>`
-            }
-            <div>
-              <div style="font-weight: bold;">${professional.firstName} ${professional.lastName}</div>
-              <div style="font-size: 12px; color: #666;">${professional.headline || professional.title || 'Professional'}</div>
-            </div>
-          </div>
-          <div style="font-size: 12px; margin-bottom: 5px; display: flex; align-items: center;">
-            <span style="color: #FF6B00; margin-right: 5px;">📍</span> ${professional.formattedDistance}
-          </div>
-          <div style="display: flex; margin-top: 10px;">
-            <a href="/profile/${professional._id}" style="flex: 1; text-align: center; padding: 5px; background: #f0f0f0; border-radius: 4px; margin-right: 5px; text-decoration: none; color: #555; font-size: 12px;">View Profile</a>
-            ${professional.connectionStatus === 'connected' 
-              ? `<a href="/messages/${professional._id}" style="flex: 1; text-align: center; padding: 5px; background: #e6f0ff; border-radius: 4px; text-decoration: none; color: #4A90E2; font-size: 12px;">Message</a>`
-              : professional.connectionStatus === 'pending'
-                ? `<span style="flex: 1; text-align: center; padding: 5px; background: #fff9e6; border-radius: 4px; color: #EAB308; font-size: 12px;">Pending</span>`
-                : `<button onclick="connectWithUser('${professional._id}')" style="flex: 1; text-align: center; padding: 5px; background: #FF6B00; border-radius: 4px; border: none; color: white; font-size: 12px; cursor: pointer;">Connect</button>`
-            }
-          </div>
-        </div>
-      `);
-      
-      // Add click event
-      marker.on('click', () => {
-        setSelectedUser(professional);
-        
-        // Close any open popups to avoid UI clutter
-        map.closePopup();
-        
-        // Remove all markers and re-add them to update the selected state
-        markersRef.current.forEach(m => map.removeLayer(m));
-        markersRef.current = [];
-        addProfessionalsToMap(professionals, L, map);
-      });
-      
-      return marker;
-    });
-    
-    markersRef.current = newMarkers;
-    
-    // If there's a selected user, ensure their marker is above others (z-index)
-    if (selectedUser) {
-      const selectedMarker = markersRef.current.find((_, index) => {
-        return professionals[index]._id === selectedUser._id;
-      });
-      
-      if (selectedMarker) {
-        selectedMarker.getElement().style.zIndex = 1000;
-      }
-    }
-    
-    // Fit bounds to show all markers if we have professionals
-    if (professionals.length > 0) {
-      const bounds = L.latLngBounds([
-        [currentLocation.latitude, currentLocation.longitude],
-        ...professionals.map(p => [p.latitude, p.longitude])
-      ]);
-      
-      map.fitBounds(bounds, {
-        padding: [50, 50],
-        maxZoom: 15
-      });
-    }
-  };
+  // Handle map load
+  const onMapLoad = useCallback((map) => {
+    mapRef.current = map;
+  }, []);
 
   // Distance range handler
   const handleDistanceChange = (event) => {
@@ -444,7 +212,7 @@ const NearbyProfessionalsPage = ({ user }) => {
     }
   };
 
-  // Send connection request
+  // Send connection request using networkService
   const handleConnect = async (userId, e) => {
     if (e) {
       e.preventDefault();
@@ -459,9 +227,9 @@ const NearbyProfessionalsPage = ({ user }) => {
       
       console.log('Sending connection request to user:', userId);
       
-      // Try to send connection request
+      // Use networkService.requestConnection
       try {
-        await api.sendConnectionRequest(userId);
+        await networkService.requestConnection(userId);
       } catch (error) {
         console.error('Connection request failed:', error);
       }
@@ -507,6 +275,59 @@ const NearbyProfessionalsPage = ({ user }) => {
     }
   };
 
+  // Custom Marker component for Google Maps
+  const CustomMarker = ({ professional, isCurrentUser = false }) => {
+    const iconColor = isCurrentUser ? '#4CAF50' : getMarkerColor(professional?.connectionStatus);
+    const isSelected = selectedUser && professional && selectedUser._id === professional._id;
+    
+    // Current user marker
+    if (isCurrentUser) {
+      return (
+        <Marker
+          position={{
+            lat: currentLocation.latitude,
+            lng: currentLocation.longitude
+          }}
+          icon={{
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#4CAF50',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2,
+          }}
+          zIndex={1000}
+        />
+      );
+    }
+    
+    // Professional user marker
+    return (
+      <Marker
+        position={{
+          lat: professional.latitude,
+          lng: professional.longitude
+        }}
+        onClick={() => setSelectedUser(professional)}
+        icon={{
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: isSelected ? 10 : 8,
+          fillColor: iconColor,
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 2,
+        }}
+        zIndex={isSelected ? 1001 : 1}
+        label={{
+          text: getInitials(professional.firstName, professional.lastName),
+          color: '#FFFFFF',
+          fontSize: '10px',
+          fontWeight: 'bold'
+        }}
+      />
+    );
+  };
+
   // Retry getting location
   const retryLocation = () => {
     setLoading(true);
@@ -534,12 +355,17 @@ const NearbyProfessionalsPage = ({ user }) => {
     }
   };
 
-  // Toggle notification preferences
+  // Toggle notification preferences using service
   const toggleNotifications = async () => {
     try {
       const newStatus = !notificationPrefs.enabled;
       
-      // In a real app, we would call an API to update preferences
+      // Update notification preferences with service
+      await nearbyUsersService.updateNearbyNotificationPreferences({
+        ...notificationPrefs,
+        enabled: newStatus
+      });
+      
       setNotificationPrefs({
         ...notificationPrefs,
         enabled: newStatus
@@ -553,6 +379,20 @@ const NearbyProfessionalsPage = ({ user }) => {
       console.error('Error updating notification preferences:', error);
     }
   };
+
+  // Load notification preferences when component mounts
+  useEffect(() => {
+    const loadNotificationPrefs = async () => {
+      try {
+        const prefs = await nearbyUsersService.getNearbyNotificationPreferences();
+        setNotificationPrefs(prefs);
+      } catch (error) {
+        console.error('Error loading notification preferences:', error);
+      }
+    };
+    
+    loadNotificationPrefs();
+  }, []);
 
   // Handle filter changes
   const handleFilterChange = (newFilters) => {
@@ -580,8 +420,8 @@ const NearbyProfessionalsPage = ({ user }) => {
       const latitude = location.latitude + (Math.random() - 0.5) * 0.01;
       const longitude = location.longitude + (Math.random() - 0.5) * 0.01;
       
-      // Calculate approximate distance
-      const distance = calculateDistance(
+      // Calculate approximate distance using service
+      const distance = nearbyUsersService.calculateDistance(
         location.latitude, 
         location.longitude, 
         latitude,
@@ -608,23 +448,6 @@ const NearbyProfessionalsPage = ({ user }) => {
       });
     }
     return mockProfiles;
-  };
-
-  // Helper function to calculate distance between coordinates
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1); 
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    return R * c; // Distance in km
-  };
-
-  const deg2rad = (deg) => {
-    return deg * (Math.PI/180);
   };
 
   // Simple Filter Modal Component
@@ -855,43 +678,52 @@ const NearbyProfessionalsPage = ({ user }) => {
       </div>
 
       {/* Map View */}
-      {viewMode === 'map' && (
+      {viewMode === 'map' && currentLocation && (
         <div className="relative">
-          {/* Map Container */}
-          <div 
-            ref={mapContainerRef}
-            className="w-full h-[550px]"
-            style={{ height: '550px' }}
-          >
-            {/* Leaflet will be initialized here */}
-            {!mapLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                <div className="flex flex-col items-center">
-                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-orange-500 border-t-transparent"></div>
-                  <p className="mt-3 text-gray-600">Loading map...</p>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* CSS for map markers */}
-          <style jsx global>{`
-            .current-user-marker {
-              background-color: rgba(76, 175, 80, 0.2);
-              border-radius: 50%;
-              border: 1px solid #4CAF50;
-            }
-            .current-user-dot {
-              width: 12px;
-              height: 12px;
-              background-color: #4CAF50;
-              border-radius: 50%;
-              margin: 6px;
-            }
-            .selected-marker {
-              z-index: 1000 !important;
-            }
-          `}</style>
+          <LoadScript googleMapsApiKey={import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY}>
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={{
+                lat: currentLocation.latitude,
+                lng: currentLocation.longitude
+              }}
+              zoom={14}
+              options={defaultOptions}
+              onLoad={onMapLoad}
+            >
+              {/* Current user location */}
+              <CustomMarker isCurrentUser={true} />
+              
+              {/* Radius circle */}
+              <Circle
+                center={{
+                  lat: currentLocation.latitude,
+                  lng: currentLocation.longitude
+                }}
+                options={{
+                  strokeColor: '#FF6B00',
+                  strokeOpacity: 0.8,
+                  strokeWeight: 2,
+                  fillColor: '#FF6B00',
+                  fillOpacity: 0.1,
+                  radius: unit === 'km' ? distance * 1000 : distance * 1609.34,
+                  clickable: false,
+                  draggable: false,
+                  editable: false,
+                  visible: true,
+                  zIndex: 1
+                }}
+              />
+              
+              {/* Professional markers */}
+              {professionals.map(professional => (
+                <CustomMarker 
+                  key={professional._id} 
+                  professional={professional} 
+                />
+              ))}
+            </GoogleMap>
+          </LoadScript>
           
           {/* Selected User Card for mobile view */}
           {viewMode === 'map' && selectedUser && (
@@ -1166,27 +998,6 @@ const NearbyProfessionalsPage = ({ user }) => {
         filters={filters}
         onApplyFilters={handleFilterChange}
       />
-      
-      {/* Add CSS for styling */}
-      <style jsx>{`
-        /* Add any component-specific CSS here */
-        .distance-slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #FF6B00;
-          cursor: pointer;
-        }
-        .distance-slider::-moz-range-thumb {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #FF6B00;
-          cursor: pointer;
-        }
-      `}</style>
     </div>
   );
 };
