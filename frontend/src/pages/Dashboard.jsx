@@ -1496,7 +1496,7 @@ const MergedDashboard = () => {
           {/* Footer */}
           <footer className="bg-white shadow-md py-4 md:py-5 mt-6 border-t border-orange-100">
             <div className="max-w-7xl mx-auto px-4 text-center">
-              <p className="text-xs md:text-sm text-gray-600">© 2023 MeetKats • Privacy Policy • Terms of Service</p>
+              <p className="text-xs md:text-sm text-gray-600">© 2024 MeetKats • Privacy Policy • Terms of Service</p>
             </div>
           </footer>
         </div>
