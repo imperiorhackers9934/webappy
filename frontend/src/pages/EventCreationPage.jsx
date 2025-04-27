@@ -728,9 +728,6 @@ const EventCreationPage = ({ user, onLogout }) => {
                               type="text"
                               id="city"
                               name="city"
-                              value={type="text"
-                              id="city"
-                              name="city"
                               value={formData.locationDetails.city}
                               onChange={handleLocationDetailChange}
                               className="w-full px-4 py-3 rounded-lg border border-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white shadow-sm transition text-gray-900"
