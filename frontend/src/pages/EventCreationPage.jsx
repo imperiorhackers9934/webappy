@@ -690,7 +690,7 @@ const EventCreationPage = ({ user, onLogout }) => {
         <Sidebar user={user} onLogout={onLogout} />
         
         {/* Main content with no gap */}
-        <div className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-4 py-12">
             <div className="text-center bg-white rounded-lg shadow-md p-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-100 rounded-full mb-6">
@@ -722,11 +722,13 @@ const EventCreationPage = ({ user, onLogout }) => {
   }
   
   return (
-    <div className="flex h-screen bg-orange-50">
-      {/* Integrate the existing Sidebar */}
-      <Sidebar user={user} onLogout={onLogout} />
+    <div className="flex">
+      {/* The sidebar component - moved higher in the z-index stack */}
+      <div className="z-20 relative">
+        <Sidebar user={user} onLogout={onLogout} />
+      </div>
       
-      {/* Main content with no gap */}
+      {/* Main content */}
       <div className="flex-1 overflow-y-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -755,8 +757,8 @@ const EventCreationPage = ({ user, onLogout }) => {
                   <div 
                     key={step.id} 
                     className={`flex items-center ${index < formSteps.length - 1 ? 'flex-1' : ''}`}
-                    onClick={() => step.id < activeStep ? setActiveStep(step.id) : null}
-                    style={{ cursor: step.id < activeStep ? 'pointer' : 'default' }}
+                    onClick={() => step.id <= activeStep ? setActiveStep(step.id) : null}
+                    style={{ cursor: step.id <= activeStep ? 'pointer' : 'default' }}
                   >
                     <div 
                       className={`flex items-center justify-center w-8 h-8 rounded-full ${
