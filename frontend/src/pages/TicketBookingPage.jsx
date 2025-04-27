@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
-import Sidebar from '../components/common/Navbar'; // Import the Navbar component
 
 const TicketBookingPage = () => {
   const { eventId } = useParams();
@@ -213,24 +212,89 @@ const TicketBookingPage = () => {
   };
   
   // Handle form submissions for each step
-  const handleSubmit = (e) => {
-    if (e) e.preventDefault();
+ // Updated handleSubmitBooking function with enhanced debugging
+// Add this to your TicketPurchasePage.jsx file
+
+const handleSubmitBooking = async (e) => {
+    e.preventDefault();
     
-    if (step === 1) {
-      const orderSummary = calculateOrderSummary();
-      if (orderSummary.ticketCount === 0) {
-        alert('Please select at least one ticket');
+    try {
+      setSubmitting(true);
+      
+      // Validate form
+      if (!customerInfo.firstName || !customerInfo.lastName || !customerInfo.email) {
+        setError('Please fill in all required fields');
+        setSubmitting(false);
         return;
       }
-      setStep(2);
-      window.scrollTo(0, 0);
-    } else if (step === 2) {
-      if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
-        alert('Please fill in all required fields');
+      
+      // Check if any tickets are selected
+      const summary = calculateOrderSummary();
+      if (summary.ticketCount === 0) {
+        setError('Please select at least one ticket');
+        setSubmitting(false);
         return;
       }
-      setStep(3);
-      window.scrollTo(0, 0);
+      
+      // Transform the selected tickets into the format expected by the API
+      const ticketSelections = Object.entries(selectedTickets)
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([ticketId, quantity]) => {
+          console.log(`Selected ticket: ${ticketId} with quantity: ${quantity}`);
+          return {
+            ticketTypeId: ticketId,
+            quantity
+          };
+        });
+      
+      console.log('Prepared ticket selections:', ticketSelections);
+      
+      // Prepare booking data according to the API's expected format
+      const bookingData = {
+        ticketSelections,
+        contactInformation: {
+          firstName: customerInfo.firstName,
+          lastName: customerInfo.lastName,
+          email: customerInfo.email,
+          phone: customerInfo.phone || ''
+        }
+      };
+      
+      console.log('Full booking data before submission:', JSON.stringify(bookingData, null, 2));
+      console.log('Event ID for booking:', eventId);
+      
+      // Call API to book tickets
+      const response = await ticketService.bookEventTickets(eventId, bookingData);
+      
+      console.log('Booking response received:', response);
+      
+      // Handle response and redirect
+      if (response && response.id) {
+        navigate(`/tickets/confirmation/${response.id}`);
+      } else if (response && response.booking && response.booking.id) {
+        navigate(`/tickets/confirmation/${response.booking.id}`);
+      } else if (response && response.success) {
+        navigate(`/tickets/confirmation/success`);
+      } else {
+        // Generic success if we don't have a specific ID
+        navigate(`/tickets/confirmation/success`);
+      }
+      
+    } catch (err) {
+      console.error('Error submitting booking:', err);
+      
+      // Enhanced error display
+      let errorMessage = 'Failed to complete your booking. Please try again later.';
+      
+      if (err.response && err.response.data && err.response.data.error) {
+        errorMessage = `Booking error: ${err.response.data.error}`;
+        console.error('Detailed error from server:', err.response.data);
+      } else if (err.message) {
+        errorMessage = `Booking error: ${err.message}`;
+      }
+      
+      setError(errorMessage);
+      setSubmitting(false);
     }
   };
   
@@ -305,28 +369,13 @@ const TicketBookingPage = () => {
   };
   
   const orderSummary = calculateOrderSummary();
-
-  // Mock user for Navbar
-  const mockUser = {
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com'
-  };
-  
-  // Mock logout function
-  const handleLogout = () => {
-    console.log('Logging out');
-  };
   
   if (loading) {
     return (
-      <div>
-        <Sidebar user={mockUser} onLogout={handleLogout} />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:ml-64">
-          <div className="text-center">
-            <div className="w-16 h-16 border-t-4 border-orange-500 border-solid rounded-full animate-spin mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading event details...</p>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading event details...</p>
         </div>
       </div>
     );
@@ -334,21 +383,18 @@ const TicketBookingPage = () => {
   
   if (error) {
     return (
-      <div>
-        <Sidebar user={mockUser} onLogout={handleLogout} />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:ml-64">
-          <div className="text-center">
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
-              <strong className="font-bold">Error: </strong>
-              <span className="block sm:inline">{error}</span>
-            </div>
-            <button 
-              onClick={() => navigate('/events')} 
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
-            >
-              Browse Events
-            </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
           </div>
+          <button 
+            onClick={() => navigate('/events')} 
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Browse Events
+          </button>
         </div>
       </div>
     );
@@ -356,34 +402,29 @@ const TicketBookingPage = () => {
   
   if (!event) {
     return (
-      <div>
-        <Sidebar user={mockUser} onLogout={handleLogout} />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:ml-64">
-          <div className="text-center">
-            <p className="text-gray-600">Event not found</p>
-            <button 
-              onClick={() => navigate('/events')} 
-              className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
-            >
-              Browse Events
-            </button>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <p className="text-gray-600">Event not found</p>
+          <button 
+            onClick={() => navigate('/events')} 
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Browse Events
+          </button>
         </div>
       </div>
     );
   }
   
   return (
-    <div className="bg-orange-50 min-h-screen pb-12">
-      <Sidebar user={mockUser} onLogout={handleLogout} />
-      
+    <div className="bg-gray-50 min-h-screen pb-12">
       {/* Header */}
-      <div className="bg-white shadow-sm md:ml-64">
+      <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center">
             <button 
               onClick={handleBack} 
-              className="text-orange-600 hover:text-orange-900 flex items-center"
+              className="text-gray-600 hover:text-gray-900 flex items-center"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               <span>{step === 1 ? 'Back to Event' : 'Back'}</span>
@@ -398,27 +439,27 @@ const TicketBookingPage = () => {
       </div>
       
       {/* Progress Steps */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:ml-64">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-center">
           <div className="flex items-center text-sm font-medium">
-            <div className={`flex items-center ${step >= 1 ? 'text-orange-600' : 'text-gray-500'}`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 1 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
+            <div className={`flex items-center ${step >= 1 ? 'text-blue-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 1 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
                 <Ticket className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">Tickets</span>
             </div>
-            <div className={`w-12 h-0.5 mx-2 ${step >= 2 ? 'bg-orange-600' : 'bg-gray-300'}`}></div>
+            <div className={`w-12 h-0.5 mx-2 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
             
-            <div className={`flex items-center ${step >= 2 ? 'text-orange-600' : 'text-gray-500'}`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 2 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
+            <div className={`flex items-center ${step >= 2 ? 'text-blue-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 2 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
                 <User className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">Information</span>
             </div>
-            <div className={`w-12 h-0.5 mx-2 ${step >= 3 ? 'bg-orange-600' : 'bg-gray-300'}`}></div>
+            <div className={`w-12 h-0.5 mx-2 ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
             
-            <div className={`flex items-center ${step >= 3 ? 'text-orange-600' : 'text-gray-500'}`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
+            <div className={`flex items-center ${step >= 3 ? 'text-blue-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
                 <CreditCard className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">Payment</span>
@@ -428,12 +469,12 @@ const TicketBookingPage = () => {
       </div>
       
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:ml-64">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column */}
           <div className="lg:col-span-2">
             {/* Event Info */}
-            <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
               <div className="flex items-start">
                 {event.coverImage?.url && (
                   <img 
@@ -446,11 +487,11 @@ const TicketBookingPage = () => {
                   <h2 className="text-xl font-bold text-gray-900 mb-2">{event.name}</h2>
                   <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-600">
                     <div className="flex items-center mb-1 sm:mb-0">
-                      <Calendar className="w-4 h-4 mr-1 text-orange-500" />
+                      <Calendar className="w-4 h-4 mr-1 text-gray-500" />
                       {formatDate(event.startDateTime)}
                     </div>
                     <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1 text-orange-500" />
+                      <Clock className="w-4 h-4 mr-1 text-gray-500" />
                       {formatTime(event.startDateTime)}
                     </div>
                   </div>
@@ -461,17 +502,17 @@ const TicketBookingPage = () => {
             {/* Step 1: Ticket Selection */}
             {step === 1 && (
               <form onSubmit={handleSubmit}>
-                <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
+                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Select Tickets</h3>
                   
                   {ticketsLoading ? (
                     <div className="text-center py-8">
-                      <div className="w-12 h-12 border-t-4 border-orange-500 border-solid rounded-full animate-spin mx-auto"></div>
+                      <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
                       <p className="mt-4 text-gray-600">Loading tickets...</p>
                     </div>
                   ) : ticketTypes.length === 0 ? (
-                    <div className="text-center py-8 bg-orange-50 rounded-lg">
-                      <Ticket className="w-12 h-12 text-orange-400 mx-auto mb-3" />
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <Ticket className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                       <p className="text-gray-700 font-medium">No tickets available</p>
                       <p className="text-gray-500 mt-1">There are currently no tickets available for this event.</p>
                     </div>
@@ -486,7 +527,7 @@ const TicketBookingPage = () => {
                         return (
                           <div 
                             key={ticketId} 
-                            className={`border rounded-lg p-4 ${isAvailable ? 'border-orange-200 hover:border-orange-300' : 'border-gray-200 bg-gray-50 opacity-75'}`}
+                            className={`border rounded-lg p-4 ${isAvailable ? 'border-gray-200' : 'border-gray-200 bg-gray-50 opacity-75'}`}
                           >
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                               <div className="mb-3 md:mb-0">
@@ -513,7 +554,7 @@ const TicketBookingPage = () => {
                                   {ticket.price === 0 ? 'Free' : formatCurrency(ticket.price, ticket.currency || 'USD')}
                                 </div>
                                 
-                                <div className="flex items-center border border-orange-300 rounded-md">
+                                <div className="flex items-center border border-gray-300 rounded-md">
                                   <button 
                                     type="button"
                                     onClick={() => handleTicketQuantityChange(ticketId, -1)}
@@ -521,7 +562,7 @@ const TicketBookingPage = () => {
                                     className={`p-2 ${
                                       currentQty === 0 || !isAvailable
                                         ? 'text-gray-300 cursor-not-allowed' 
-                                        : 'text-orange-600 hover:bg-orange-100'
+                                        : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                                   >
                                     <Minus className="w-4 h-4" />
@@ -538,7 +579,7 @@ const TicketBookingPage = () => {
                                     className={`p-2 ${
                                       !isAvailable || (ticket.available && currentQty >= ticket.available)
                                         ? 'text-gray-300 cursor-not-allowed' 
-                                        : 'text-orange-600 hover:bg-orange-100'
+                                        : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                                   >
                                     <Plus className="w-4 h-4" />
@@ -548,7 +589,7 @@ const TicketBookingPage = () => {
                             </div>
                             
                             {currentQty > 0 && (
-                              <div className="mt-3 pt-3 border-t border-orange-200 flex justify-end">
+                              <div className="mt-3 pt-3 border-t border-gray-200 flex justify-end">
                                 <span className="font-medium text-gray-900">
                                   {formatCurrency(ticket.price * currentQty, ticket.currency || 'USD')}
                                 </span>
@@ -568,7 +609,7 @@ const TicketBookingPage = () => {
                     className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
                       orderSummary.ticketCount === 0
                         ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500'
+                        : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                   >
                     Continue to Information
@@ -581,18 +622,18 @@ const TicketBookingPage = () => {
             {/* Step 2: Attendee Information */}
             {step === 2 && (
               <form onSubmit={handleSubmit}>
-                <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
+                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Your Information</h3>
                   
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                          First Name <span className="text-orange-500">*</span>
+                          First Name <span className="text-red-500">*</span>
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <User className="h-5 w-5 text-orange-400" />
+                            <User className="h-5 w-5 text-gray-400" />
                           </div>
                           <input
                             type="text"
@@ -601,18 +642,18 @@ const TicketBookingPage = () => {
                             value={userInfo.firstName}
                             onChange={handleUserInfoChange}
                             required
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                           />
                         </div>
                       </div>
                       
                       <div>
                         <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                          Last Name <span className="text-orange-500">*</span>
+                          Last Name <span className="text-red-500">*</span>
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <User className="h-5 w-5 text-orange-400" />
+                            <User className="h-5 w-5 text-gray-400" />
                           </div>
                           <input
                             type="text"
@@ -621,7 +662,7 @@ const TicketBookingPage = () => {
                             value={userInfo.lastName}
                             onChange={handleUserInfoChange}
                             required
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                           />
                         </div>
                       </div>
@@ -629,11 +670,11 @@ const TicketBookingPage = () => {
                     
                     <div>
                       <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                        Email <span className="text-orange-500">*</span>
+                        Email <span className="text-red-500">*</span>
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Mail className="h-5 w-5 text-orange-400" />
+                          <Mail className="h-5 w-5 text-gray-400" />
                         </div>
                         <input
                           type="email"
@@ -642,7 +683,7 @@ const TicketBookingPage = () => {
                           value={userInfo.email}
                           onChange={handleUserInfoChange}
                           required
-                          className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
+                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                         />
                       </div>
                       <p className="mt-1 text-xs text-gray-500">Your tickets will be sent to this email address</p>
@@ -654,7 +695,7 @@ const TicketBookingPage = () => {
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Phone className="h-5 w-5 text-orange-400" />
+                          <Phone className="h-5 w-5 text-gray-400" />
                         </div>
                         <input
                           type="tel"
@@ -662,7 +703,7 @@ const TicketBookingPage = () => {
                           name="phone"
                           value={userInfo.phone}
                           onChange={handleUserInfoChange}
-                          className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
+                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                         />
                       </div>
                       <p className="mt-1 text-xs text-gray-500">For important updates about the event</p>
@@ -673,7 +714,7 @@ const TicketBookingPage = () => {
                 <div className="hidden sm:block">
                   <button
                     type="submit"
-                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
+                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
                   >
                     Continue to Payment
                     <ChevronRight className="ml-2 h-5 w-5" />
@@ -685,35 +726,36 @@ const TicketBookingPage = () => {
             {/* Step 3: Payment */}
             {step === 3 && (
               <form onSubmit={handlePaymentSubmit}>
-                <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
+                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Payment Method</h3>
                   
                   <div className="space-y-6">
-                    <div className="bg-orange-50 rounded-lg p-4 flex items-start border border-orange-200">
-                      <Info className="h-5 w-5 text-orange-500 mr-3 mt-0.5" />
+                    <div className="bg-blue-50 rounded-lg p-4 flex items-start">
+                      <Info className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
                       <div>
-                        <p className="text-sm text-orange-700">
-                        This is a demo payment page. No actual payment will be processed.
-                      </p>
+                        <p className="text-sm text-blue-700">
+                          This is a demo payment page. No actual payment will be processed.
+                        </p>
+                      </div>
                     </div>
                     
-                    <div className="border rounded-lg p-4 space-y-4 border-orange-200">
+                    <div className="border rounded-lg p-4 space-y-4">
                       <div>
                         <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
                           Card Number
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <CreditCard className="h-5 w-5 text-orange-400" />
+                            <CreditCard className="h-5 w-5 text-gray-400" />
                           </div>
                           <input
                             type="text"
                             id="cardNumber"
                             placeholder="4242 4242 4242 4242"
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                           />
                           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <Lock className="h-5 w-5 text-orange-400" />
+                            <Lock className="h-5 w-5 text-gray-400" />
                           </div>
                         </div>
                       </div>
@@ -727,7 +769,7 @@ const TicketBookingPage = () => {
                             type="text"
                             id="expiryDate"
                             placeholder="MM/YY"
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                           />
                         </div>
                         
@@ -739,7 +781,7 @@ const TicketBookingPage = () => {
                             type="text"
                             id="cvv"
                             placeholder="123"
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                           />
                         </div>
                       </div>
@@ -752,17 +794,17 @@ const TicketBookingPage = () => {
                           type="text"
                           id="nameOnCard"
                           placeholder="Jane Doe"
-                          className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
+                          className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                         />
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between border-t border-orange-200 pt-4">
+                    <div className="flex items-center justify-between border-t border-gray-200 pt-4">
                       <div className="flex items-center">
                         <input
                           id="saveCard"
                           type="checkbox"
-                          className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-orange-300 rounded"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <label htmlFor="saveCard" className="ml-2 block text-sm text-gray-900">
                           Save card for future purchases
@@ -781,7 +823,7 @@ const TicketBookingPage = () => {
                 <div className="hidden sm:block">
                   <button
                     type="submit"
-                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
+                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
                   >
                     Complete Purchase
                     <ChevronRight className="ml-2 h-5 w-5" />
@@ -793,7 +835,7 @@ const TicketBookingPage = () => {
           
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 sticky top-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">Order Summary</h3>
               
               {orderSummary.ticketCount > 0 ? (
@@ -825,12 +867,12 @@ const TicketBookingPage = () => {
                           value={couponCode}
                           onChange={(e) => setCouponCode(e.target.value)}
                           placeholder="Enter code"
-                          className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
+                          className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                         />
                         <button
                           type="button"
                           onClick={handleApplyCoupon}
-                          className="inline-flex items-center px-3 py-2 border border-orange-300 shadow-sm text-sm font-medium rounded-md text-orange-700 bg-white hover:bg-orange-50"
+                          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                         >
                           Apply
                         </button>
@@ -839,7 +881,7 @@ const TicketBookingPage = () => {
                   )}
                   
                   {/* Price Breakdown */}
-                  <div className="space-y-2 border-t border-orange-200 pt-4">
+                  <div className="space-y-2 border-t border-gray-200 pt-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
                       <span>{formatCurrency(orderSummary.subtotal)}</span>
@@ -857,7 +899,7 @@ const TicketBookingPage = () => {
                       </div>
                     )}
                     
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-orange-200 mt-2">
+                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200 mt-2">
                       <span>Total</span>
                       <span>{formatCurrency(orderSummary.total)}</span>
                     </div>
@@ -873,7 +915,7 @@ const TicketBookingPage = () => {
                         className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
                           orderSummary.ticketCount === 0
                             ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500'
+                            : 'bg-blue-600 hover:bg-blue-700'
                         }`}
                       >
                         Continue to Information
@@ -885,7 +927,7 @@ const TicketBookingPage = () => {
                       <button
                         type="button"
                         onClick={handleSubmit}
-                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
+                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
                       >
                         Continue to Payment
                         <ChevronRight className="ml-2 h-5 w-5" />
@@ -896,7 +938,7 @@ const TicketBookingPage = () => {
                       <button
                         type="button"
                         onClick={handlePaymentSubmit}
-                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
+                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
                       >
                         Complete Purchase
                         <ChevronRight className="ml-2 h-5 w-5" />
@@ -906,15 +948,15 @@ const TicketBookingPage = () => {
                 </>
               ) : (
                 <div className="text-center py-6">
-                  <Ticket className="w-12 h-12 text-orange-400 mx-auto mb-3" />
+                  <Ticket className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-600">No tickets selected</p>
                   <p className="text-sm text-gray-500 mt-2">Select tickets to continue</p>
                 </div>
               )}
               
-              <div className="mt-6 border-t border-orange-200 pt-4">
+              <div className="mt-6 border-t border-gray-200 pt-4">
                 <div className="flex items-start">
-                  <Info className="h-5 w-5 text-orange-400 mr-2 mt-0.5" />
+                  <Info className="h-5 w-5 text-gray-400 mr-2 mt-0.5" />
                   <p className="text-xs text-gray-500">
                     All sales are final. Please review your order before completing your purchase.
                   </p>
