@@ -732,7 +732,7 @@ const EventCreationPage = ({ user, onLogout }) => {
       <div className="flex-1 overflow-y-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-4 flex items-center justify-between">
+          <div className="px-16 py-4 flex items-center justify-between">
             <Link to="/events" className="text-orange-500 hover:text-orange-600 flex items-center">
               <ArrowLeft className="w-5 h-5 mr-1" />
               <span>Back to Events</span>
