@@ -6,8 +6,7 @@ import api from '../services/api';
 import { 
   PlusCircle, Check, Calendar, X, User, AlertTriangle, MapPin,
   Users, ChevronRight, Search, Filter, UserPlus, Rss, 
-  Home, ArrowUpDown, RefreshCw, Bell, BarChart2, Activity, 
-  Zap, Clock, Star, TrendingUp
+  Home, ArrowUpDown, RefreshCw
 } from 'lucide-react';
 import { useToast } from '../components/common/Toast';
 import defaultProfilePic from '../assets/default-avatar.png';
@@ -23,7 +22,6 @@ const MergedDashboard = () => {
   const toastContext = useToast();
   const toast = toastContext?.toast;
   const [loadings, setLoadings] = useState(true);
-  
   // State management
   const [activeSection, setActiveSection] = useState('overview');
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -37,29 +35,28 @@ const MergedDashboard = () => {
     "All", "Business", "Technology", "Social", "Education", "Health"
   ]);
   const [professionals, setProfessionals] = useState([]);
-  const [error, setError] = useState(null);
-  const [distance, setDistance] = useState(10); // Default 10km radius
-  const [currentLocation, setCurrentLocation] = useState(null);
-  const [locationError, setLocationError] = useState(false);
-  const [viewMode, setViewMode] = useState('map'); // 'map' or 'list'
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [unit, setUnit] = useState('km');
-  const [filters, setFilters] = useState({
-    industry: null,
-    skills: [],
-    interests: [],
-    connectionStatus: 'all',
-    lastActive: null
-  });
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [notificationPrefs, setNotificationPrefs] = useState({
-    enabled: false,
-    radius: 1,
-    unit: 'km'
-  });
-  const [refreshing, setRefreshing] = useState(false);
-  
+    const [error, setError] = useState(null);
+    const [distance, setDistance] = useState(10); // Default 10km radius
+    const [currentLocation, setCurrentLocation] = useState(null);
+    const [locationError, setLocationError] = useState(false);
+    const [viewMode, setViewMode] = useState('map'); // 'map' or 'list'
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [mapLoaded, setMapLoaded] = useState(false);
+    const [unit, setUnit] = useState('km');
+    const [filters, setFilters] = useState({
+      industry: null,
+      skills: [],
+      interests: [],
+      connectionStatus: 'all',
+      lastActive: null
+    });
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [notificationPrefs, setNotificationPrefs] = useState({
+      enabled: false,
+      radius: 1,
+      unit: 'km'
+    });
+    const [refreshing, setRefreshing] = useState(false);
   // Location state
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState([]);
@@ -69,24 +66,8 @@ const MergedDashboard = () => {
   // Tasks state
   const [planner, setPlanner] = useState([]);
   const [newTask, setNewTask] = useState('');
-  
-  // Added a new state for the dashboard animation
-  const [loaded, setLoaded] = useState(false);
-  
-  // User stats - relevant for all user types
-  const [stats, setStats] = useState({
-    activityCount: 23,
-    streak: 7,
-    notifications: 5,
-    progress: 65
-  });
 
   useEffect(() => {
-    // Fade-in animation effect
-    setTimeout(() => {
-      setLoaded(true);
-    }, 300);
-    
     // Redirect to login if not authenticated
     if (!loading && !user) {
       navigate('/login');
@@ -208,58 +189,59 @@ const MergedDashboard = () => {
   }, [user]);
 
   // Fetch nearby users function
-  const fetchNearbyUsers = async (latitude, longitude, distance) => {
-    try {
-      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-        throw new Error("Invalid coordinates provided");
-      }
-      
-      const nearbyResponse = await nearbyUsersService.getNearbyUsers({
-        latitude,
-        longitude,
-        distance
-      });
-      
-      // Extract the users array from the response
-      const nearbyUsersArray = nearbyResponse.users || nearbyResponse || [];
-      
-      if (!Array.isArray(nearbyUsersArray)) {
-        throw new Error("Invalid response format from server");
-      }
-      
-      // Get connections to exclude them from results
-      let connections = [];
-      try {
-        connections = await networkService.getConnections('all');
-      } catch (connectionError) {
-        console.error('Error fetching connections:', connectionError);
-        connections = [];
-      }
-      
-      // Create a Set of connection IDs for faster lookup
-      const connectionIds = new Set(
-        Array.isArray(connections) ? connections.map(conn => conn._id || conn.id) : []
-      );
-      
-      // Filter out users who are already connections
-      const filteredUsers = nearbyUsersArray.filter(user => 
-        user._id && !connectionIds.has(user._id) && !connectionIds.has(user.id)
-      );
-      
-      // Enhance user objects with more info
-      const enhancedUsers = filteredUsers.map(user => ({
-        ...user,
-        distanceFormatted: formatDistance(user.distance)
-      }));
-      
-      // Keep only the closest 3 users
-      setNearbyUsers(enhancedUsers.slice(0, 3));
-    } catch (error) {
-      console.error('Error fetching nearby professionals:', error);
-      setLocationError(error.message || "Failed to fetch nearby professionals");
-      setNearbyUsers([]);
+  // Updated fetchNearbyUsers function
+const fetchNearbyUsers = async (latitude, longitude, distance) => {
+  try {
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+      throw new Error("Invalid coordinates provided");
     }
-  };
+    
+    const nearbyResponse = await nearbyUsersService.getNearbyUsers({
+      latitude,
+      longitude,
+      distance
+    });
+    
+    // Extract the users array from the response
+    const nearbyUsersArray = nearbyResponse.users || nearbyResponse || [];
+    
+    if (!Array.isArray(nearbyUsersArray)) {
+      throw new Error("Invalid response format from server");
+    }
+    
+    // Get connections to exclude them from results
+    let connections = [];
+    try {
+      connections = await networkService.getConnections('all');
+    } catch (connectionError) {
+      console.error('Error fetching connections:', connectionError);
+      connections = [];
+    }
+    
+    // Create a Set of connection IDs for faster lookup
+    const connectionIds = new Set(
+      Array.isArray(connections) ? connections.map(conn => conn._id || conn.id) : []
+    );
+    
+    // Filter out users who are already connections
+    const filteredUsers = nearbyUsersArray.filter(user => 
+      user._id && !connectionIds.has(user._id) && !connectionIds.has(user.id)
+    );
+    
+    // Enhance user objects with more info
+    const enhancedUsers = filteredUsers.map(user => ({
+      ...user,
+      distanceFormatted: formatDistance(user.distance)
+    }));
+    
+    // Keep only the closest 3 users
+    setNearbyUsers(enhancedUsers.slice(0, 3));
+  } catch (error) {
+    console.error('Error fetching nearby professionals:', error);
+    setLocationError(error.message || "Failed to fetch nearby professionals");
+    setNearbyUsers([]);
+  }
+};
 
   // Task management functions
   const addTask = () => {
@@ -455,25 +437,17 @@ const MergedDashboard = () => {
     // The useEffect will trigger a new API call with the searchQuery
   };
 
-  // Calculate progress for tasks
-  const completedTasksPercentage = planner.length > 0 
-    ? Math.round((planner.filter(task => task.completed).length / planner.length) * 100) 
-    : 0;
-
   // Loading state for main dashboard
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-r from-orange-50 via-white to-orange-50">
-        <div className="animate-pulse h-16 w-16 relative">
-          <div className="absolute inset-0 rounded-full border-4 border-orange-500 opacity-75"></div>
-          <div className="absolute inset-0 rounded-full border-4 border-orange-300 opacity-75 animate-pulse"></div>
-        </div>
+      <div className="flex justify-center items-center min-h-screen bg-orange-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
       </div>
     );
   }
   
   return (
-    <div className={`flex flex-col md:flex-row h-screen bg-gradient-to-r from-orange-50 via-white to-orange-50 ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
+    <div className="flex flex-col md:flex-row h-screen bg-orange-50">
       {/* Sidebar - hidden on mobile, visible on md and up */}
       <div className="hidden md:block">
         <Sidebar user={user} onLogout={logout} />
@@ -518,21 +492,15 @@ const MergedDashboard = () => {
         <div className="md:pl-0 pl-0 md:pt-0 pt-4">
           <main className="max-w-7xl mx-auto p-4 md:p-6">
             {/* Dashboard Header */}
-            <div className="bg-white rounded-xl shadow-md mb-6 p-6 md:p-8 border-l-4 border-orange-500 relative overflow-hidden transform hover:shadow-lg transition-all duration-300">
-              {/* Background pattern */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500 rounded-full -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500 rounded-full -ml-32 -mb-32"></div>
-              </div>
-              
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center relative z-10">
+            <div className="bg-white rounded-xl shadow-md mb-6 p-4 md:p-6 border-l-4 border-orange-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
                 <div>
                   <div className="flex items-center mb-2">
-                    <div className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-r from-orange-500 to-orange-400 mr-4 flex items-center justify-center text-white font-bold text-xl shadow-md">
+                    <div className="h-12 w-12 md:h-14 md:w-14 rounded-lg bg-gradient-to-r from-orange-500 to-orange-400 mr-4 flex items-center justify-center text-white font-bold text-xl">
                       {new Date().getDate()}
                     </div>
                     <div>
-                      <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-1">Welcome back, <span className="text-orange-500">{user?.firstName || 'User'}!</span></h1>
+                      <h1 className="text-xl md:text-2xl font-bold text-gray-800">Hello, {user?.firstName || 'User'}!</h1>
                       <p className="text-sm md:text-base text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                     </div>
                   </div>
@@ -541,99 +509,49 @@ const MergedDashboard = () => {
                 <div className="mt-4 md:mt-0 w-full md:w-auto">
                   <div className="flex flex-wrap gap-2">
                     <Link to={`/connections`}>
-                      <span className="bg-orange-100 text-orange-800 px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm">
-                        <Users className="h-4 w-4 mr-1" />
-                        {pendingRequests} requests
+                      <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-md text-sm font-medium">
+                        {pendingRequests} connection requests
                       </span>
                     </Link>
-                    <span className="bg-green-100 text-green-800 px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm">
-                      <Check className="h-4 w-4 mr-1" />
-                      {planner.filter(task => !task.completed).length} tasks
+                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-md text-sm font-medium">
+                      {planner.filter(task => !task.completed).length} pending tasks
                     </span>
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm">
-                      <Bell className="h-4 w-4 mr-1" />
-                      {stats.notifications} notifications
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Stats Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mt-4 pt-3 border-t border-gray-100">
-                <div className="bg-orange-50 rounded-lg p-3 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300">
-                  <div>
-                    <p className="text-xs text-gray-600">Activities</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-800">{stats.activityCount}</p>
-                  </div>
-                  <div className="bg-orange-100 p-2 rounded-full">
-                    <Activity className="h-5 w-5 text-orange-500" />
-                  </div>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-3 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300">
-                  <div>
-                    <p className="text-xs text-gray-600">Daily Streak</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-800">{stats.streak} days</p>
-                  </div>
-                  <div className="bg-blue-100 p-2 rounded-full">
-                    <Zap className="h-5 w-5 text-blue-500" />
-                  </div>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-3 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300">
-                  <div>
-                    <p className="text-xs text-gray-600">Progress</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-800">{stats.progress}%</p>
-                  </div>
-                  <div className="bg-purple-100 p-2 rounded-full">
-                    <BarChart2 className="h-5 w-5 text-purple-500" />
-                  </div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-3 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300">
-                  <div>
-                    <p className="text-xs text-gray-600">Completed</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-800">{planner.filter(task => task.completed).length}</p>
-                  </div>
-                  <div className="bg-green-100 p-2 rounded-full">
-                    <Check className="h-5 w-5 text-green-500" />
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Content Tabs Navigation - Scrollable on mobile */}
-            <div className="mb-6 bg-white rounded-xl shadow-md overflow-hidden border-b border-orange-100 relative">
-              <div className="bg-gradient-to-r from-orange-600 to-orange-500 h-1 absolute top-0 left-0 right-0"></div>
+            <div className="mb-6 bg-white rounded-xl shadow-md overflow-hidden border-b">
               <div className="flex overflow-x-auto scrollbar-hide">
                 <button
                   onClick={() => setActiveSection('overview')}
-                  className={`flex-none text-center py-4 px-6 font-medium text-sm focus:outline-none transition-colors duration-200 flex items-center ${
+                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
                     activeSection === 'overview'
-                      ? 'text-orange-600 border-b-2 border-orange-500 bg-orange-50'
-                      : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
                   }`}
                 >
-                  <Home className="h-4 w-4 mr-2" />
                   Overview
                 </button>
                 <button
                   onClick={() => setActiveSection('events')}
-                  className={`flex-none text-center py-4 px-6 font-medium text-sm focus:outline-none transition-colors duration-200 flex items-center ${
+                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
                     activeSection === 'events'
-                      ? 'text-orange-600 border-b-2 border-orange-500 bg-orange-50'
-                      : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
                   }`}
                 >
-                  <Calendar className="h-4 w-4 mr-2" />
                   Events
                 </button>
                 <button
                   onClick={() => setActiveSection('network')}
-                  className={`flex-none text-center py-4 px-6 font-medium text-sm focus:outline-none transition-colors duration-200 flex items-center ${
+                  className={`flex-none text-center py-4 px-4 font-medium text-sm focus:outline-none transition-colors duration-200 ${
                     activeSection === 'network'
-                      ? 'text-orange-600 border-b-2 border-orange-500 bg-orange-50'
-                      : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'
+                      ? 'text-orange-600 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-orange-500'
                   }`}
                 >
-                  <Users className="h-4 w-4 mr-2" />
                   Network
                 </button>
               </div>
@@ -644,40 +562,22 @@ const MergedDashboard = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Task Planner */}
                 <div className="lg:col-span-1">
-                  <div className="bg-white rounded-xl shadow-md overflow-hidden h-full border border-orange-100 transform hover:shadow-lg transition-all duration-300">
-                    <div className="border-b border-orange-100 px-4 md:px-6 py-4 flex justify-between items-center bg-orange-50">
-                      <h3 className="font-semibold text-gray-800 flex items-center">
-                        <Check className="h-5 w-5 mr-2 text-orange-500" />
-                        My Tasks
-                      </h3>
-                      <div className="text-orange-500 hover:text-orange-600 cursor-pointer">
+                  <div className="bg-white rounded-xl shadow-md overflow-hidden h-full">
+                    <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-gray-800">My Planner</h3>
+                      <div className="text-orange-500 hover:text-orange-600 text-sm cursor-pointer">
                         <Calendar className="h-4 w-4 md:h-5 md:w-5" />
                       </div>
                     </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="px-4 md:px-6 pt-4">
-                      <div className="flex justify-between text-xs text-gray-600 mb-1">
-                        <span>Progress</span>
-                        <span>{completedTasksPercentage}% Complete</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2.5 mb-4">
-                        <div 
-                          className="bg-gradient-to-r from-orange-400 to-orange-500 h-2.5 rounded-full"
-                          style={{ width: `${completedTasksPercentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    
                     <div className="p-4 md:p-6">
                       {/* Add new task */}
-                      <div className="flex mb-6">
+                      <div className="flex mb-4">
                         <input
                           type="text"
                           value={newTask}
                           onChange={(e) => setNewTask(e.target.value)}
                           placeholder="Add a new task..."
-                          className="flex-1 border border-gray-300 rounded-l-md py-2 px-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-800"
+                          className="flex-1 border border-gray-300 rounded-l-md py-2 px-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                           onKeyPress={(e) => e.key === 'Enter' && addTask()}
                         />
                         <button
@@ -689,31 +589,30 @@ const MergedDashboard = () => {
                       </div>
 
                       {/* Task list */}
-                      <div className="space-y-3 max-h-60 md:max-h-72 overflow-y-auto">
+                      <div className="space-y-2 max-h-60 md:max-h-72 overflow-y-auto">
                         {planner.length === 0 ? (
-                          <div className="text-center py-6 md:py-8 bg-orange-50 rounded-lg border border-orange-100">
-                            <Check className="h-10 w-10 mx-auto text-orange-400 mb-2" />
-                            <p className="text-gray-600 text-sm">No tasks set yet. Add your first task above.</p>
+                          <div className="text-center py-4 md:py-6">
+                            <p className="text-gray-500 text-xs md:text-sm">No tasks yet. Add your first task above.</p>
                           </div>
                         ) : (
                           planner.map(task => (
                             <div 
                               key={task.id} 
-                              className={`flex items-center justify-between p-3 md:p-4 border rounded-lg shadow-sm ${
-                                task.completed ? 'bg-green-50 border-green-100' : 'bg-white border-orange-100'
-                              } transform hover:scale-[1.02] transition-all duration-200`}
+                              className={`flex items-center justify-between p-2 md:p-3 border rounded-md ${
+                                task.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+                              }`}
                             >
                               <div className="flex items-center flex-1 min-w-0">
                                 <button
                                   onClick={() => toggleTaskCompletion(task.id)}
-                                  className={`flex-shrink-0 h-5 w-5 md:h-6 md:w-6 rounded-full border ${
-                                    task.completed ? 'bg-green-500 border-green-500' : 'border-orange-500'
-                                  } mr-3 md:mr-4 flex items-center justify-center shadow-sm`}
+                                  className={`flex-shrink-0 h-4 w-4 md:h-5 md:w-5 rounded-full border ${
+                                    task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                                  } mr-2 md:mr-3 flex items-center justify-center`}
                                 >
-                                  {task.completed && <Check className="h-3 w-3 md:h-4 md:w-4 text-white" />}
+                                  {task.completed && <Check className="h-2 w-2 md:h-3 md:w-3 text-white" />}
                                 </button>
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm md:text-base truncate ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                  <p className={`text-xs md:text-sm truncate ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
                                     {task.text}
                                   </p>
                                   <p className="text-xs text-gray-500 truncate">
@@ -725,7 +624,7 @@ const MergedDashboard = () => {
                                 onClick={() => deleteTask(task.id)}
                                 className="ml-2 text-gray-400 hover:text-red-500 flex-shrink-0"
                               >
-                                <X className="h-4 w-4 md:h-5 md:w-5" />
+                                <X className="h-3 w-3 md:h-4 md:w-4" />
                               </button>
                             </div>
                           ))
@@ -735,136 +634,39 @@ const MergedDashboard = () => {
                   </div>
                 </div>
                 
-                {/* Center and Right Columns - Activity Summary and Nearby Users */}
+                {/* Center and Right Columns - Events Preview and Nearby Users */}
                 <div className="lg:col-span-2">
                   <div className="grid grid-cols-1 gap-6">
-                    {/* Activity Summary */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden border border-orange-100 transform hover:shadow-lg transition-all duration-300">
-                      <div className="border-b border-orange-100 px-4 md:px-6 py-4 flex justify-between items-center bg-orange-50">
-                        <h3 className="font-semibold text-gray-800 flex items-center">
-                          <Activity className="h-5 w-5 mr-2 text-orange-500" />
-                          Recent Activity
-                        </h3>
-                        <div className="flex items-center space-x-2">
-                          <button className="text-white bg-orange-500 hover:bg-orange-600 rounded-full px-3 py-1.5 text-xs flex items-center shadow-sm">
-                            <PlusCircle className="h-3 w-3 mr-1" />
-                            Add Activity
-                          </button>
-                          <Link to="/activities" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm flex items-center">
-                            View All <ChevronRight className="h-3 w-3 ml-1" />
-                          </Link>
-                        </div>
-                      </div>
-                      <div className="p-4 md:p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                          <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg p-4 shadow-md flex flex-col justify-between">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-bold text-sm text-orange-100">Project Update</h4>
-                                <p className="text-lg font-bold">Completed</p>
-                              </div>
-                              <div className="bg-white/20 p-2 rounded-full">
-                                <Check className="h-5 w-5" />
-                              </div>
-                            </div>
-                            <div className="mt-4 text-xs flex items-center">
-                              <Clock className="h-3 w-3 mr-1 text-orange-200" />
-                              <span>Today, 9:30 AM</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-4 shadow-md flex flex-col justify-between">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-bold text-sm text-blue-100">Meeting</h4>
-                                <p className="text-lg font-bold">Scheduled</p>
-                              </div>
-                              <div className="bg-white/20 p-2 rounded-full">
-                                <Calendar className="h-5 w-5" />
-                              </div>
-                            </div>
-                            <div className="mt-4 text-xs flex items-center">
-                              <Clock className="h-3 w-3 mr-1 text-blue-200" />
-                              <span>Tomorrow, 2:00 PM</span>
-                            </div>
-                          </div>
-                          
-                          <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-4 shadow-md flex flex-col justify-between">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-bold text-sm text-green-100">Milestone</h4>
-                                <p className="text-lg font-bold">Achieved</p>
-                              </div>
-                              <div className="bg-white/20 p-2 rounded-full">
-                                <Star className="h-5 w-5" />
-                              </div>
-                            </div>
-                            <div className="mt-4 text-xs flex items-center">
-                              <Clock className="h-3 w-3 mr-1 text-green-200" />
-                              <span>Yesterday, 4:15 PM</span>
-                            </div>
-                          </div>
-                        </div>
-                      
-                        <div className="bg-orange-50 rounded-lg p-4 border border-orange-100 mb-2">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-semibold text-gray-800">Weekly Progress</h4>
-                            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full">{stats.progress}% to goal</span>
-                          </div>
-                          <div className="w-full bg-white rounded-full h-2.5">
-                            <div 
-                              className="bg-gradient-to-r from-orange-400 to-orange-500 h-2.5 rounded-full"
-                              style={{ width: `${stats.progress}%` }}
-                            ></div>
-                          </div>
-                          <div className="flex justify-between mt-2 text-xs text-gray-500">
-                            <span>0%</span>
-                            <span>50%</span>
-                            <span>100%</span>
-                          </div>
-                        </div>
-                        
-                        <div className="text-center">
-                          <button className="inline-flex items-center justify-center px-4 py-2 bg-orange-500 text-white rounded-full text-sm hover:bg-orange-600 shadow-md transition-colors">
-                            <PlusCircle className="h-4 w-4 mr-2" />
-                            Add New Activity
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    
                     {/* Upcoming Events Preview */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden border border-orange-100 transform hover:shadow-lg transition-all duration-300">
-                      <div className="border-b border-orange-100 px-4 md:px-6 py-4 flex justify-between items-center bg-orange-50">
-                        <h3 className="font-semibold text-gray-800 flex items-center">
-                          <Calendar className="h-5 w-5 mr-2 text-orange-500" />
-                          Upcoming Events
-                        </h3>
+                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                      <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
+                        <h3 className="font-semibold text-gray-800">Upcoming Events</h3>
                         <div className="flex items-center space-x-2">
-                          <Link to="/events/create" className="text-white bg-orange-500 hover:bg-orange-600 rounded-full px-3 py-1.5 text-xs flex items-center shadow-sm">
+                          <Link to="/events/create" className="text-white bg-orange-500 hover:bg-orange-600 rounded-md px-2 py-1 text-xs flex items-center">
                             <PlusCircle className="h-3 w-3 mr-1" />
                             Host Event
                           </Link>
-                          <Link to="/events" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm flex items-center">
-                            View All <ChevronRight className="h-3 w-3 ml-1" />
+                          <Link to="/my-events" className="text-white bg-orange-500 hover:bg-orange-600 rounded-md px-2 py-1 text-xs flex items-center">
+                           
+                            My Events
                           </Link>
+                          <Link to="/events" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm">View All</Link>
                         </div>
                       </div>
                       <div className="p-4 md:p-6">
                         {events.length > 0 ? (
                           <div className="space-y-4">
                             {events.slice(0, 2).map(event => (
-                              <div key={event._id || event.id} className="flex border border-orange-100 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
-                                <div className="w-24 md:w-32 bg-orange-100 flex-shrink-0 relative">
+                              <div key={event._id || event.id} className="flex border border-gray-100 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                                <div className="w-24 md:w-32 bg-orange-100 flex-shrink-0">
                                   <img 
                                     src={event.coverImage?.url || "/api/placeholder/400/200"} 
                                     alt={event.name || "Event"}
                                     className="w-full h-full object-cover"
                                   />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-orange-500/40 to-transparent"></div>
                                 </div>
                                 <div className="p-3 md:p-4 flex-1">
-                                  <h4 className="font-semibold text-sm md:text-base text-gray-800 mb-1">{event.name || "Untitled Event"}</h4>
+                                  <h4 className="font-semibold text-sm md:text-base text-gray-900 mb-1">{event.name || "Untitled Event"}</h4>
                                   <div className="flex items-center text-gray-600 mb-1">
                                     <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                                     <span className="text-xs md:text-sm">{formatDate(event.startDateTime)}</span>
@@ -873,8 +675,8 @@ const MergedDashboard = () => {
                                     <MapPin className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                                     <span className="text-xs md:text-sm">{event.virtual ? "Virtual Event" : (event.location?.name || "Location TBA")}</span>
                                   </div>
-                                  <Link to={`/events/${event._id || event.id}`} className="text-orange-500 hover:text-orange-600 text-xs md:text-sm font-medium flex items-center">
-                                    View Details <ChevronRight className="h-3 w-3 ml-1" />
+                                  <Link to={`/events/${event._id || event.id}`} className="text-orange-500 hover:text-orange-700 text-xs md:text-sm font-medium">
+                                    View Details
                                   </Link>
                                 </div>
                               </div>
@@ -882,9 +684,8 @@ const MergedDashboard = () => {
                           </div>
                         ) : (
                           <div className="text-center py-6">
-                            <Calendar className="h-12 w-12 mx-auto text-orange-400 mb-3" />
-                            <p className="text-gray-600 text-sm mb-3">No upcoming events found.</p>
-                            <Link to="/events" className="text-white bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded-full text-sm font-medium inline-block shadow-md">
+                            <p className="text-gray-500 text-sm">No upcoming events found.</p>
+                            <Link to="/events" className="text-orange-500 hover:text-orange-600 text-sm font-medium mt-2 inline-block">
                               Browse All Events →
                             </Link>
                           </div>
@@ -893,29 +694,27 @@ const MergedDashboard = () => {
                     </div>
                     
                     {/* Nearby Professionals */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden border border-orange-100 transform hover:shadow-lg transition-all duration-300">
-                      <div className="border-b border-orange-100 px-4 md:px-6 py-4 flex justify-between items-center bg-orange-50">
+                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                      <div className="border-b border-gray-200 px-4 md:px-6 py-4 flex justify-between items-center">
                         <div className="flex items-center">
-                          <MapPin className="h-5 w-5 mr-2 text-orange-500" />
+                          <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
                           <h3 className="font-semibold text-gray-800">Nearby Professionals</h3>
                         </div>
-                        <Link to="/network/nearby" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm flex items-center">
-                          View All <ChevronRight className="h-3 w-3 ml-1" />
-                        </Link>
+                        <Link to="/network/nearby" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm">View All</Link>
                       </div>
                       <div className="p-4 md:p-6">
                         {locationError ? (
-                          <div className="bg-orange-50 rounded-lg p-4 text-center border border-orange-100">
-                            <AlertTriangle className="h-10 w-10 text-orange-500 mx-auto mb-3" />
-                            <p className="text-sm text-gray-700 mb-3">{locationError}</p>
+                          <div className="bg-orange-50 rounded-lg p-4 text-center">
+                            <AlertTriangle className="h-8 w-8 text-orange-500 mx-auto mb-2" />
+                            <p className="text-sm text-gray-700 mb-2">{locationError}</p>
                             <LocationPermissionIcon />
                           </div>
                         ) : nearbyUsers.length > 0 ? (
                           <div className="space-y-4">
                             {nearbyUsers.map(user => (
-                              <div key={user._id} className="flex items-start border border-orange-100 rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-300 bg-white transform hover:scale-[1.02]">
+                              <div key={user._id} className="flex items-start border border-gray-100 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="mr-3 flex-shrink-0">
-                                  <div className="h-14 w-14 md:h-16 md:w-16 rounded-full overflow-hidden border-2 border-orange-200 shadow-md">
+                                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg overflow-hidden">
                                     <img 
                                       src={getProfilePicture(user)} 
                                       alt={`${user.firstName} ${user.lastName}`}
@@ -925,7 +724,7 @@ const MergedDashboard = () => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex justify-between">
-                                    <h4 className="text-sm md:text-lg font-medium text-gray-800 truncate">
+                                    <h4 className="text-sm md:text-base font-medium text-gray-900 truncate">
                                       {user.firstName} {user.lastName}
                                     </h4>
                                     <span className="text-xs text-gray-500 flex items-center">
@@ -933,24 +732,19 @@ const MergedDashboard = () => {
                                       {user.distanceFormatted}
                                     </span>
                                   </div>
-                                  <p className="text-xs md:text-sm text-gray-600">{user.headline || 'Professional'}</p>
+                                  <p className="text-xs text-gray-600">{user.headline || 'Professional'}</p>
                                   
-                                  {/* Industry tags */}
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{user.industry || 'Technology'}</span>
-                                  </div>
-                                  
-                                  <div className="mt-3 flex space-x-2">
+                                  <div className="mt-2 flex space-x-2">
                                     <button
                                       onClick={() => handleConnect(user._id)}
                                       disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
-                                      className={`flex items-center px-3 py-1.5 rounded-full text-xs ${
+                                      className={`flex items-center px-2 py-1 rounded text-xs ${
                                         user.connectionStatus === 'pending'
                                           ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                                           : user.connectionStatus === 'connected'
                                             ? 'bg-green-100 text-green-700 cursor-not-allowed'
                                             : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                      } shadow-sm transition-colors`}
+                                      }`}
                                     >
                                       <UserPlus className="h-3 w-3 mr-1" />
                                       {user.connectionStatus === 'pending'
@@ -962,7 +756,7 @@ const MergedDashboard = () => {
                                     
                                     <Link
                                       to={`/profile/${user._id}`}
-                                      className="flex items-center px-3 py-1.5 rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 shadow-sm transition-colors"
+                                      className="flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
                                     >
                                       View Profile
                                     </Link>
@@ -972,14 +766,13 @@ const MergedDashboard = () => {
                             ))}
                           </div>
                         ) : (
-                          <div className="text-center py-6 bg-orange-50 bg-opacity-30 rounded-lg border border-orange-100">
-                            <MapPin className="h-12 w-12 mx-auto text-orange-400 mb-3" />
-                            <p className="text-gray-600 text-sm mb-3">No nearby professionals found.</p>
+                          <div className="text-center py-6">
+                            <p className="text-gray-500 text-sm">No nearby professionals found.</p>
                             <button 
                               onClick={() => fetchNearbyUsers(userLocation?.latitude, userLocation?.longitude, 10)}
-                              className="mt-2 inline-flex items-center justify-center px-4 py-2 text-sm bg-orange-500 text-white rounded-full hover:bg-orange-600 shadow-md"
+                              className="mt-2 inline-flex items-center justify-center px-3 py-1.5 text-xs bg-orange-500 text-white rounded-lg hover:bg-orange-600"
                             >
-                              <RefreshCw className="w-3 h-3 mr-2" />
+                              <RefreshCw className="w-3 h-3 mr-1" />
                               Refresh Location
                             </button>
                           </div>
@@ -992,18 +785,15 @@ const MergedDashboard = () => {
             )}
 
             {activeSection === 'events' && (
-              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-orange-100">
+              <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <div className="p-4 md:p-6">
                   <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
                     <div>
-                      <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-2 flex items-center">
-                        <Calendar className="h-6 w-6 mr-2 text-orange-500" />
-                        Upcoming Events
-                      </h2>
-                      <p className="text-sm text-gray-600">Find events and professional gatherings in your area</p>
+                      <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-2">Upcoming Events</h2>
+                      <p className="text-sm text-gray-500">Discover events that match your interests</p>
                     </div>
                     <Link to="/events/create" className="mt-3 md:mt-0">
-                      <button className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-full px-4 py-2 flex items-center justify-center transition-colors shadow-md">
+                      <button className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-2 flex items-center justify-center transition-colors">
                         <PlusCircle className="w-4 h-4 mr-2" />
                         Host an Event
                       </button>
@@ -1018,14 +808,14 @@ const MergedDashboard = () => {
                         <input
                           type="text"
                           placeholder="Search events..."
-                          className="pl-10 w-full p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-800"
+                          className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                         />
                       </div>
                       <button 
                         type="submit"
-                        className="ml-2 px-4 py-2 bg-orange-500 text-white font-medium rounded-full hover:bg-orange-600 transition shadow-md"
+                        className="ml-2 px-4 py-2 bg-orange-600 text-white font-medium rounded-md hover:bg-orange-500 transition"
                       >
                         Search
                       </button>
@@ -1034,19 +824,19 @@ const MergedDashboard = () => {
                     {/* Filters */}
                     <div className="flex flex-wrap gap-3 mb-4">
                       <button 
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${filter === 'upcoming' ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
+                        className={`px-3 py-1.5 rounded-full text-sm ${filter === 'upcoming' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'}`}
                         onClick={() => setFilter('upcoming')}
                       >
                         Upcoming
                       </button>
                       <button 
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${filter === 'all' ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
+                        className={`px-3 py-1.5 rounded-full text-sm ${filter === 'all' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'}`}
                         onClick={() => setFilter('all')}
                       >
                         All Events
                       </button>
                       <button 
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${filter === 'past' ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
+                        className={`px-3 py-1.5 rounded-full text-sm ${filter === 'past' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'}`}
                         onClick={() => setFilter('past')}
                       >
                         Past
@@ -1054,7 +844,7 @@ const MergedDashboard = () => {
                       
                       <div className="relative ml-auto">
                         <select
-                          className="appearance-none bg-white text-gray-800 border border-gray-300 rounded-full pl-4 pr-10 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          className="appearance-none bg-white border border-gray-300 rounded-md pl-3 pr-10 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                           value={categoryFilter}
                           onChange={(e) => setCategoryFilter(e.target.value)}
                         >
@@ -1068,57 +858,6 @@ const MergedDashboard = () => {
                     </div>
                   </div>
                   
-                  {/* Featured Event */}
-                  <div className="mb-6 relative rounded-xl overflow-hidden shadow-lg">
-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-600/80 to-orange-500/80"></div>
-                    <div className="relative z-10 p-6 md:p-8 text-white">
-                      <div className="flex flex-col md:flex-row md:items-center">
-                        <div className="md:w-2/3">
-                          <span className="inline-block bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full mb-3 shadow-md">Featured</span>
-                          <h3 className="text-2xl md:text-3xl font-bold mb-2">Annual Conference 2023</h3>
-                          <p className="mb-4 text-orange-100">Join the biggest professional gathering of the season with experts from around the world.</p>
-                          
-                          <div className="flex flex-wrap gap-4 mb-4">
-                            <div className="flex items-center">
-                              <Calendar className="w-4 h-4 mr-2 text-orange-200" />
-                              <span className="text-sm">May 15, 2023</span>
-                            </div>
-                            <div className="flex items-center">
-                              <MapPin className="w-4 h-4 mr-2 text-orange-200" />
-                              <span className="text-sm">Convention Center, New York</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Users className="w-4 h-4 mr-2 text-orange-200" />
-                              <span className="text-sm">1,240 participants</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-x-3">
-                            <Link to="/events/conference-2023" className="inline-block bg-white text-orange-600 font-medium px-4 py-2 rounded-full text-sm shadow-md hover:bg-orange-50 transition-colors">
-                              View Details
-                            </Link>
-                            <button className="inline-block bg-orange-600 text-white font-medium px-4 py-2 rounded-full text-sm shadow-md hover:bg-orange-700 transition-colors border border-orange-500">
-                              Register Now
-                            </button>
-                          </div>
-                        </div>
-                        <div className="hidden md:block md:w-1/3">
-                          <div className="relative h-40 w-40 mx-auto">
-                            <div className="absolute inset-0 rounded-full bg-orange-600 opacity-25 animate-ping"></div>
-                            <div className="relative bg-white rounded-full p-4 shadow-lg">
-                              <div className="text-center">
-                                <span className="block text-orange-600 text-3xl font-bold">15</span>
-                                <span className="block text-orange-600 text-sm font-medium">DAYS</span>
-                                <span className="block text-gray-600 text-xs mt-1">UNTIL EVENT</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: 'url(/api/placeholder/1200/400)' }}></div>
-                  </div>
-                  
                   {/* Events Grid */}
                   {loadingData ? (
                     <div className="text-center py-10">
@@ -1126,12 +865,11 @@ const MergedDashboard = () => {
                       <p className="mt-4 text-gray-600">Loading events...</p>
                     </div>
                   ) : events.length === 0 ? (
-                    <div className="text-center py-10 bg-orange-50 rounded-lg border border-orange-100">
-                      <Calendar className="h-16 w-16 mx-auto text-orange-400 mb-3" />
-                      <p className="text-gray-600 mb-4">No events found matching your criteria.</p>
+                    <div className="text-center py-10">
+                      <p className="text-gray-600">No events found matching your criteria.</p>
                       {(searchQuery || categoryFilter !== 'All') && (
                         <button 
-                          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-full text-white shadow-md"
+                          className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md"
                           onClick={() => {
                             setSearchQuery('');
                             setCategoryFilter('All');
@@ -1144,23 +882,22 @@ const MergedDashboard = () => {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {events.map((event) => (
-                        <div key={event._id || event.id} className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 border border-orange-100 transform hover:scale-[1.02]">
+                        <div key={event._id || event.id} className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100">
                           <div className="relative">
                             <img 
                               src={event.coverImage?.url || "/api/placeholder/400/200"} 
                               alt={event.name || "Event"}
                               className="w-full h-48 object-cover"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                             {event.category && (
-                              <span className="absolute top-4 right-4 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                              <span className="absolute top-4 right-4 bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full">
                                 {typeof event.category === 'string' ? event.category : 'Other'}
                               </span>
                             )}
                           </div>
                           
                           <div className="p-5">
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">{event.name || "Untitled Event"}</h3>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">{event.name || "Untitled Event"}</h3>
                             
                             <div className="flex items-center text-gray-600 mb-2">
                               <Calendar className="w-4 h-4 mr-2" />
@@ -1178,9 +915,8 @@ const MergedDashboard = () => {
                             
                             <div className="flex justify-end">
                               <Link to={`/events/${event._id || event.id}`}>
-                                <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors shadow-md flex items-center">
+                                <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-300">
                                   View Details
-                                  <ChevronRight className="h-4 w-4 ml-1" />
                                 </button>
                               </Link>
                             </div>
@@ -1191,7 +927,7 @@ const MergedDashboard = () => {
                   )}
                   
                   <div className="mt-6 text-center">
-                    <Link to="/events" className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-6 rounded-full shadow-md transition-colors">
+                    <Link to="/events" className="inline-block text-orange-600 font-medium hover:underline">
                       View All Events →
                     </Link>
                   </div>
@@ -1200,74 +936,23 @@ const MergedDashboard = () => {
             )}
 
             {activeSection === 'network' && (
-              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-orange-100">
+              <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <div className="p-4 md:p-6">
                   <div className="mb-6">
-                    <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-2 flex items-center">
-                      <Users className="h-6 w-6 mr-2 text-orange-500" />
-                      Your Professional Network
-                    </h2>
-                    <p className="text-sm text-gray-600">Connect with professionals in your field</p>
-                  </div>
-                  
-                 {/* Stats Overview */}
-                 <div className="mb-6 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl overflow-hidden shadow-lg">
-                    <div className="px-4 py-4 text-white">
-                      <h3 className="text-lg font-bold flex items-center mb-3">
-                        <TrendingUp className="h-5 w-5 mr-2" />
-                        Network Statistics
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-                          <div className="flex items-center">
-                            <div className="bg-white/20 p-2 rounded-full mr-3">
-                              <Users className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">245</p>
-                              <p className="text-xs text-white/70">Total Connections</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-                          <div className="flex items-center">
-                            <div className="bg-white/20 p-2 rounded-full mr-3">
-                              <UserPlus className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">18</p>
-                              <p className="text-xs text-white/70">New This Month</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-                          <div className="flex items-center">
-                            <div className="bg-white/20 p-2 rounded-full mr-3">
-                              <Activity className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">78%</p>
-                              <p className="text-xs text-white/70">Active Connections</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-2">Your Network</h2>
+                    <p className="text-sm text-gray-500">Connect with professionals in your field</p>
                   </div>
                   
                   {/* Connection requests and nearby professionals */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                    <div className="bg-orange-50 rounded-xl p-4 md:p-6 border border-orange-100 shadow-md">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                        <UserPlus className="h-5 w-5 mr-2 text-orange-500" />
-                        Connection Requests
-                      </h3>
+                    <div className="bg-orange-50 rounded-xl p-4 md:p-6">
+                      <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Connection Requests</h3>
                       {pendingRequests > 0 ? (
                         <div className="space-y-3 md:space-y-4">
                           {connectionRequests.slice(0, 3).map(request => (
-                            <div key={request._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-lg shadow-sm border border-orange-100 transform hover:scale-[1.02] transition-all duration-200">
-                              <div className="flex items-center mb-3 sm:mb-0">
-                                <div className="h-12 w-12 md:h-14 md:w-14 rounded-full overflow-hidden border-2 border-orange-200 shadow-md mr-3">
+                            <div key={request._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-3 rounded-lg shadow-sm">
+                              <div className="flex items-center mb-2 sm:mb-0">
+                                <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg overflow-hidden bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl mr-3">
                                   <img 
                                     src={getProfilePicture(request)} 
                                     alt={`${request?.firstName || 'User'} ${request?.lastName || ''}`} 
@@ -1275,25 +960,20 @@ const MergedDashboard = () => {
                                   />
                                 </div>
                                 <div>
-                                  <h4 className="font-medium text-sm md:text-base text-gray-800">{request?.firstName || 'User'} {request?.lastName || ''}</h4>
-                                  <p className="text-xs md:text-sm text-gray-600">{request?.headline || 'Professional'}</p>
-                                  
-                                  {/* Industry tags */}
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{request?.industry || 'Technology'}</span>
-                                  </div>
+                                  <h4 className="font-medium text-sm md:text-base">{request?.firstName || 'User'} {request?.lastName || ''}</h4>
+                                  <p className="text-xs md:text-sm text-gray-500">{request?.headline || 'Professional'}</p>
                                 </div>
                               </div>
                               <div className="flex space-x-2">
                                 <button 
                                   onClick={() => handleAcceptConnection(request._id)}
-                                  className="bg-orange-500 text-white px-3 py-1.5 rounded-full text-xs md:text-sm hover:bg-orange-600 shadow-md transition-colors"
+                                  className="bg-orange-500 text-white px-2 md:px-3 py-1 rounded-md text-xs md:text-sm hover:bg-orange-600"
                                 >
                                   Accept
                                 </button>
                                 <button 
                                   onClick={() => handleDeclineConnection(request._id)}
-                                  className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full text-xs md:text-sm hover:bg-gray-300 shadow-md transition-colors"
+                                  className="bg-gray-200 text-gray-700 px-2 md:px-3 py-1 rounded-md text-xs md:text-sm hover:bg-gray-300"
                                 >
                                   Ignore
                                 </button>
@@ -1301,47 +981,49 @@ const MergedDashboard = () => {
                             </div>
                           ))}
                           {connectionRequests.length > 3 && (
-                            <Link to="/network" className="block w-full text-center bg-orange-100 text-orange-700 py-2 rounded-full mt-4 text-sm hover:bg-orange-200 transition-colors shadow-md">
+                            <Link to="/network" className="block w-full text-center text-orange-500 font-medium mt-4 text-sm hover:underline">
                               View All Requests ({connectionRequests.length}) →
                             </Link>
                           )}
                         </div>
                       ) : (
-                        <div className="text-center py-6 bg-white rounded-lg border border-orange-100">
-                          <UserPlus className="h-12 w-12 mx-auto text-orange-400 mb-3" />
-                          <p className="text-gray-600 mb-3">No pending connection requests</p>
-                          <Link to="/network/discover" className="inline-block bg-orange-500 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-orange-600 shadow-md transition-colors">
-                            Find Connections →
+                        <div className="text-center py-6 bg-white rounded-lg shadow-sm">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-orange-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          <p className="text-gray-500 mb-2">No pending connection requests</p>
+                          <Link to="/network/discover" className="text-orange-500 text-sm font-medium hover:underline">
+                            Discover new connections →
                           </Link>
                         </div>
                       )}
                     </div>
                     
                     {/* Nearby Professionals Card */}
-                    <div className="bg-orange-50 rounded-xl p-4 md:p-6 border border-orange-100 shadow-md">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6">
                       {/* Header */}
                       <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center">
-                          <MapPin className="h-5 w-5 mr-2 text-orange-500" />
+                          <MapPin className="h-4 w-4 md:h-5 md:w-5 text-orange-500 mr-2" />
                           <h3 className="text-base md:text-lg font-semibold text-gray-800">Nearby Professionals</h3>
                         </div>
-                        <Link to="/network/nearby" className="text-xs md:text-sm text-orange-600 hover:text-orange-700 flex items-center">
-                          See All <ChevronRight className="h-3 w-3 ml-1" />
+                        <Link to="/network/nearby" className="text-xs md:text-sm text-orange-500 hover:text-orange-600 flex items-center">
+                          See All <ChevronRight className="h-3 w-3 md:h-4 md:w-4 ml-1" />
                         </Link>
                       </div>
                       
                       {/* User Cards */}
                       {locationError ? (
-                        <div className="bg-white rounded-xl p-6 text-center border border-orange-100">
+                        <div className="bg-orange-50 rounded-xl p-4 text-center">
                           <div className="flex flex-col items-center justify-center">
-                            <AlertTriangle className="h-12 w-12 text-orange-500 mb-3" />
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2">Location Error</h3>
-                            <p className="text-sm text-gray-600 mb-4">{locationError}</p>
+                            <AlertTriangle className="h-10 w-10 text-orange-500 mb-2" />
+                            <h3 className="text-lg font-semibold text-gray-800 mb-1">Location Error</h3>
+                            <p className="text-sm text-gray-600 mb-3">{locationError}</p>
                             <button
                               onClick={() => fetchNearbyUsers(userLocation?.latitude, userLocation?.longitude, 10)}
-                              className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-full text-sm hover:bg-orange-600 transition-colors shadow-md"
+                              className="inline-flex items-center px-3 py-1.5 bg-orange-500 text-white rounded-md text-sm hover:bg-orange-600 transition-colors"
                             >
-                              <RefreshCw className="h-4 w-4 mr-2" />
+                              <RefreshCw className="h-4 w-4 mr-1" />
                               Try Again
                             </button>
                           </div>
@@ -1349,10 +1031,10 @@ const MergedDashboard = () => {
                       ) : nearbyUsers.length > 0 ? (
                         <div className="space-y-4">
                           {nearbyUsers.map(user => (
-                            <div key={user._id} className="flex items-start p-4 md:p-5 border border-orange-100 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 bg-white transform hover:scale-[1.02]">
+                            <div key={user._id} className="flex items-start p-3 md:p-4 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-shadow bg-white">
                               {/* User image */}
-                              <div className="mr-4">
-                                <div className="h-14 w-14 md:h-16 md:w-16 rounded-full overflow-hidden border-2 border-orange-200 shadow-md">
+                              <div className="mr-3 md:mr-4">
+                                <div className="h-12 w-12 md:h-14 md:w-14 rounded-lg overflow-hidden bg-orange-100">
                                   <img 
                                     src={getProfilePicture(user)} 
                                     alt={`${user.firstName} ${user.lastName}`}
@@ -1365,7 +1047,7 @@ const MergedDashboard = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                                   <div>
-                                    <h3 className="text-base md:text-lg font-medium text-gray-800 truncate">
+                                    <h3 className="text-base md:text-lg font-medium text-gray-900 truncate">
                                       {user.firstName} {user.lastName}
                                     </h3>
                                     <p className="text-xs md:text-sm text-gray-600 truncate">{user.headline || 'Professional'}</p>
@@ -1380,24 +1062,26 @@ const MergedDashboard = () => {
                                 </div>
                                 
                                 {/* Industry and skills */}
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{user.industry || 'Technology'}</span>
-                                </div>
+                                {user.industry && (
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    <span className="font-medium">Industry:</span> {user.industry}
+                                  </div>
+                                )}
                                 
                                 {/* Action buttons */}
                                 <div className="mt-3 flex space-x-2">
                                   <button
                                     onClick={() => handleConnect(user._id)}
                                     disabled={user.connectionStatus === 'pending' || user.connectionStatus === 'connected'}
-                                    className={`flex items-center px-3 py-1.5 rounded-full text-xs ${
+                                    className={`flex items-center px-2 py-1 rounded text-xs md:text-sm ${
                                       user.connectionStatus === 'pending'
                                         ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                                         : user.connectionStatus === 'connected'
                                           ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                                          : 'bg-orange-500 text-white hover:bg-orange-600'
-                                    } shadow-md transition-colors`}
+                                          : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                    }`}
                                   >
-                                    <UserPlus className="h-3 w-3 mr-1" />
+                                    <UserPlus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                                     {user.connectionStatus === 'pending'
                                       ? 'Pending'
                                       : user.connectionStatus === 'connected'
@@ -1407,7 +1091,7 @@ const MergedDashboard = () => {
                                   
                                   <Link
                                     to={`/profile/${user._id}`}
-                                    className="flex items-center px-3 py-1.5 rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 shadow-md transition-colors"
+                                    className="flex items-center px-2 py-1 rounded text-xs md:text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 ml-auto"
                                   >
                                     View Profile
                                   </Link>
@@ -1416,14 +1100,14 @@ const MergedDashboard = () => {
                             </div>
                           ))}
                           
-                          <Link to="/network/nearby" className="block w-full text-center bg-orange-100 text-orange-700 py-2 rounded-full mt-2 text-sm hover:bg-orange-200 transition-colors shadow-md">
-                            Find More Professionals →
+                          <Link to="/network/nearby" className="block w-full text-center text-orange-500 font-medium mt-2 text-sm hover:underline">
+                            View All Nearby Professionals →
                           </Link>
                         </div>
                       ) : (
-                        <div className="bg-white rounded-xl p-6 text-center border border-orange-100">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8 text-center">
                           <div className="inline-flex h-16 w-16 rounded-full bg-orange-100 items-center justify-center mb-4">
-                            <MapPin className="h-8 w-8 text-orange-500" />
+                            <MapPin className="h-8 w-8 text-orange-600" />
                           </div>
                           <h3 className="text-xl font-semibold text-gray-800 mb-2">No Nearby Professionals</h3>
                           <p className="text-sm text-gray-600 mb-4">
@@ -1434,14 +1118,14 @@ const MergedDashboard = () => {
                           <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
                             <button 
                               onClick={() => fetchNearbyUsers(userLocation?.latitude, userLocation?.longitude, 10)}
-                              className="inline-flex items-center justify-center px-4 py-2 text-sm bg-orange-500 text-white rounded-full hover:bg-orange-600 shadow-md"
+                              className="inline-flex items-center justify-center px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
                             >
-                              <RefreshCw className="w-4 h-4 mr-2" />
+                              <RefreshCw className="w-4 h-4 mr-1" />
                               Refresh Location
                             </button>
                             <Link
                               to="/network/nearby"
-                              className="inline-flex items-center justify-center px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 shadow-md"
+                              className="inline-flex items-center justify-center px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                             >
                               Explore Network
                             </Link>
@@ -1450,53 +1134,15 @@ const MergedDashboard = () => {
                       )}
                     </div>
                   </div>
-                  
-                  {/* Featured Professionals Section */}
-                  <div className="mt-6 bg-white rounded-xl overflow-hidden border border-orange-100 shadow-md">
-                    <div className="border-b border-orange-100 px-4 md:px-6 py-4 flex justify-between items-center bg-orange-50">
-                      <h3 className="font-semibold text-gray-800 flex items-center">
-                        <Star className="h-5 w-5 mr-2 text-orange-500" />
-                        Featured Professionals
-                      </h3>
-                      <Link to="/professionals" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm flex items-center">
-                        View All <ChevronRight className="h-3 w-3 ml-1" />
-                      </Link>
-                    </div>
-                    <div className="p-4 md:p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {[1, 2, 3].map((index) => (
-                          <div key={index} className="bg-orange-50 rounded-lg overflow-hidden border border-orange-100 shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-[1.02]">
-                            <div className="p-4 text-center">
-                              <div className="h-16 w-16 rounded-full border-2 border-orange-200 mx-auto mb-3 overflow-hidden">
-                                <img 
-                                  src="/api/placeholder/100/100" 
-                                  alt={`Featured Professional ${index}`} 
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                              <h4 className="font-semibold text-gray-800 mb-1">Jennifer Williams</h4>
-                              <p className="text-xs text-gray-600 mb-2">Senior Project Manager</p>
-                              <div className="flex justify-center gap-1 mb-3">
-                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Technology</span>
-                              </div>
-                              <button className="w-full bg-orange-500 hover:bg-orange-600 text-white text-xs rounded-full py-1.5 shadow-sm">
-                                View Profile
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
           </main>
 
           {/* Footer */}
-          <footer className="bg-white shadow-md py-4 md:py-5 mt-6 border-t border-orange-100">
+          <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 md:py-4 mt-6">
             <div className="max-w-7xl mx-auto px-4 text-center">
-              <p className="text-xs md:text-sm text-gray-600">© 2024 MeetKats • Privacy Policy • Terms of Service</p>
+              <p className="text-xs md:text-sm">© 2023 MeetProfessionals • Privacy Policy • Terms of Service</p>
             </div>
           </footer>
         </div>
