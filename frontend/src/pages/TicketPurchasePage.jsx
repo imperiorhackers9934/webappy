@@ -10,12 +10,9 @@ import {
   Info, 
   ArrowLeft,
   ChevronRight,
-  Lock,
-  CreditCard,
   User,
   Mail,
-  Phone,
-  DollarSign
+  Phone
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
@@ -37,7 +34,7 @@ const TicketBookingPage = () => {
   const [loading, setLoading] = useState(true);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [step, setStep] = useState(1); // 1: Select tickets, 2: User info, 3: Payment
+  const [step, setStep] = useState(1); // 1: Select tickets, 2: User info, 3: Confirmation
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [discount, setDiscount] = useState(0);
@@ -97,9 +94,9 @@ const TicketBookingPage = () => {
         const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
         console.log('Ticket types:', ticketsResponse);
         
-        // Filter out sold out ticket types
+        // Filter out sold out ticket types and keep only free tickets
         const availableTickets = (ticketsResponse.data || []).filter(ticket => 
-          !ticket.available || ticket.available > 0
+          (!ticket.available || ticket.available > 0) && (ticket.price === 0 || ticket.price === '0')
         );
         
         setTicketTypes(availableTickets);
@@ -189,10 +186,10 @@ const TicketBookingPage = () => {
       }
     });
     
-    // Calculate service fee (typically 5-10% of subtotal)
-    summary.fees = summary.subtotal * 0.05;
+    // For free tickets, we don't need fees
+    summary.fees = 0;
     
-    // Apply discount if coupon applied
+    // Apply discount if coupon applied (not needed for free tickets but keeping code structure)
     const discountAmount = couponApplied ? (summary.subtotal * (discount / 100)) : 0;
     
     // Calculate total
@@ -233,26 +230,8 @@ const TicketBookingPage = () => {
     }
   };
   
-  // Handle coupon code application
-  const handleApplyCoupon = () => {
-    if (!couponCode) {
-      alert('Please enter a coupon code');
-      return;
-    }
-    
-    // Normally would validate with API
-    // Mock validation for demo purposes
-    if (couponCode.toUpperCase() === 'SAVE20') {
-      setCouponApplied(true);
-      setDiscount(20);
-      alert('Coupon applied: 20% off');
-    } else {
-      alert('Invalid coupon code');
-    }
-  };
-  
-  // Handle payment submission
-  const handlePaymentSubmit = async (e) => {
+  // Handle completing the booking
+  const handleCompleteBooking = async (e) => {
     e.preventDefault();
     
     try {
@@ -273,9 +252,7 @@ const TicketBookingPage = () => {
             ticketType: ticketId,
             quantity
           })),
-        customerInfo: userInfo,
-        couponCode: couponApplied ? couponCode : undefined,
-        discount: couponApplied ? discount : undefined
+        customerInfo: userInfo
       };
       
       console.log('Submitting booking:', bookingData);
@@ -367,7 +344,7 @@ const TicketBookingPage = () => {
             <h1 className="ml-4 text-xl font-semibold text-gray-900">
               {step === 1 && 'Select Tickets'}
               {step === 2 && 'Your Information'}
-              {step === 3 && 'Payment'}
+              {step === 3 && 'Confirmation'}
             </h1>
           </div>
         </div>
@@ -395,9 +372,9 @@ const TicketBookingPage = () => {
             
             <div className={`flex items-center ${step >= 3 ? 'text-orange-600' : 'text-gray-500'}`}>
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
-                <CreditCard className="w-4 h-4" />
+                <Ticket className="w-4 h-4" />
               </div>
-              <span className="hidden sm:inline">Payment</span>
+              <span className="hidden sm:inline">Confirmation</span>
             </div>
           </div>
         </div>
@@ -438,7 +415,7 @@ const TicketBookingPage = () => {
             {step === 1 && (
               <form onSubmit={handleSubmit}>
                 <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Select Tickets</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Select Free Tickets</h3>
                   
                   {ticketsLoading ? (
                     <div className="text-center py-8">
@@ -448,8 +425,8 @@ const TicketBookingPage = () => {
                   ) : ticketTypes.length === 0 ? (
                     <div className="text-center py-8 bg-orange-50 rounded-lg">
                       <Ticket className="w-12 h-12 text-orange-400 mx-auto mb-3" />
-                      <p className="text-gray-700 font-medium">No tickets available</p>
-                      <p className="text-gray-500 mt-1">There are currently no tickets available for this event.</p>
+                      <p className="text-gray-700 font-medium">No free tickets available</p>
+                      <p className="text-gray-500 mt-1">There are currently no free tickets available for this event.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -486,7 +463,7 @@ const TicketBookingPage = () => {
                               
                               <div className="flex items-center justify-between md:justify-end">
                                 <div className="font-bold text-gray-900 md:text-right md:mr-4">
-                                  {ticket.price === 0 ? 'Free' : formatCurrency(ticket.price, ticket.currency || 'USD')}
+                                  Free
                                 </div>
                                 
                                 <div className="flex items-center border border-orange-300 rounded-md">
@@ -522,14 +499,6 @@ const TicketBookingPage = () => {
                                 </div>
                               </div>
                             </div>
-                            
-                            {currentQty > 0 && (
-                              <div className="mt-3 pt-3 border-t border-orange-200 flex justify-end">
-                                <span className="font-medium text-gray-900">
-                                  {formatCurrency(ticket.price * currentQty, ticket.currency || 'USD')}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -651,105 +620,61 @@ const TicketBookingPage = () => {
                     type="submit"
                     className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                   >
-                    Continue to Payment
+                    Continue to Confirmation
                     <ChevronRight className="ml-2 h-5 w-5" />
                   </button>
                 </div>
               </form>
             )}
             
-            {/* Step 3: Payment */}
+            {/* Step 3: Confirmation */}
             {step === 3 && (
-              <form onSubmit={handlePaymentSubmit}>
+              <form onSubmit={handleCompleteBooking}>
                 <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Payment Method</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Your Details</h3>
                   
                   <div className="space-y-6">
+                    {/* Information Summary */}
+                    <div className="border-b border-orange-100 pb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Attendee Information</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Name</p>
+                          <p className="font-medium">{userInfo.firstName} {userInfo.lastName}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Email</p>
+                          <p className="font-medium">{userInfo.email}</p>
+                        </div>
+                        {userInfo.phone && (
+                          <div>
+                            <p className="text-gray-500">Phone</p>
+                            <p className="font-medium">{userInfo.phone}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Ticket Summary */}
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Ticket Summary</h4>
+                      <div className="space-y-2">
+                        {orderSummary.items.map(item => (
+                          <div key={item.id} className="flex justify-between text-sm">
+                            <span>{item.name} × {item.quantity}</span>
+                            <span className="font-medium">Free</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Disclaimer */}
                     <div className="bg-orange-50 rounded-lg p-4 flex items-start border border-orange-200">
                       <Info className="h-5 w-5 text-orange-500 mr-3 mt-0.5" />
                       <div>
                         <p className="text-sm text-orange-700">
-                          This is a demo payment page. No actual payment will be processed.
+                          By completing this booking, you agree to receive your tickets via email. Please make sure your contact information is correct.
                         </p>
-                      </div>
-                    </div>
-                    
-                    <div className="border rounded-lg p-4 space-y-4 border-orange-200">
-                      <div>
-                        <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                          Card Number
-                        </label>
-                        <div className="mt-1 relative rounded-md shadow-sm">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <CreditCard className="h-5 w-5 text-orange-400" />
-                          </div>
-                          <input
-                            type="text"
-                            id="cardNumber"
-                            placeholder="4242 4242 4242 4242"
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
-                          />
-                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <Lock className="h-5 w-5 text-orange-400" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                            Expiry Date
-                          </label>
-                          <input
-                            type="text"
-                            id="expiryDate"
-                            placeholder="MM/YY"
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-1">
-                            CVV
-                          </label>
-                          <input
-                            type="text"
-                            id="cvv"
-                            placeholder="123"
-                            className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="nameOnCard" className="block text-sm font-medium text-gray-700 mb-1">
-                          Name on Card
-                        </label>
-                        <input
-                          type="text"
-                          id="nameOnCard"
-                          placeholder="Jane Doe"
-                          className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between border-t border-orange-200 pt-4">
-                      <div className="flex items-center">
-                        <input
-                          id="saveCard"
-                          type="checkbox"
-                          className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-orange-300 rounded"
-                        />
-                        <label htmlFor="saveCard" className="ml-2 block text-sm text-gray-900">
-                          Save card for future purchases
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/visa/visa-original.svg" alt="Visa" className="h-6" />
-                        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mastercard/mastercard-original.svg" alt="Mastercard" className="h-6" />
-                        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/apple/apple-original.svg" alt="Apple Pay" className="h-6" />
                       </div>
                     </div>
                   </div>
@@ -760,7 +685,7 @@ const TicketBookingPage = () => {
                     type="submit"
                     className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                   >
-                    Complete Purchase
+Complete Booking
                     <ChevronRight className="ml-2 h-5 w-5" />
                   </button>
                 </div>
@@ -780,63 +705,25 @@ const TicketBookingPage = () => {
                       <div key={item.id} className="flex justify-between">
                         <div>
                           <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-gray-600">{item.quantity} × {formatCurrency(item.price, item.currency)}</p>
+                          <p className="text-sm text-gray-600">{item.quantity} ticket{item.quantity > 1 ? 's' : ''}</p>
                         </div>
                         <div className="font-medium">
-                          {formatCurrency(item.total, item.currency)}
+                          Free
                         </div>
                       </div>
                     ))}
                   </div>
                   
-                  {/* Coupon Code Input */}
-                  {!couponApplied && step >= 2 && (
-                    <div className="mb-4">
-                      <label htmlFor="couponCode" className="block text-sm font-medium text-gray-700 mb-1">
-                        Coupon Code
-                      </label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          id="couponCode"
-                          value={couponCode}
-                          onChange={(e) => setCouponCode(e.target.value)}
-                          placeholder="Enter code"
-                          className="focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyCoupon}
-                          className="inline-flex items-center px-3 py-2 border border-orange-300 shadow-sm text-sm font-medium rounded-md text-orange-700 bg-white hover:bg-orange-50"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Price Breakdown */}
+                  {/* Price Breakdown - Always free, but keeping structure */}
                   <div className="space-y-2 border-t border-orange-200 pt-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
-                      <span>{formatCurrency(orderSummary.subtotal)}</span>
+                      <span>Free</span>
                     </div>
-                    
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Service Fee</span>
-                      <span>{formatCurrency(orderSummary.fees)}</span>
-                    </div>
-                    
-                    {couponApplied && (
-                      <div className="flex justify-between text-sm text-green-600">
-                        <span>Discount ({discount}%)</span>
-                        <span>-{formatCurrency(orderSummary.discount)}</span>
-                      </div>
-                    )}
                     
                     <div className="flex justify-between font-bold text-lg pt-2 border-t border-orange-200 mt-2">
                       <span>Total</span>
-                      <span>{formatCurrency(orderSummary.total)}</span>
+                      <span>Free</span>
                     </div>
                   </div>
                   
@@ -864,7 +751,7 @@ const TicketBookingPage = () => {
                         onClick={handleSubmit}
                         className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                       >
-                        Continue to Payment
+                        Continue to Confirmation
                         <ChevronRight className="ml-2 h-5 w-5" />
                       </button>
                     )}
@@ -872,10 +759,10 @@ const TicketBookingPage = () => {
                     {step === 3 && (
                       <button
                         type="button"
-                        onClick={handlePaymentSubmit}
+                        onClick={handleCompleteBooking}
                         className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                       >
-                        Complete Purchase
+                        Complete Booking
                         <ChevronRight className="ml-2 h-5 w-5" />
                       </button>
                     )}
@@ -893,7 +780,7 @@ const TicketBookingPage = () => {
                 <div className="flex items-start">
                   <Info className="h-5 w-5 text-orange-400 mr-2 mt-0.5" />
                   <p className="text-xs text-gray-500">
-                    All sales are final. Please review your order before completing your purchase.
+                    Tickets are free but registration is required. Please review your information before completing your booking.
                   </p>
                 </div>
               </div>
