@@ -1142,7 +1142,7 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
           {/* Footer */}
           <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 md:py-4 mt-6">
             <div className="max-w-7xl mx-auto px-4 text-center">
-              <p className="text-xs md:text-sm">© 2023 MeetProfessionals • Privacy Policy • Terms of Service</p>
+              <p className="text-xs md:text-sm">© 2025 MeetKats • Privacy Policy • Terms of Service</p>
             </div>
           </footer>
         </div>
