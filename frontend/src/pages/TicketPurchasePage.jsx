@@ -38,6 +38,7 @@ const TicketBookingPage = () => {
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [discount, setDiscount] = useState(0);
+  const [bookingError, setBookingError] = useState(null);
   
   // Format date for display
   const formatDate = (dateString) => {
@@ -94,9 +95,9 @@ const TicketBookingPage = () => {
         const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
         console.log('Ticket types:', ticketsResponse);
         
-        // Filter out sold out ticket types and keep only free tickets
+        // Don't filter out paid tickets anymore - show all available tickets
         const availableTickets = (ticketsResponse.data || []).filter(ticket => 
-          (!ticket.available || ticket.available > 0) && (ticket.price === 0 || ticket.price === '0')
+          (!ticket.available || ticket.available > 0)
         );
         
         setTicketTypes(availableTickets);
@@ -211,6 +212,7 @@ const TicketBookingPage = () => {
   // Handle form submissions for each step
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
+    setBookingError(null);
     
     if (step === 1) {
       const orderSummary = calculateOrderSummary();
@@ -231,44 +233,86 @@ const TicketBookingPage = () => {
   };
   
   // Handle completing the booking
-  const handleCompleteBooking = async (e) => {
-    e.preventDefault();
+ // Fixed handleCompleteBooking function - use this in your TicketBookingPage component
+const handleCompleteBooking = async (e) => {
+  e.preventDefault();
+  setBookingError(null);
+  
+  try {
+    const orderSummary = calculateOrderSummary();
     
-    try {
-      const orderSummary = calculateOrderSummary();
-      
-      // Check if there are tickets to book
-      if (orderSummary.ticketCount === 0) {
-        alert('Please select at least one ticket');
-        setStep(1);
-        return;
-      }
-      
-      // Prepare booking data
-      const bookingData = {
-        tickets: Object.entries(selectedTickets)
-          .filter(([_, quantity]) => quantity > 0)
-          .map(([ticketId, quantity]) => ({
-            ticketType: ticketId,
-            quantity
-          })),
-        customerInfo: userInfo
-      };
-      
-      console.log('Submitting booking:', bookingData);
-      
-      // Call API to book tickets
-      const response = await eventService.bookEventTickets(eventId, bookingData);
-      console.log('Booking response:', response);
-      
-      // Redirect to confirmation page
-      navigate(`/tickets/confirmation/${response.data?.id || 'success'}`);
-      
-    } catch (err) {
-      console.error('Error submitting booking:', err);
-      alert('Failed to complete your booking. Please try again later.');
+    // Check if there are tickets to book
+    if (orderSummary.ticketCount === 0) {
+      alert('Please select at least one ticket');
+      setStep(1);
+      return;
     }
-  };
+    
+    // Calculate the total amount (for validation)
+    const totalAmount = orderSummary.total || 0;
+    
+    // Get user data if available
+    let userId = null;
+    try {
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      userId = userData.id || null;
+    } catch (err) {
+      console.log('No user data available in localStorage');
+    }
+    
+    // Prepare booking data in the format expected by the API
+    const bookingData = {
+      // Key fix: Use ticketSelections with ticketTypeId as expected by API
+      ticketSelections: Object.entries(selectedTickets)
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([ticketId, quantity]) => ({
+          ticketTypeId: ticketId,
+          quantity: parseInt(quantity, 10)
+        })),
+      
+      // CRITICAL FIX: The backend expects contactInformation, not customerInfo
+      contactInformation: {
+        email: userInfo.email,
+        phone: userInfo.phone || ''
+      },
+      
+      // Still include customerInfo for backward compatibility
+      customerInfo: userInfo,
+      
+      // Add required fields that the API validation expects
+      paymentMethod: totalAmount > 0 ? 'pending' : 'free',
+      totalAmount: totalAmount,
+      returnUrl: window.location.origin + '/payment-confirmation'
+    };
+    
+    // Add userId if available
+    if (userId) {
+      bookingData.userId = userId;
+    }
+    
+    console.log('Submitting booking:', bookingData);
+    
+    // Call API to book tickets
+    const response = await ticketService.bookEventTickets(eventId, bookingData);
+    console.log('Booking response:', response);
+    
+    // Get the booking ID from the response
+    const bookingId = response.id || response._id || (response.booking && response.booking.id);
+    
+    // Redirect to confirmation page
+    navigate(`/tickets/confirmation/${bookingId || 'success'}`);
+    
+  } catch (err) {
+    console.error('Error submitting booking:', err);
+    setBookingError(
+      err.response?.data?.error || 
+      err.response?.data?.message || 
+      err.message || 
+      'Failed to complete your booking. Please try again later.'
+    );
+    // Stay on the confirmation page to show the error
+  }
+};
   
   // Back button functionality
   const handleBack = () => {
@@ -415,7 +459,7 @@ const TicketBookingPage = () => {
             {step === 1 && (
               <form onSubmit={handleSubmit}>
                 <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Select Free Tickets</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Select Tickets</h3>
                   
                   {ticketsLoading ? (
                     <div className="text-center py-8">
@@ -425,8 +469,8 @@ const TicketBookingPage = () => {
                   ) : ticketTypes.length === 0 ? (
                     <div className="text-center py-8 bg-orange-50 rounded-lg">
                       <Ticket className="w-12 h-12 text-orange-400 mx-auto mb-3" />
-                      <p className="text-gray-700 font-medium">No free tickets available</p>
-                      <p className="text-gray-500 mt-1">There are currently no free tickets available for this event.</p>
+                      <p className="text-gray-700 font-medium">No tickets available</p>
+                      <p className="text-gray-500 mt-1">There are currently no tickets available for this event.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -435,6 +479,7 @@ const TicketBookingPage = () => {
                         const currentQty = selectedTickets[ticketId] || 0;
                         const isAvailable = !ticket.available || ticket.available > 0;
                         const remainingTickets = ticket.available || 'Unlimited';
+                        const isPaid = ticket.price > 0;
                         
                         return (
                           <div 
@@ -463,7 +508,7 @@ const TicketBookingPage = () => {
                               
                               <div className="flex items-center justify-between md:justify-end">
                                 <div className="font-bold text-gray-900 md:text-right md:mr-4">
-                                  Free
+                                  {isPaid ? formatCurrency(ticket.price, ticket.currency || 'USD') : 'Free'}
                                 </div>
                                 
                                 <div className="flex items-center border border-orange-300 rounded-md">
@@ -626,12 +671,28 @@ const TicketBookingPage = () => {
                 </div>
               </form>
             )}
-            
+           
             {/* Step 3: Confirmation */}
             {step === 3 && (
               <form onSubmit={handleCompleteBooking}>
                 <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Your Details</h3>
+                  
+                  {bookingError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                      <div className="flex">
+                        <div className="py-1">
+                          <svg className="h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-medium">Booking failed</p>
+                          <p className="text-sm">{bookingError}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="space-y-6">
                     {/* Information Summary */}
@@ -662,7 +723,11 @@ const TicketBookingPage = () => {
                         {orderSummary.items.map(item => (
                           <div key={item.id} className="flex justify-between text-sm">
                             <span>{item.name} × {item.quantity}</span>
-                            <span className="font-medium">Free</span>
+                            <span className="font-medium">
+                              {item.price > 0 
+                                ? formatCurrency(item.price * item.quantity, item.currency)
+                                : 'Free'}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -685,7 +750,7 @@ const TicketBookingPage = () => {
                     type="submit"
                     className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                   >
-Complete Booking
+                    Complete Booking
                     <ChevronRight className="ml-2 h-5 w-5" />
                   </button>
                 </div>
@@ -708,22 +773,46 @@ Complete Booking
                           <p className="text-sm text-gray-600">{item.quantity} ticket{item.quantity > 1 ? 's' : ''}</p>
                         </div>
                         <div className="font-medium">
-                          Free
+                          {item.price > 0 
+                            ? formatCurrency(item.price * item.quantity, item.currency)
+                            : 'Free'}
                         </div>
                       </div>
                     ))}
                   </div>
                   
-                  {/* Price Breakdown - Always free, but keeping structure */}
+                  {/* Price Breakdown */}
                   <div className="space-y-2 border-t border-orange-200 pt-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
-                      <span>Free</span>
+                      <span>
+                        {orderSummary.subtotal > 0 
+                          ? formatCurrency(orderSummary.subtotal)
+                          : 'Free'}
+                      </span>
                     </div>
+                    
+                    {orderSummary.fees > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Service fees</span>
+                        <span>{formatCurrency(orderSummary.fees)}</span>
+                      </div>
+                    )}
+                    
+                    {couponApplied && orderSummary.discount > 0 && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span>Discount</span>
+                        <span>-{formatCurrency(orderSummary.discount)}</span>
+                      </div>
+                    )}
                     
                     <div className="flex justify-between font-bold text-lg pt-2 border-t border-orange-200 mt-2">
                       <span>Total</span>
-                      <span>Free</span>
+                      <span>
+                        {orderSummary.total > 0 
+                          ? formatCurrency(orderSummary.total)
+                          : 'Free'}
+                      </span>
                     </div>
                   </div>
                   
@@ -780,7 +869,9 @@ Complete Booking
                 <div className="flex items-start">
                   <Info className="h-5 w-5 text-orange-400 mr-2 mt-0.5" />
                   <p className="text-xs text-gray-500">
-                    Tickets are free but registration is required. Please review your information before completing your booking.
+                    {orderSummary.total > 0 
+                      ? "All purchases are final. Please review your order details before completing your purchase."
+                      : "Tickets are free but registration is required. Please review your information before completing your booking."}
                   </p>
                 </div>
               </div>
