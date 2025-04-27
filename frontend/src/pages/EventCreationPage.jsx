@@ -1,11 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
+  Calendar, 
+  Clock, 
+  MapPin, 
+  Image, 
+  Tag, 
+  Info, 
+  Save,
   ArrowLeft,
-  Tag,
+  Upload,
+  X,
+  Globe,
+  Users,
+  CheckCircle,
+  ChevronRight,
   AlertCircle
 } from 'lucide-react';
 import eventService from '../services/eventService';
+import Sidebar from '../components/common/Navbar';  // Import the existing Sidebar component
 
 const EventCreationPage = ({ user, onLogout }) => {
   const navigate = useNavigate();
@@ -43,7 +56,6 @@ const EventCreationPage = ({ user, onLogout }) => {
   const [success, setSuccess] = useState(false);
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [activeStep, setActiveStep] = useState(1);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   // Form steps
   const formSteps = [
@@ -114,6 +126,19 @@ const EventCreationPage = ({ user, onLogout }) => {
     }
   };
   
+  // Clear cover image
+  const handleClearImage = () => {
+    if (formData.coverImagePreview) {
+      URL.revokeObjectURL(formData.coverImagePreview);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      coverImage: null,
+      coverImagePreview: null
+    }));
+  };
+  
   // Categories based on your event model
   const categories = [
     { value: 'SOCIAL', label: 'Social' },
@@ -148,7 +173,7 @@ const EventCreationPage = ({ user, onLogout }) => {
   
   // Form navigation
   const nextStep = () => {
-    if (activeStep < formSteps.length) {
+    if (validateStep() && activeStep < formSteps.length) {
       setActiveStep(activeStep + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -163,6 +188,8 @@ const EventCreationPage = ({ user, onLogout }) => {
   
   // Validate current step
   const validateStep = () => {
+    setError(null);
+    
     switch(activeStep) {
       case 1:
         if (!formData.title) {
@@ -196,55 +223,20 @@ const EventCreationPage = ({ user, onLogout }) => {
     return true;
   };
   
-  // Handle step navigation with validation
-  const handleStepChange = (direction) => {
-    setError(null);
-    
-    if (direction === 'next') {
-      if (validateStep()) {
-        nextStep();
-      }
-    } else {
-      prevStep();
-    }
-  };
-  
   // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
+    // Validate all steps before submission
+    for (let i = 1; i <= formSteps.length; i++) {
+      setActiveStep(i);
+      if (!validateStep()) {
+        return;
+      }
+    }
     
     try {
       setSubmitting(true);
-      setError(null);
-      
-      // Validate all required fields
-      if (!formData.title) {
-        setError('Event title is required');
-        setActiveStep(1);
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.startDate) {
-        setError('Start date is required');
-        setActiveStep(2);
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.category) {
-        setError('Category is required');
-        setActiveStep(1);
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.isOnline && !formData.location) {
-        setError('Location is required for in-person events');
-        setActiveStep(3);
-        setSubmitting(false);
-        return;
-      }
       
       // Prepare data for API
       const eventData = {
@@ -282,99 +274,7 @@ const EventCreationPage = ({ user, onLogout }) => {
     }
   };
   
-  // Toggle sidebar
-  const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
-  
-  // Render the sidebar
-  const renderSidebar = () => {
-    return (
-      <div className={`fixed top-0 left-0 h-full bg-white border-r border-gray-200 transition-all ${sidebarCollapsed ? 'w-16' : 'w-56'}`}>
-        <div className="flex items-center p-4 border-b border-gray-200">
-          <div className="h-8 w-8 bg-orange-500 rounded flex items-center justify-center text-white font-bold">
-            M
-          </div>
-          {!sidebarCollapsed && (
-            <span className="ml-2 text-lg font-semibold text-orange-500">Meetkats</span>
-          )}
-          <button 
-            onClick={toggleSidebar} 
-            className="ml-auto text-gray-500 hover:text-orange-500"
-          >
-            {sidebarCollapsed ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            )}
-          </button>
-        </div>
-        
-        <div className="p-4">
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className={`w-full px-3 py-2 pl-9 bg-gray-100 rounded-full text-sm focus:outline-none ${sidebarCollapsed ? 'hidden' : ''}`}
-            />
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-400 absolute left-3 top-2 ${sidebarCollapsed ? 'position-static mx-auto' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-        </div>
-        
-        <nav className="mt-4">
-          <div className={`flex items-center px-4 py-3 text-gray-500 hover:bg-orange-50 hover:text-orange-500 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            {!sidebarCollapsed && <span className="ml-3">Home</span>}
-          </div>
-          
-          <div className={`flex items-center px-4 py-3 text-gray-500 hover:bg-orange-50 hover:text-orange-500 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-            {!sidebarCollapsed && <span className="ml-3">My Network</span>}
-          </div>
-          
-          <div className={`flex items-center px-4 py-3 text-gray-500 hover:bg-orange-50 hover:text-orange-500 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            {!sidebarCollapsed && <span className="ml-3">Portfolio</span>}
-          </div>
-          
-          <div className={`flex items-center px-4 py-3 text-gray-500 hover:bg-orange-50 hover:text-orange-500 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            {!sidebarCollapsed && <span className="ml-3">Chats</span>}
-          </div>
-          
-          <div className={`flex items-center px-4 py-3 text-gray-500 hover:bg-orange-50 hover:text-orange-500 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            {!sidebarCollapsed && <span className="ml-3">Messages</span>}
-          </div>
-          
-          <div className={`flex items-center px-4 py-3 text-gray-500 hover:bg-orange-50 hover:text-orange-500 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            {!sidebarCollapsed && <span className="ml-3">Notifications</span>}
-          </div>
-        </nav>
-      </div>
-    );
-  };
-  
-  // Render current step content
+  // Render content for current step
   const renderStepContent = () => {
     switch (activeStep) {
       case 1:
@@ -635,7 +535,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Postal Code
                         </label>
                         <input
@@ -698,14 +598,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      URL.revokeObjectURL(formData.coverImagePreview);
-                      setFormData({
-                        ...formData,
-                        coverImage: null,
-                        coverImagePreview: null
-                      });
-                    }}
+                    onClick={handleClearImage}
                     className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-sm hover:bg-gray-100"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -789,17 +682,55 @@ const EventCreationPage = ({ user, onLogout }) => {
     }
   };
   
-  // Main render
+  // Success state render
+  if (success) {
+    return (
+      <div className="flex h-screen">
+        {/* Integrate the existing Sidebar */}
+        <Sidebar user={user} onLogout={onLogout} />
+        
+        {/* Main content with no gap */}
+        <div className="flex-1">
+          <div className="max-w-4xl mx-auto px-4 py-12">
+            <div className="text-center bg-white rounded-lg shadow-md p-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-100 rounded-full mb-6">
+                <CheckCircle className="w-10 h-10 text-orange-600" />
+              </div>
+              <h1 className="text-3xl font-bold text-orange-900 mb-4">Event Created Successfully!</h1>
+              <p className="text-lg text-gray-700 mb-8">
+                Your event has been created and is now visible to attendees.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
+                <button 
+                  className="px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
+                  onClick={() => navigate(`/events/${response?.data?._id || response?.data?.id || 'new'}`)}
+                >
+                  View Event
+                </button>
+                <button 
+                  className="px-6 py-2 border border-orange-300 text-base font-medium rounded-md shadow-sm text-orange-700 bg-white hover:bg-orange-50"
+                  onClick={() => navigate('/events/new')}
+                >
+                  Create Another Event
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      {renderSidebar()}
+    <div className="flex h-screen bg-orange-50">
+      {/* Integrate the existing Sidebar */}
+      <Sidebar user={user} onLogout={onLogout} />
       
-      {/* Main Content */}
-      <div className={`flex-1 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
+      {/* Main content with no gap */}
+      <div className="flex-1 overflow-y-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="px-4 py-4 flex items-center justify-between">
             <Link to="/events" className="text-orange-500 hover:text-orange-600 flex items-center">
               <ArrowLeft className="w-5 h-5 mr-1" />
               <span>Back to Events</span>
@@ -812,109 +743,114 @@ const EventCreationPage = ({ user, onLogout }) => {
               onClick={handleSubmit}
               disabled={submitting}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-            >
-              {submitting ? 'Creating...' : 'Create Event'}
-            </button>
-          </div>
-          
-          {/* Step Indicators */}
-          <div className="max-w-4xl mx-auto px-4 pb-2">
-            <div className="flex">
-              {formSteps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
+              >
+                {submitting ? 'Creating...' : 'Create Event'}
+              </button>
+            </div>
+            
+            {/* Step Indicators */}
+            <div className="px-4 pb-4">
+              <div className="flex justify-between">
+                {formSteps.map((step, index) => (
                   <div 
-                    className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                      activeStep === step.id 
-                        ? 'bg-orange-500 text-white' 
-                        : activeStep > step.id 
-                          ? 'bg-orange-100 text-orange-500 border border-orange-500' 
-                          : 'bg-gray-100 text-gray-400'
-                    }`}
+                    key={step.id} 
+                    className={`flex items-center ${index < formSteps.length - 1 ? 'flex-1' : ''}`}
+                    onClick={() => step.id < activeStep ? setActiveStep(step.id) : null}
+                    style={{ cursor: step.id < activeStep ? 'pointer' : 'default' }}
                   >
-                    {activeStep > step.id ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      step.id
+                    <div 
+                      className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                        activeStep === step.id 
+                          ? 'bg-orange-500 text-white' 
+                          : activeStep > step.id 
+                            ? 'bg-orange-100 text-orange-500 border border-orange-500' 
+                            : 'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      {activeStep > step.id ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        step.id
+                      )}
+                    </div>
+                    
+                    <span className={`ml-2 text-sm font-medium ${
+                      activeStep === step.id 
+                        ? 'text-gray-900' 
+                        : activeStep > step.id 
+                          ? 'text-orange-500' 
+                          : 'text-gray-400'
+                    }`}>
+                      {step.name}
+                    </span>
+                    
+                    {index < formSteps.length - 1 && (
+                      <div className={`h-0.5 flex-1 mx-3 ${activeStep > step.id ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
                     )}
                   </div>
-                  
-                  <span className={`ml-2 text-sm font-medium ${
-                    activeStep === step.id 
-                      ? 'text-gray-900' 
-                      : activeStep > step.id 
-                        ? 'text-orange-500' 
-                        : 'text-gray-400'
-                  }`}>
-                    {step.name}
-                  </span>
-                  
-                  {index < formSteps.length - 1 && (
-                    <div className={`h-0.5 w-12 mx-2 ${activeStep > step.id ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-        {/* Main Content */}
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          {/* Error message */}
-          {error && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
-              <div className="flex">
-                <AlertCircle className="h-5 w-5 text-red-500" />
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
+                ))}
               </div>
             </div>
-          )}
+          </div>
           
-          {/* Form */}
-          <form onSubmit={(e) => {e.preventDefault(); handleSubmit();}}>
-            {renderStepContent()}
+          {/* Main Content */}
+          <div className="max-w-4xl mx-auto px-4 py-6">
+            {/* Error message */}
+            {error && (
+              <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             
-            {/* Navigation Buttons */}
-            <div className="mt-6 flex justify-between">
-              <button
-                type="button"
-                onClick={prevStep}
-                disabled={activeStep === 1}
-                className={`px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
-                  activeStep === 1 ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                Previous
-              </button>
+            {/* Form */}
+            <form onSubmit={(e) => {e.preventDefault(); handleSubmit();}}>
+              {renderStepContent()}
               
-              {activeStep < formSteps.length ? (
+              {/* Navigation Buttons */}
+              <div className="mt-6 flex justify-between">
                 <button
                   type="button"
-                  onClick={nextStep}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                >
-                  Next Step
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
-                    submitting ? 'opacity-75 cursor-not-allowed' : ''
+                  onClick={prevStep}
+                  disabled={activeStep === 1}
+                  className={`px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
+                    activeStep === 1 ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
-                  {submitting ? 'Creating...' : 'Create Event'}
+                  Previous
                 </button>
-              )}
-            </div>
-          </form>
+                
+                {activeStep < formSteps.length ? (
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                  >
+                    Next Step
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
+                      submitting ? 'opacity-75 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {submitting ? 'Creating...' : 'Create Event'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-export default EventCreationPage;
+    );
+  };
+  
+  export default EventCreationPage;
