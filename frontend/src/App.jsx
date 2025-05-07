@@ -45,6 +45,7 @@ import CreateTicketsPage from './pages/CreateTicketsPage';
 import AttendeeManagementPage from './pages/AttendeeManagementPage'; 
 import TicketManagementPage from './pages/TicketManagementPage';
 import CheckInPage from './pages/CheckInPage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const App = () => {
   return (
@@ -60,7 +61,7 @@ const App = () => {
           
           {/* Profile Setup */}
           <Route path="/profile-setup" element={<ProfileSetupPage />} />
-          
+          <Route path="/privacypolicy" element={<PrivacyPolicy />} />
           {/* Main App Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<SettingsPage />} />
