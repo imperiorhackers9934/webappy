@@ -31,7 +31,6 @@ import PostsFetcher from './pages/PostFetcher';
 import LinkCall from './pages/LinkCall';
 import TermsAndConditions from './pages/TermsAndConditions';
 import RefundPolicy from "./pages/RefundPolicy"
-import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // Event Management Pages
 import EventListingPage from './pages/EventsListingPage';
@@ -142,4 +141,3 @@ const App = () => {
 };
 
 export default App;
-
