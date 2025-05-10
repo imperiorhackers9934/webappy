@@ -1,52 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { PlusCircle, Edit, Trash2, Globe, Github, Youtube, Star, Calendar, Award, TrendingUp } from 'lucide-react';
-import api from '../services/api';
+import portfolioService from '../services/portfolioService';
 import Loader from '../components/common/Loader';
-
+import { ToastProvider } from '../components/common/Toast';
 const PortfolioPage = () => {
   const [projects, setProjects] = useState([]);
   const [achievements, setAchievements] = useState([]);
   const [streaks, setStreaks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState('projects');
+  const [userInfo, setUserInfo] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchPortfolio = async () => {
-      try {
-        setLoading(true);
-        const userInfo = await api.getUserInfo();
-        
-        // Fetch all data in parallel with error handling
-        const [profileData, streaksData] = await Promise.all([
-          api.getProfile(userInfo._id).catch(err => ({ portfolio: { projects: [], achievements: [] } })),
-          api.getUserStreaks(userInfo._id, { limit: 10 }).catch(err => ({ items: [] }))
-        ]);
-        
-        setProjects(profileData.portfolio.projects || []);
-        setAchievements(profileData.portfolio.achievements || []);
-        setStreaks(streaksData.items || []);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching portfolio data:', err);
-        setError('Failed to load portfolio data');
-        setLoading(false);
-      }
-    };
-
-    fetchPortfolio();
+  // Fetch portfolio data
+  const fetchPortfolio = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // First get user info
+      const user = await portfolioService.getUserInfo();
+      setUserInfo(user);
+      
+      // Then fetch all data in parallel with error handling
+      const [projectsData, achievementsData, streaksData] = await Promise.all([
+        portfolioService.getProjects(user.id),
+        portfolioService.getAchievements(user.id),
+        portfolioService.getUserStreaks(user.id, { limit: 10 }).then(data => data.items || [])
+      ]);
+      
+      setProjects(projectsData);
+      setAchievements(achievementsData);
+      setStreaks(streaksData);
+    } catch (err) {
+      console.error('Error fetching portfolio data:', err);
+      setError('Failed to load portfolio data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchPortfolio();
+  }, [fetchPortfolio]);
+
+  // Delete handlers with loading state and error handling
   const handleDeleteProject = async (projectId) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
       try {
-        await api.deleteProject(projectId);
-        setProjects(projects.filter(project => project._id !== projectId));
+        setActionLoading(true);
+        await portfolioService.deleteProject(projectId);
+        setProjects(projects.filter(project => project.id !== projectId));
+        toast.success('Project deleted successfully');
       } catch (err) {
         console.error('Error deleting project:', err);
-        alert('Failed to delete project');
+        toast.error('Failed to delete project. Please try again.');
+      } finally {
+        setActionLoading(false);
       }
     }
   };
@@ -54,11 +67,15 @@ const PortfolioPage = () => {
   const handleDeleteAchievement = async (achievementId) => {
     if (window.confirm('Are you sure you want to delete this achievement?')) {
       try {
-        await api.deleteAchievement(achievementId);
-        setAchievements(achievements.filter(achievement => achievement._id !== achievementId));
+        setActionLoading(true);
+        await portfolioService.deleteAchievement(achievementId);
+        setAchievements(achievements.filter(achievement => achievement.id !== achievementId));
+        toast.success('Achievement deleted successfully');
       } catch (err) {
         console.error('Error deleting achievement:', err);
-        alert('Failed to delete achievement');
+        toast.error('Failed to delete achievement. Please try again.');
+      } finally {
+        setActionLoading(false);
       }
     }
   };
@@ -66,37 +83,62 @@ const PortfolioPage = () => {
   const handleDeleteStreak = async (streakId) => {
     if (window.confirm('Are you sure you want to delete this streak?')) {
       try {
-        await api.deleteStreak(streakId);
-        setStreaks(streaks.filter(streak => streak._id !== streakId));
+        setActionLoading(true);
+        await portfolioService.deleteStreak(streakId);
+        setStreaks(streaks.filter(streak => streak.id !== streakId));
+        toast.success('Streak deleted successfully');
       } catch (err) {
         console.error('Error deleting streak:', err);
-        alert('Failed to delete streak');
+        toast.error('Failed to delete streak. Please try again.');
+      } finally {
+        setActionLoading(false);
       }
     }
   };
 
-  if (loading) return <Loader />;
+  // Navigation handler with consistent routing
+  const handleNavigation = (path) => {
+    navigate(path);
+  };
+
+  // Render loading state
+  if (loading) {
+    return <Loader message="Loading your portfolio..." />;
+  }
   
-  if (error) return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="bg-white rounded-xl shadow-md p-6 text-center max-w-md">
-        <div className="text-red-500 text-4xl mb-4">⚠️</div>
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Portfolio</h3>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-        >
-          Retry
-        </button>
+  // Render error state
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="bg-white rounded-xl shadow-md p-6 text-center max-w-md">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Portfolio</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchPortfolio}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            disabled={loading}
+          >
+            {loading ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto bg-gray-100">
       <div className="md:pt-0 pt-16">
         <main className="max-w-7xl mx-auto p-4 md:p-6">
+          {/* Loading overlay for actions */}
+          {actionLoading && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-4 rounded-lg shadow-lg">
+                <Loader size="small" message="Processing..." />
+              </div>
+            </div>
+          )}
+          
           {/* Dashboard Header - Calendar View Style */}
           <div className="bg-white rounded-xl shadow-md mb-6 p-4 md:p-6 border-l-4 border-orange-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -107,20 +149,23 @@ const PortfolioPage = () => {
               
               <div className="mt-4 md:mt-0 w-full md:w-auto flex flex-wrap gap-2">
                 <button 
-                  onClick={() => navigate('/portfolio/streak/new')}
+                  onClick={() => handleNavigation('/portfolio/streaks/new')}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+                  disabled={actionLoading}
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> New Streak
                 </button>
                 <button 
-                  onClick={() => navigate('/portfolio/projects/new')}
+                  onClick={() => handleNavigation('/portfolio/projects/new')}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                  disabled={actionLoading}
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> New Project
                 </button>
                 <button 
-                  onClick={() => navigate('/portfolio/achievements/new')}
+                  onClick={() => handleNavigation('/portfolio/achievements/new')}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center"
+                  disabled={actionLoading}
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> New Achievement
                 </button>
@@ -138,6 +183,7 @@ const PortfolioPage = () => {
                     ? 'text-blue-600 border-b-2 border-blue-500'
                     : 'text-gray-500 hover:text-blue-500'
                 }`}
+                disabled={actionLoading}
               >
                 Projects
               </button>
@@ -148,6 +194,7 @@ const PortfolioPage = () => {
                     ? 'text-purple-600 border-b-2 border-purple-500'
                     : 'text-gray-500 hover:text-purple-500'
                 }`}
+                disabled={actionLoading}
               >
                 Achievements
               </button>
@@ -158,6 +205,7 @@ const PortfolioPage = () => {
                     ? 'text-green-600 border-b-2 border-green-500'
                     : 'text-gray-500 hover:text-green-500'
                 }`}
+                disabled={actionLoading}
               >
                 Streaks
               </button>
@@ -170,7 +218,7 @@ const PortfolioPage = () => {
               {projects.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((project) => (
-                    <div key={project._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                    <div key={project.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                       <div className="relative">
                         {project.images && project.images[0] ? (
                           <img 
@@ -189,18 +237,22 @@ const PortfolioPage = () => {
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/portfolio/projects/edit/${project._id}`);
+                              handleNavigation(`/portfolio/projects/edit/${project.id}`);
                             }}
                             className="p-2 bg-white rounded-full text-gray-600 hover:text-blue-600 shadow-sm"
+                            disabled={actionLoading}
+                            aria-label="Edit project"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteProject(project._id);
+                              handleDeleteProject(project.id);
                             }}
                             className="p-2 bg-white rounded-full text-gray-600 hover:text-red-600 shadow-sm"
+                            disabled={actionLoading}
+                            aria-label="Delete project"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -244,6 +296,7 @@ const PortfolioPage = () => {
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                   className="text-gray-600 hover:text-blue-600"
+                                  aria-label={`Visit ${link.title || 'project link'}`}
                                 >
                                   <Icon className="h-5 w-5" />
                                 </a>
@@ -253,8 +306,9 @@ const PortfolioPage = () => {
                         )}
                         
                         <button 
-                          onClick={() => navigate(`/portfolio/projects/${project._id}`)}
+                          onClick={() => handleNavigation(`/portfolio/projects/${project.id}`)}
                           className="mt-3 text-blue-600 hover:underline text-sm"
+                          disabled={actionLoading}
                         >
                           View Details
                         </button>
@@ -270,8 +324,9 @@ const PortfolioPage = () => {
                   <h3 className="text-xl font-semibold text-gray-800 mb-2">No Projects Yet</h3>
                   <p className="text-gray-600 mb-6">Showcase your work by adding projects to your portfolio.</p>
                   <button 
-                    onClick={() => navigate('/portfolio/projects/new')}
+                    onClick={() => handleNavigation('/portfolio/projects/new')}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={actionLoading}
                   >
                     Add Your First Project
                   </button>
@@ -286,7 +341,7 @@ const PortfolioPage = () => {
               {achievements.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {achievements.map((achievement) => (
-                    <div key={achievement._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                    <div key={achievement.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                       <div className="p-4">
                         <div className="flex items-start">
                           {achievement.image ? (
@@ -303,14 +358,18 @@ const PortfolioPage = () => {
                               
                               <div className="flex space-x-1">
                                 <button 
-                                  onClick={() => navigate(`/portfolio/achievements/edit/${achievement._id}`)}
+                                  onClick={() => handleNavigation(`/portfolio/achievements/edit/${achievement.id}`)}
                                   className="text-gray-500 hover:text-purple-600"
+                                  disabled={actionLoading}
+                                  aria-label="Edit achievement"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </button>
                                 <button 
-                                  onClick={() => handleDeleteAchievement(achievement._id)}
+                                  onClick={() => handleDeleteAchievement(achievement.id)}
                                   className="text-gray-500 hover:text-red-600"
+                                  disabled={actionLoading}
+                                  aria-label="Delete achievement"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
@@ -353,8 +412,9 @@ const PortfolioPage = () => {
                   <h3 className="text-xl font-semibold text-gray-800 mb-2">No Achievements Yet</h3>
                   <p className="text-gray-600 mb-6">Highlight your accomplishments and certifications.</p>
                   <button 
-                    onClick={() => navigate('/portfolio/achievements/new')}
+                    onClick={() => handleNavigation('/portfolio/achievements/new')}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                    disabled={actionLoading}
                   >
                     Add Your First Achievement
                   </button>
@@ -369,7 +429,7 @@ const PortfolioPage = () => {
               {streaks.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {streaks.map((streak) => (
-                    <div key={streak._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                    <div key={streak.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                       <div className="p-4">
                         <div className="flex justify-between">
                           <div className="flex items-center">
@@ -384,14 +444,18 @@ const PortfolioPage = () => {
                           
                           <div className="flex space-x-1">
                             <button 
-                              onClick={() => navigate(`/portfolio/streaks/edit/${streak._id}`)}
+                              onClick={() => handleNavigation(`/portfolio/streaks/edit/${streak.id}`)}
                               className="text-gray-500 hover:text-green-600"
+                              disabled={actionLoading}
+                              aria-label="Edit streak"
                             >
                               <Edit className="h-4 w-4" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteStreak(streak._id)}
+                              onClick={() => handleDeleteStreak(streak.id)}
                               className="text-gray-500 hover:text-red-600"
+                              disabled={actionLoading}
+                              aria-label="Delete streak"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -431,7 +495,7 @@ const PortfolioPage = () => {
                         </div>
                         
                         <Link
-                          to={`/portfolio/streaks/${streak._id}`}
+                          to={`/portfolio/streaks/${streak.id}`}
                           className="mt-4 block w-full py-2 px-4 bg-green-600 text-white text-center rounded-lg hover:bg-green-700"
                         >
                           Check In
@@ -448,8 +512,9 @@ const PortfolioPage = () => {
                   <h3 className="text-xl font-semibold text-gray-800 mb-2">No Streaks Yet</h3>
                   <p className="text-gray-600 mb-6">Track your daily habits and consistency with streaks.</p>
                   <button 
-                    onClick={() => navigate('/portfolio/streak/new')}
+                    onClick={() => handleNavigation('/portfolio/streaks/new')}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={actionLoading}
                   >
                     Start Your First Streak
                   </button>

@@ -127,7 +127,10 @@ const EventDetailPage = ({ user, onLogout }) => {
       
       // Call API to update response
       const response = await eventService.respondToEvent(eventId, status);
-      
+      if(response)
+      console.log("data",response)
+    else
+    console.log("no dtata")
       // Update local state to show immediate feedback
       setUserResponse(status);
       

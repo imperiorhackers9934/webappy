@@ -1,24 +1,38 @@
 // src/services/portfolioService.js
 import api from './api';
 
-// Utility function to normalize data
+/**
+ * Utility function to normalize data by ensuring consistent id field
+ * @param {Object|Array} data - The data to normalize
+ * @returns {Object|Array} - Normalized data with consistent id field
+ */
 const normalizeData = (data) => {
   if (!data) return null;
   
   if (Array.isArray(data)) {
     return data.map(item => ({
-      id: item._id || item.id,
       ...item,
+      // Keep _id for backward compatibility but also provide id
+      _id: item._id || item.id,
+      id: item._id || item.id
     }));
   }
   
   return {
-    id: data._id || data.id,
-    ...data
+    ...data,
+    // Keep _id for backward compatibility but also provide id
+    _id: data._id || data.id,
+    id: data._id || data.id
   };
 };
 
-// Utility function to create form data for file uploads
+/**
+ * Utility function to create form data for file uploads
+ * @param {Object} data - The data to include in form data
+ * @param {string} fileField - The field name for the file
+ * @param {File} file - The file to upload
+ * @returns {FormData} - FormData object with all fields
+ */
 const createFormData = (data, fileField, file) => {
   const formData = new FormData();
   
@@ -35,7 +49,13 @@ const createFormData = (data, fileField, file) => {
   return formData;
 };
 
-// Utility function to handle multiple file uploads
+/**
+ * Utility function to handle multiple file uploads
+ * @param {Object} data - The data to include in form data
+ * @param {string} fileField - The base field name for the files
+ * @param {Array<File>} files - The files to upload
+ * @returns {FormData} - FormData object with all fields
+ */
 const createMultiFileFormData = (data, fileField, files) => {
   const formData = new FormData();
   
@@ -54,7 +74,60 @@ const createMultiFileFormData = (data, fileField, files) => {
   return formData;
 };
 
+/**
+ * Standard error handler to provide consistent error logging
+ * @param {Error} error - The error to handle
+ * @param {string} operation - The operation that failed
+ * @param {boolean} throwError - Whether to throw the error or return null
+ * @returns {null|never} - Returns null or throws an error
+ */
+const handleError = (error, operation, throwError = true) => {
+  console.error(`Error ${operation}:`, error.response?.data || error.message);
+  
+  // Provide detailed error logging
+  if (error.response) {
+    console.error('Server response:', error.response.data);
+    console.error('Status code:', error.response.status);
+  } else if (error.request) {
+    console.error('No response received from server');
+    console.warn('API might be unavailable, network issues or server down');
+  }
+  
+  if (throwError) {
+    throw error;
+  }
+  
+  return null;
+};
+
 const portfolioService = {
+  // User profile methods
+  getUserInfo: async () => {
+    try {
+      const response = await api.get('/api/me');
+      return normalizeData(response.data);
+    } catch (error) {
+      return handleError(error, 'fetching user info', false) || {
+        _id: 'temp-user-id',
+        username: 'User',
+        email: '',
+        avatar: ''
+      };
+    }
+  },
+  
+  getProfile: async (userId) => {
+    try {
+      const response = await api.get(`/api/users/${userId}/profile`);
+      return normalizeData(response.data);
+    } catch (error) {
+      return handleError(error, `fetching profile for user ${userId}`, false) || {
+        user: { _id: userId },
+        portfolio: { projects: [], achievements: [] }
+      };
+    }
+  },
+
   // Get portfolio summary
   getPortfolioSummary: async (userId = null) => {
     try {
@@ -68,17 +141,6 @@ const portfolioService = {
       
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching portfolio summary:', error.response?.data || error.message);
-      
-      // Provide detailed error logging
-      if (error.response) {
-        console.error('Server response:', error.response.data);
-        console.error('Status code:', error.response.status);
-      } else if (error.request) {
-        console.error('No response received from server');
-        console.warn('API might be unavailable, network issues or server down');
-      }
-      
       // If API is unavailable, we can return a minimal structure so the UI doesn't break
       if (!error.response || error.message === 'Network Error') {
         console.warn('API not available, returning empty portfolio summary structure');
@@ -99,7 +161,7 @@ const portfolioService = {
       }
       
       // For other types of errors, propagate them up
-      throw error;
+      return handleError(error, 'fetching portfolio summary');
     }
   },
 
@@ -110,11 +172,7 @@ const portfolioService = {
       const response = await api.get(url);
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching projects:', error.response?.data || error.message);
-      
-      // Return empty array if API is unavailable
-      console.warn('API not available, returning empty projects array');
-      return [];
+      return handleError(error, 'fetching projects', false) || [];
     }
   },
   
@@ -127,8 +185,7 @@ const portfolioService = {
       const response = await api.get(`/api/projects/${projectId}`);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error fetching project ${projectId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `fetching project ${projectId}`);
     }
   },
   
@@ -141,15 +198,9 @@ const portfolioService = {
       const validAttachments = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
       
       if (validAttachments.length > 0) {
-        // Log attachment information for debugging
-        console.log(`Uploading ${validAttachments.length} attachments`);
-        
         try {
           // Create FormData for file uploads - with enhanced error handling
           const formData = createMultiFileFormData(projectData, 'attachments', validAttachments);
-          
-          // Send request with attachments
-          console.log("Sending project with attachments to server");
           
           // Make the request with progress tracking
           response = await api.post('/api/projects', formData, {
@@ -207,24 +258,7 @@ const portfolioService = {
       
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error creating project:', error);
-      
-      // Enhanced error logging and handling
-      if (error.response) {
-        console.error('Server response:', error.response.data);
-        console.error('Status code:', error.response.status);
-        
-        // Format error message from server if available
-        if (error.response.data && error.response.data.error) {
-          throw new Error(error.response.data.error);
-        }
-      } else if (error.request) {
-        console.error('No response received from server');
-        throw new Error('Network error. Please check your connection and try again.');
-      }
-      
-      // Rethrow with original message if no specific handling above
-      throw error;
+      return handleError(error, 'creating project');
     }
   },
   
@@ -254,8 +288,7 @@ const portfolioService = {
       
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error updating project ${projectId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `updating project ${projectId}`);
     }
   },
   
@@ -268,8 +301,7 @@ const portfolioService = {
       await api.delete(`/api/projects/${projectId}`);
       return true;
     } catch (error) {
-      console.error(`Error deleting project ${projectId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `deleting project ${projectId}`);
     }
   },
   
@@ -300,15 +332,7 @@ const portfolioService = {
       
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error creating achievement:', error);
-      // Add detailed error logging
-      if (error.response) {
-        console.error('Server response:', error.response.data);
-        console.error('Status code:', error.response.status);
-      } else if (error.request) {
-        console.error('No response received');
-      }
-      throw error;
+      return handleError(error, 'creating achievement');
     }
   },
   
@@ -319,11 +343,7 @@ const portfolioService = {
       const response = await api.get(url);
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching achievements:', error.response?.data || error.message);
-      
-      // Return empty array if API is unavailable
-      console.warn('API not available, returning empty achievements array');
-      return [];
+      return handleError(error, 'fetching achievements', false) || [];
     }
   },
   
@@ -336,8 +356,7 @@ const portfolioService = {
       const response = await api.get(`/api/achievements/${achievementId}`);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error fetching achievement ${achievementId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `fetching achievement ${achievementId}`);
     }
   },
   
@@ -367,8 +386,7 @@ const portfolioService = {
       
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error updating achievement ${achievementId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `updating achievement ${achievementId}`);
     }
   },
   
@@ -381,8 +399,7 @@ const portfolioService = {
       await api.delete(`/api/achievements/${achievementId}`);
       return true;
     } catch (error) {
-      console.error(`Error deleting achievement ${achievementId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `deleting achievement ${achievementId}`);
     }
   },
   
@@ -393,63 +410,39 @@ const portfolioService = {
         throw new Error('Achievement ID is required');
       }
       const response = await api.post(`/api/achievements/${achievementId}/endorse`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error endorsing achievement ${achievementId}:`, error.response?.data || error.message);
-      throw error;
-    }
-  },
-  
-  // Add a collaborator to a project
-  addCollaborator: async (projectId, userId, role = 'contributor') => {
-    try {
-      if (!projectId || !userId) {
-        throw new Error('Project ID and User ID are required');
-      }
-      const response = await api.post(`/api/projects/${projectId}/collaborators`, { userId, role });
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error adding collaborator to project ${projectId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `endorsing achievement ${achievementId}`);
     }
   },
   
-  // Remove a collaborator from a project
-  removeCollaborator: async (projectId, userId) => {
+  // Streaks related methods
+  getUserStreaks: async (userId, options = {}) => {
     try {
-      if (!projectId || !userId) {
-        throw new Error('Project ID and User ID are required');
+      if (!userId) {
+        throw new Error('User ID is required');
       }
-      await api.delete(`/api/projects/${projectId}/collaborators/${userId}`);
-      return true;
-    } catch (error) {
-      console.error(`Error removing collaborator from project ${projectId}:`, error.response?.data || error.message);
-      throw error;
-    }
-  },
-  
-  // Update collaborator permissions
-  updateCollaboratorPermissions: async (projectId, userId, permissions) => {
-    try {
-      if (!projectId || !userId) {
-        throw new Error('Project ID and User ID are required');
+      
+      let url = `/api/users/${userId}/streaks`;
+      
+      // Add query parameters if provided
+      if (options.limit) {
+        url += `?limit=${options.limit}`;
       }
-      const response = await api.put(`/api/projects/${projectId}/collaborators/${userId}`, permissions);
+      
+      const response = await api.get(url);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error updating collaborator permissions:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `fetching streaks for user ${userId}`, false) || { items: [] };
     }
   },
   
-  // Create a streak
   createStreak: async (streakData) => {
     try {
       const response = await api.post('/api/streaks', streakData);
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error creating streak:', error.response?.data || error.message);
-      throw error;
+      return handleError(error, 'creating streak');
     }
   },
   
@@ -459,8 +452,7 @@ const portfolioService = {
       const response = await api.get('/api/streaks');
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching streaks:', error.response?.data || error.message);
-      return [];
+      return handleError(error, 'fetching streaks', false) || [];
     }
   },
   
@@ -473,8 +465,7 @@ const portfolioService = {
       const response = await api.get(`/api/streaks/${streakId}`);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error fetching streak ${streakId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `fetching streak ${streakId}`);
     }
   },
   
@@ -487,8 +478,7 @@ const portfolioService = {
       const response = await api.put(`/api/streaks/${streakId}`, streakData);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error updating streak ${streakId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `updating streak ${streakId}`);
     }
   },
   
@@ -501,8 +491,7 @@ const portfolioService = {
       await api.delete(`/api/streaks/${streakId}`);
       return true;
     } catch (error) {
-      console.error(`Error deleting streak ${streakId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `deleting streak ${streakId}`);
     }
   },
   
@@ -530,10 +519,9 @@ const portfolioService = {
         response = await api.post(`/api/streaks/${streakId}/checkin`);
       }
       
-      return response.data;
+      return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error checking in to streak ${streakId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `checking in to streak ${streakId}`);
     }
   },
   
@@ -544,10 +532,9 @@ const portfolioService = {
         throw new Error('Streak ID is required');
       }
       const response = await api.post(`/api/streaks/${streakId}/support`);
-      return response.data;
+      return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error supporting streak ${streakId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `supporting streak ${streakId}`);
     }
   },
   
@@ -557,8 +544,7 @@ const portfolioService = {
       const response = await api.post('/api/skills', skillData);
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error adding skill:', error.response?.data || error.message);
-      throw error;
+      return handleError(error, 'adding skill');
     }
   },
   
@@ -568,8 +554,7 @@ const portfolioService = {
       const response = await api.get('/api/skills');
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching skills:', error.response?.data || error.message);
-      return [];
+      return handleError(error, 'fetching skills', false) || [];
     }
   },
   
@@ -582,8 +567,7 @@ const portfolioService = {
       const response = await api.get(`/api/users/${userId}/skills`);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error fetching skills for user ${userId}:`, error.response?.data || error.message);
-      return [];
+      return handleError(error, `fetching skills for user ${userId}`, false) || [];
     }
   },
   
@@ -596,8 +580,7 @@ const portfolioService = {
       await api.delete(`/api/skills/${skillId}`);
       return true;
     } catch (error) {
-      console.error(`Error removing skill ${skillId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `removing skill ${skillId}`);
     }
   },
   
@@ -608,10 +591,9 @@ const portfolioService = {
         throw new Error('User ID and skill name are required');
       }
       const response = await api.post(`/api/users/${userId}/skills/${encodeURIComponent(skillName)}/endorse`);
-      return response.data;
+      return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error endorsing skill:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `endorsing skill`);
     }
   },
   
@@ -622,10 +604,9 @@ const portfolioService = {
         throw new Error('Skill ID is required');
       }
       const response = await api.delete(`/api/skills/${skillId}/endorse`);
-      return response.data;
+      return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error removing skill endorsement:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `removing skill endorsement`);
     }
   },
   
@@ -638,8 +619,7 @@ const portfolioService = {
       const response = await api.post(`/api/users/${userId}/recommendations`, recommendationData);
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error creating recommendation:', error.response?.data || error.message);
-      throw error;
+      return handleError(error, 'creating recommendation');
     }
   },
   
@@ -649,8 +629,7 @@ const portfolioService = {
       const response = await api.get('/api/recommendations/received');
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching received recommendations:', error.response?.data || error.message);
-      return [];
+      return handleError(error, 'fetching received recommendations', false) || [];
     }
   },
   
@@ -660,8 +639,7 @@ const portfolioService = {
       const response = await api.get('/api/recommendations/given');
       return normalizeData(response.data);
     } catch (error) {
-      console.error('Error fetching given recommendations:', error.response?.data || error.message);
-      return [];
+      return handleError(error, 'fetching given recommendations', false) || [];
     }
   },
   
@@ -674,8 +652,7 @@ const portfolioService = {
       const response = await api.put(`/api/recommendations/${recommendationId}`, recommendationData);
       return normalizeData(response.data);
     } catch (error) {
-      console.error(`Error updating recommendation ${recommendationId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `updating recommendation ${recommendationId}`);
     }
   },
   
@@ -688,8 +665,7 @@ const portfolioService = {
       await api.delete(`/api/recommendations/${recommendationId}`);
       return true;
     } catch (error) {
-      console.error(`Error deleting recommendation ${recommendationId}:`, error.response?.data || error.message);
-      throw error;
+      return handleError(error, `deleting recommendation ${recommendationId}`);
     }
   }
 };

@@ -405,7 +405,7 @@ const Sidebar = ({ user, onLogout }) => {
                   </div>
                 </div>
                 <Link
-                  to="/profile"
+                  to={`/profile/${user.id}`}
                   className="mt-3 block text-center bg-white bg-opacity-20 text-white text-sm font-medium py-1 rounded-md hover:bg-opacity-30"
                 >
                   View Profile

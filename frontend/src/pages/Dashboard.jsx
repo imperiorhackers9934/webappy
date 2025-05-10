@@ -14,6 +14,7 @@ import eventService from '../services/eventService';
 import networkService from '../services/networkService';
 import nearbyUsersService from '../services/nearbyUsersService';
 import LocationPermissionIcon from '../components/LocationPermissionIcon';
+import Footer from '../components/footer/Footer';
 
 const MergedDashboard = () => {
   // Auth and navigation
@@ -1139,12 +1140,30 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
             )}
           </main>
 
-          {/* Footer */}
-          <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 md:py-4 mt-6">
-            <div className="max-w-7xl mx-auto px-4 text-center">
-              <p className="text-xs md:text-sm">© 2025 MeetKats • Privacy Policy • Terms of Service</p>
-            </div>
-          </footer>
+
+{/*FOOTER */}
+          {/* <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 md:py-4 mt-6">
+  <div className="max-w-7xl mx-auto px-4 text-center">
+    <p className="text-xs md:text-sm">
+      © 2025 MeetKats •{" "}
+      <a
+        href="/privacypolicy"
+        className="hover:underline hover:text-orange-300 transition"
+      >
+        Privacy Policy
+      </a>{" "}
+      •{" "}
+      <a
+        href="/termsandconditions"
+        className="hover:underline hover:text-orange-300 transition"
+      >
+        Terms of Service
+      </a>
+    </p>
+  </div>
+</footer> */}
+
+
         </div>
       </div>
     </div>

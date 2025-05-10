@@ -675,11 +675,28 @@ const Discover = () => {
           </main>
 
           {/* Footer */}
-          <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-4 mt-6">
-            <div className="max-w-7xl mx-auto px-4 text-center">
-              <p className="text-sm">© 2023 Meetkats • Privacy Policy • Terms of Service</p>
-            </div>
-          </footer>
+          <footer className="bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 md:py-4 mt-6">
+  <div className="max-w-7xl mx-auto px-4 text-center">
+    <p className="text-xs md:text-sm">
+      © 2025 MeetKats •{" "}
+      <a
+        href="/privacy-policy"
+        className="hover:underline hover:text-orange-300 transition"
+      >
+        Privacy Policy
+      </a>{" "}
+      •{" "}
+      <a
+        href="/termsandconditions"
+        className="hover:underline hover:text-orange-300 transition"
+      >
+        Terms of Service
+      </a>
+    </p>
+  </div>
+</footer>
+
+
         </div>
       </div>
     </div>

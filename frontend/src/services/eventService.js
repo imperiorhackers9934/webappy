@@ -321,40 +321,54 @@ const eventService = {
     }
   },
 
-  // Respond to an event (going, maybe, declined)
-  respondToEvent: async (eventId, status, message = '') => {
-    try {
-      // Make sure to format the status correctly
-      // Convert status to uppercase and ensure it's in the expected format
+// Updated respondToEvent function with proper status handling
+respondToEvent: async (eventId, status, message = '') => {
+  try {
+    // Ensure status is a string and convert to lowercase
+    let normalizedStatus = '';
+    
+    if (typeof status === 'string') {
+      // First normalize common variants to standard values
       const statusMap = {
-        'ATTENDING': 'GOING',
-        'GOING': 'GOING',
-        'MAYBE': 'MAYBE',
-        'DECLINED': 'DECLINED',
-        'NO': 'DECLINED'
+        'ATTENDING': 'going',
+        'GOING': 'going',
+        'YES': 'going',
+        'MAYBE': 'maybe',
+        'INTERESTED': 'maybe',
+        'DECLINED': 'declined',
+        'NO': 'declined',
+        'CANT_GO': 'declined'
       };
       
-      // Convert to uppercase for consistency
-      const normalizedStatus = typeof status === 'string' 
-        ? status.toUpperCase() 
-        : status;
+      // Convert to uppercase for consistent mapping
+      const upperStatus = status.toUpperCase();
       
-      // Map to a valid status value
-      const validStatus = statusMap[normalizedStatus] || normalizedStatus;
-      
-      console.log(`Sending event response with status: ${validStatus}`);
-      
-      const response = await api.post(`/api/events/${eventId}/respond`, { 
-        status: validStatus, 
-        message 
-      });
-      return response.data;
-    } catch (error) {
-      console.error(`Error responding to event ${eventId}:`, error);
-      throw error;
+      // Get mapped value or convert original to lowercase
+      normalizedStatus = statusMap[upperStatus] || status.toLowerCase();
+    } else {
+      console.error('Invalid status type:', typeof status);
+      throw new Error('Status must be a string');
     }
-  },
-
+    
+    // Final validation - ensure we only send valid status values
+    if (!['going', 'maybe', 'declined'].includes(normalizedStatus)) {
+      console.error('Invalid status after normalization:', normalizedStatus);
+      throw new Error(`Invalid status: ${normalizedStatus}. Must be 'going', 'maybe', or 'declined'`);
+    }
+    
+    console.log(`Sending event response with status: ${normalizedStatus}`);
+    
+    const response = await api.post(`/api/events/${eventId}/respond`, { 
+      status: normalizedStatus, 
+      message 
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error responding to event ${eventId}:`, error);
+    throw error;
+  }
+},
   // Get event attendees
   getEventAttendees: async (eventId, filters = {}) => {
     try {

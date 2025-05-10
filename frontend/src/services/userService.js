@@ -40,7 +40,9 @@ const userService = {
   getCurrentUser: async () => {
     try {
       const response = await api.get('/api/me');
+      console.log("response is",normalizeData(response.data))
       return normalizeData(response.data);
+      console.log("response is",normalizeData(response.data))
     } catch (error) {
       console.error('Error fetching current user:', error.response?.data || error.message);
       throw error;

@@ -29,6 +29,9 @@ import AchievementCreationPage from './components/portfolio/AchievementCreation'
 import StreakCreationPage from './components/portfolio/StreakCreation';
 import PostsFetcher from './pages/PostFetcher';
 import LinkCall from './pages/LinkCall';
+import TermsAndConditions from './pages/TermsAndConditions';
+import RefundPolicy from "./pages/RefundPolicy"
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // Event Management Pages
 import EventListingPage from './pages/EventsListingPage';
@@ -45,6 +48,8 @@ import CreateTicketsPage from './pages/CreateTicketsPage';
 import AttendeeManagementPage from './pages/AttendeeManagementPage'; 
 import TicketManagementPage from './pages/TicketManagementPage';
 import CheckInPage from './pages/CheckInPage';
+import LandingPage from './pages/LandingPage';
+import Footer from './components/footer/Footer';
 
 const App = () => {
   return (
@@ -111,7 +116,12 @@ const App = () => {
           <Route path="/tickets/book/:eventId" element={<TicketPurchasePage />} />
           <Route path="/tickets/confirmation/:bookingId" element={<TicketConfirmationPage />} />
           <Route path="/payment/success/:bookingId" element={<PaymentSuccessPage />} />
+          <Route path="/termsandconditions" element={<TermsAndConditions/>}/>
+          <Route path="/refundpolicy" element={<RefundPolicy/>}/>
+          <Route path="/landingpage" element={<LandingPage/>}/>
+          <Route path="/privacypolicy" element={<PrivacyPolicy/>}/>
           
+
           <Route path="/discover" element={<Discover/>}/>
           <Route path="/auth/linkedin-callback" element={<LinkCall/>}/>
           
@@ -121,6 +131,9 @@ const App = () => {
           {/* 404 Page */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        
+        <Footer/>
+
           </ToastProvider>
       </AuthProvider>
     </Router>
