@@ -48,12 +48,9 @@ import CreateTicketsPage from './pages/CreateTicketsPage';
 import AttendeeManagementPage from './pages/AttendeeManagementPage'; 
 import TicketManagementPage from './pages/TicketManagementPage';
 import CheckInPage from './pages/CheckInPage';
-<<<<<<< HEAD
 import LandingPage from './pages/LandingPage';
 import Footer from './components/footer/Footer';
-=======
 import PrivacyPolicy from './pages/PrivacyPolicy';
->>>>>>> e3bc74f71f57e76941f34589f9f9f59265ad09c5
 
 const App = () => {
   return (
@@ -145,3 +142,4 @@ const App = () => {
 };
 
 export default App;
+
