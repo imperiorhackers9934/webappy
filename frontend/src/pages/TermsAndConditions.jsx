@@ -27,7 +27,7 @@ const TermsAndConditions = () => {
         <li>All intellectual property rights in the app and its content belong to MeetKats. Unauthorized use is prohibited.</li>
         <li>We reserve the right to suspend or terminate your access to the app, with/without any notice, at our sole discretion if you violate these Terms.</li>
         <li>We may update these Terms from time to time. Continued use of the app means you accept the new Terms.</li>
-        <li>These Terms are governed by the laws of [country/state].</li>
+        <li>These Terms are governed by the laws of India.</li>
       </ul>
 
       <h2 className="text-xl font-semibold text-orange-600 mt-6 mb-2">Contact</h2>
