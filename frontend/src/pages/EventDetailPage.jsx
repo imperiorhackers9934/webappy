@@ -15,10 +15,13 @@ import {
   Heart,
   BookOpen,
   Check,
-  X
+  X,
+  FileText, // Added for form icon
+  Edit     // Added for edit form icon
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
+import customEventService from '../services/customeventService';
 import Sidebar from '../components/common/Navbar'; // Import the Sidebar component
 
 const EventDetailPage = ({ user, onLogout }) => {
@@ -32,6 +35,9 @@ const EventDetailPage = ({ user, onLogout }) => {
   const [showAllDescription, setShowAllDescription] = useState(false);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [organizer, setOrganizer] = useState(null);
+  const [isHost, setIsHost] = useState(false);
+  const [hasForm, setHasForm] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   
   // Format date for display
   const formatDate = (dateString) => {
@@ -94,6 +100,13 @@ const EventDetailPage = ({ user, onLogout }) => {
         setUserResponse(eventData.userResponse);
         setOrganizer(eventData.createdBy);
         
+        // Check if user is host or creator
+       // Inside fetchEventDetails function
+const isCreator = eventData.createdBy 
+const isEventHost = eventData.attendees && eventData.attendees.some(
+  a => a.user === user?.id && (a.role === 'host' || a.role === 'organizer')
+);
+setIsHost(isCreator || isEventHost);
         // Fetch ticket types if available
         try {
           setTicketsLoading(true);
@@ -103,6 +116,18 @@ const EventDetailPage = ({ user, onLogout }) => {
         } catch (ticketError) {
           console.error('Error fetching ticket types:', ticketError);
           setTicketsLoading(false);
+        }
+
+        // Check if the event has a custom form
+        try {
+          setFormLoading(true);
+          const formResponse = await customEventService.getCustomForm(eventId);
+          setHasForm(!!formResponse);
+          setFormLoading(false);
+        } catch (formError) {
+          console.log('No custom form found for this event');
+          setHasForm(false);
+          setFormLoading(false);
         }
         
         setLoading(false);
@@ -114,7 +139,7 @@ const EventDetailPage = ({ user, onLogout }) => {
     };
     
     fetchEventDetails();
-  }, [eventId]);
+  }, [eventId, user?.id]);
 
   const handleResponseClick = async (status) => {
     try {
@@ -129,8 +154,8 @@ const EventDetailPage = ({ user, onLogout }) => {
       const response = await eventService.respondToEvent(eventId, status);
       if(response)
       console.log("data",response)
-    else
-    console.log("no dtata")
+      else
+      console.log("no data")
       // Update local state to show immediate feedback
       setUserResponse(status);
       
@@ -193,6 +218,17 @@ const EventDetailPage = ({ user, onLogout }) => {
     } catch (error) {
       console.error('Failed to add to calendar:', error);
       alert('Failed to add event to calendar. Please try again later.');
+    }
+  };
+
+  // Handle form navigation based on user role
+  const handleFormNavigation = () => {
+    if (isHost) {
+      // If user is host/organizer, navigate to form edit/create page
+      navigate(`/events/${eventId}/form/edit`);
+    } else {
+      // If user is attendee, navigate to form submission page
+      navigate(`/events/${eventId}/form`);
     }
   };
   
@@ -307,6 +343,31 @@ const EventDetailPage = ({ user, onLogout }) => {
                       Get Tickets
                     </button>
                     
+                    {/* Custom Registration Form Button (Mobile) */}
+                    {formLoading ? (
+  <div className="flex justify-center items-center py-3 px-6 rounded-lg w-full bg-orange-100">
+    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-orange-500 mr-2"></div>
+    <span>Loading form info...</span>
+  </div>
+) : (
+  <button 
+    onClick={handleFormNavigation}
+    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg w-full flex justify-center items-center transition"
+  >
+    {isHost ? (
+      <>
+        <Edit className="mr-2 h-5 w-5" />
+        {hasForm ? 'Edit Registration Form' : 'Create Registration Form'}
+      </>
+    ) : (
+      <>
+        <FileText className="mr-2 h-5 w-5" />
+        Register for Event
+      </>
+    )}
+  </button>
+)}
+                    
                     <div className="grid grid-cols-3 gap-3">
                       <button 
                         onClick={() => handleResponseClick('going')}
@@ -378,6 +439,39 @@ const EventDetailPage = ({ user, onLogout }) => {
                       </button>
                     )}
                   </div>
+                  
+                  {/* Registration Form Section */}
+                  {hasForm && (
+                    <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-orange-100">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">Registration</h2>
+                        <button 
+                          onClick={handleFormNavigation}
+                          className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg transition"
+                        >
+                          {isHost ? 'Manage Form' : 'Register Now'}
+                        </button>
+                      </div>
+                      
+                      <p className="text-gray-700">
+                        {isHost 
+                          ? 'This event has a custom registration form. You can manage registrations and modify the form.'
+                          : 'This event requires additional registration information. Click the button to complete your registration.'}
+                      </p>
+                      
+                      {isHost && (
+                        <div className="mt-4 flex">
+                          <button 
+                            onClick={() => navigate(`/events/${eventId}/submissions`)}
+                            className="text-orange-600 font-medium flex items-center hover:text-orange-700"
+                          >
+                            <Users className="mr-2 h-4 w-4" />
+                            View Submissions
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Ticket Types */}
                   <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-orange-100">
@@ -511,6 +605,31 @@ const EventDetailPage = ({ user, onLogout }) => {
                         Get Tickets
                       </button>
                       
+                      {/* Custom Registration Form Button (Desktop) */}
+                      {formLoading ? (
+                        <div className="flex justify-center items-center py-3 px-6 rounded-lg w-full bg-orange-100 mb-4">
+                          <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-orange-500 mr-2"></div>
+                          <span>Loading form info...</span>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={handleFormNavigation}
+                          className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg w-full mb-4 flex justify-center items-center transition"
+                        >
+                          {isHost ? (
+                            <>
+                              <Edit className="mr-2 h-5 w-5" />
+                              {hasForm ? 'Edit Registration Form' : 'Create Registration Form'}
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="mr-2 h-5 w-5" />
+                              Register for Event
+                            </>
+                          )}
+                        </button>
+                      )}
+                      
                       <div className="grid grid-cols-3 gap-2">
                         <button 
                           onClick={() => handleResponseClick('going')}
@@ -604,6 +723,53 @@ const EventDetailPage = ({ user, onLogout }) => {
                       Add to Calendar
                     </button>
                   </div>
+                  
+                  {/* Registration Info Card (if form exists) */}
+                  {hasForm && (
+                    <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-orange-100">
+                      <h2 className="text-xl font-bold text-gray-900 mb-4">Registration</h2>
+                      <div className="flex items-center text-gray-700 mb-4">
+                        <FileText className="w-4 h-4 mr-2 text-orange-500" />
+                        <span>This event requires registration</span>
+                      </div>
+                      
+                      {isHost ? (
+                        <>
+                          <p className="text-gray-600 text-sm mb-4">
+                            As an organizer, you can manage registrations and customize the form.
+                          </p>
+                          <div className="flex space-x-2">
+                            <button 
+                              onClick={() => navigate(`/events/${eventId}/form/edit`)}
+                              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-2 rounded-lg text-sm font-medium transition"
+                            >
+                              <Edit className="h-4 w-4 mx-auto" />
+                              <span className="block mt-1">Edit Form</span>
+                            </button>
+                            <button 
+                              onClick={() => navigate(`/events/${eventId}/submissions`)}
+                              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-2 rounded-lg text-sm font-medium transition"
+                            >
+                              <Users className="h-4 w-4 mx-auto" />
+                              <span className="block mt-1">View Submissions</span>
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-gray-600 text-sm mb-4">
+                            Registration is required to attend this event. Please complete the registration form.
+                          </p>
+                          <button 
+                            onClick={() => navigate(`/events/${eventId}/form`)}
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition"
+                          >
+                            Complete Registration
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Organizer Info */}
                   {organizer && (
