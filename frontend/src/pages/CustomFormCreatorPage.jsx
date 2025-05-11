@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import customEventService from '../services/customEventService';
+import customEventService from '../services/customeventService';
 import Navbar from '../components/common/Navbar';
 import Footer from '../components/common/Footer'; // Updated to common/Footer
+import eventService from '../services/eventService';
 
 const CustomFormCreatorPage = () => {
   const { eventId } = useParams();
@@ -39,19 +40,21 @@ const CustomFormCreatorPage = () => {
         setError(null);
         
         // First fetch event details to check permissions
-        const eventResponse = await fetch(`/api/events/${eventId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const eventResponse = await eventService.getEvent(eventId);
         
-        if (!eventResponse.ok) {
+        // Check if we got an error response
+        if (eventResponse.error) {
+          throw new Error(eventResponse.error);
+        }
+        
+        // Get the event data (normalized by the service)
+        const eventData = eventResponse.data;
+        
+        if (!eventData) {
           throw new Error('Failed to fetch event details');
         }
         
-        const eventData = await eventResponse.json();
         setEvent(eventData);
-        
         // Check if the user is the creator or a host
         const isCreator = eventData.createdBy && eventData.createdBy === user.id;
         const isHost = eventData.attendees && eventData.attendees.some(
@@ -300,10 +303,10 @@ const CustomFormCreatorPage = () => {
   
   if (loading && !event) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-white">
         <Navbar />
         <div className="flex-grow flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
         </div>
         <Footer />
       </div>
@@ -312,7 +315,7 @@ const CustomFormCreatorPage = () => {
   
   if (error && !event) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-white">
         <Navbar />
         <div className="flex-grow container mx-auto px-4 py-8">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
@@ -321,7 +324,7 @@ const CustomFormCreatorPage = () => {
           </div>
           <button
             onClick={() => navigate('/events')}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+            className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded"
           >
             Back to Events
           </button>
@@ -332,17 +335,17 @@ const CustomFormCreatorPage = () => {
   }
   
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-white">
       <Navbar />
       <div className="flex-grow container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Custom Registration Form</h1>
+            <h1 className="text-2xl font-bold text-orange-600">Custom Registration Form</h1>
             <h2 className="text-gray-600">For event: {event?.name}</h2>
           </div>
           <button
             onClick={() => navigate(`/events/${eventId}`)}
-            className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded"
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded"
           >
             Back to Event
           </button>
@@ -362,10 +365,10 @@ const CustomFormCreatorPage = () => {
           </div>
         )}
         
-        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
+        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
           {/* Form Title and Description */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 pb-2 border-b">Form Settings</h2>
+            <h2 className="text-xl font-semibold mb-4 pb-2 border-b text-orange-600">Form Settings</h2>
             <div className="mb-4">
               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="formTitle">
                 Form Title
@@ -373,7 +376,7 @@ const CustomFormCreatorPage = () => {
               <input
                 id="formTitle"
                 type="text"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                className="shadow appearance-none border border-gray-300 rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-orange-500"
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
                 required
@@ -385,7 +388,7 @@ const CustomFormCreatorPage = () => {
               </label>
               <textarea
                 id="formDescription"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                className="shadow appearance-none border border-gray-300 rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-orange-500"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
                 rows="3"
@@ -395,13 +398,13 @@ const CustomFormCreatorPage = () => {
           
           {/* Form Settings */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 pb-2 border-b">Registration Settings</h2>
+            <h2 className="text-xl font-semibold mb-4 pb-2 border-b text-orange-600">Registration Settings</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center mb-2">
                 <input
                   id="allowSubmissionAfterStart"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                   checked={formSettings.allowSubmissionAfterStart || false}
                   onChange={(e) => handleUpdateSettings('allowSubmissionAfterStart', e.target.checked)}
                 />
@@ -413,7 +416,7 @@ const CustomFormCreatorPage = () => {
                 <input
                   id="notifyOnSubmission"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                   checked={formSettings.notifyOnSubmission || false}
                   onChange={(e) => handleUpdateSettings('notifyOnSubmission', e.target.checked)}
                 />
@@ -425,7 +428,7 @@ const CustomFormCreatorPage = () => {
                 <input
                   id="autoApprove"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                   checked={formSettings.autoApprove || false}
                   onChange={(e) => handleUpdateSettings('autoApprove', e.target.checked)}
                 />
@@ -437,7 +440,7 @@ const CustomFormCreatorPage = () => {
                 <input
                   id="preventDuplicateSubmissions"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                   checked={formSettings.preventDuplicateSubmissions || false}
                   onChange={(e) => handleUpdateSettings('preventDuplicateSubmissions', e.target.checked)}
                 />
@@ -453,7 +456,7 @@ const CustomFormCreatorPage = () => {
                   id="maxSubmissions"
                   type="number"
                   min="0"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
                   value={formSettings.maxSubmissions || 0}
                   onChange={(e) => handleUpdateSettings('maxSubmissions', parseInt(e.target.value) || 0)}
                 />
@@ -465,7 +468,7 @@ const CustomFormCreatorPage = () => {
                 <input
                   id="submissionDeadline"
                   type="datetime-local"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
                   value={formSettings.submissionDeadline || ''}
                   onChange={(e) => handleUpdateSettings('submissionDeadline', e.target.value)}
                 />
@@ -476,10 +479,10 @@ const CustomFormCreatorPage = () => {
           {/* Form Sections */}
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
-              <h2 className="text-xl font-semibold">Form Sections</h2>
+              <h2 className="text-xl font-semibold text-orange-600">Form Sections</h2>
               <button
                 type="button"
-                className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
+                className="bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded text-sm flex items-center"
                 onClick={handleAddSection}
               >
                 + Add Section
@@ -487,12 +490,12 @@ const CustomFormCreatorPage = () => {
             </div>
             
             {formSections.map((section, index) => (
-              <div key={section.sectionId} className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <div key={section.sectionId} className="mb-6 p-4 border rounded-lg bg-orange-50">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-grow">
                     <input
                       type="text"
-                      className="text-lg font-semibold w-full px-2 py-1 border rounded"
+                      className="text-lg font-semibold w-full px-2 py-1 border rounded focus:outline-none focus:border-orange-500"
                       value={section.title}
                       onChange={(e) => handleUpdateSection(index, 'title', e.target.value)}
                       placeholder="Section Title"
@@ -513,7 +516,7 @@ const CustomFormCreatorPage = () => {
                 <div className="mb-3">
                   <input
                     type="text"
-                    className="w-full px-2 py-1 border rounded text-sm"
+                    className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                     value={section.description}
                     onChange={(e) => handleUpdateSection(index, 'description', e.target.value)}
                     placeholder="Section Description (optional)"
@@ -521,8 +524,8 @@ const CustomFormCreatorPage = () => {
                 </div>
                 
                 {/* Fields in this section */}
-                <div className="ml-4 border-l-2 border-gray-200 pl-4">
-                  <h3 className="text-md font-medium mb-2">Fields in this section</h3>
+                <div className="ml-4 border-l-2 border-orange-200 pl-4">
+                  <h3 className="text-md font-medium mb-2 text-orange-700">Fields in this section</h3>
                   
                   {formFields.filter(field => 
                     field.uiConfig && field.uiConfig.section === section.sectionId
@@ -531,7 +534,7 @@ const CustomFormCreatorPage = () => {
                     return (
                       <div key={field.fieldId} className="mb-4 p-3 border rounded bg-white">
                         <div className="flex justify-between items-center mb-2">
-                          <div className="font-medium">{field.label || 'Unnamed Field'}</div>
+                          <div className="font-medium text-orange-700">{field.label || 'Unnamed Field'}</div>
                           <div className="flex space-x-2">
                             <button
                               type="button"
@@ -549,7 +552,7 @@ const CustomFormCreatorPage = () => {
                             <label className="block text-xs font-medium text-gray-700 mb-1">Field Label</label>
                             <input
                               type="text"
-                              className="w-full px-2 py-1 border rounded text-sm"
+                              className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                               value={field.label || ''}
                               onChange={(e) => handleUpdateField(globalFieldIndex, 'label', e.target.value)}
                               placeholder="Field Label"
@@ -559,7 +562,7 @@ const CustomFormCreatorPage = () => {
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Field Type</label>
                             <select
-                              className="w-full px-2 py-1 border rounded text-sm"
+                              className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                               value={field.type}
                               onChange={(e) => handleUpdateField(globalFieldIndex, 'type', e.target.value)}
                             >
@@ -581,7 +584,7 @@ const CustomFormCreatorPage = () => {
                             <label className="block text-xs font-medium text-gray-700 mb-1">Placeholder</label>
                             <input
                               type="text"
-                              className="w-full px-2 py-1 border rounded text-sm"
+                              className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                               value={field.placeholder || ''}
                               onChange={(e) => handleUpdateField(globalFieldIndex, 'placeholder', e.target.value)}
                               placeholder="Placeholder text"
@@ -591,7 +594,7 @@ const CustomFormCreatorPage = () => {
                             <label className="block text-xs font-medium text-gray-700 mb-1">Help Text</label>
                             <input
                               type="text"
-                              className="w-full px-2 py-1 border rounded text-sm"
+                              className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                               value={field.helpText || ''}
                               onChange={(e) => handleUpdateField(globalFieldIndex, 'helpText', e.target.value)}
                               placeholder="Help text (optional)"
@@ -600,7 +603,7 @@ const CustomFormCreatorPage = () => {
                           <div className="flex items-center">
                             <input
                               type="checkbox"
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                               checked={field.required || false}
                               onChange={(e) => handleUpdateField(globalFieldIndex, 'required', e.target.checked)}
                               id={`required-${field.fieldId}`}
@@ -612,7 +615,7 @@ const CustomFormCreatorPage = () => {
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Width</label>
                             <select
-                              className="w-full px-2 py-1 border rounded text-sm"
+                              className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                               value={(field.uiConfig && field.uiConfig.width) || 'full'}
                               onChange={(e) => {
                                 const updatedUiConfig = { ...(field.uiConfig || {}), width: e.target.value };
@@ -634,7 +637,7 @@ const CustomFormCreatorPage = () => {
                               <label className="block text-xs font-medium text-gray-700">Options</label>
                               <button
                                 type="button"
-                                className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded flex items-center"
+                                className="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 py-1 px-2 rounded flex items-center"
                                 onClick={() => handleAddOption(globalFieldIndex)}
                               >
                                 + Add Option
@@ -645,7 +648,7 @@ const CustomFormCreatorPage = () => {
                                 <div className="flex-grow grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
-                                    className="w-full px-2 py-1 border rounded text-sm"
+                                    className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                                     value={option.label || ''}
                                     onChange={(e) => handleUpdateField(
                                       globalFieldIndex, 
@@ -656,7 +659,7 @@ const CustomFormCreatorPage = () => {
                                   />
                                   <input
                                     type="text"
-                                    className="w-full px-2 py-1 border rounded text-sm"
+                                    className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                                     value={option.value || ''}
                                     onChange={(e) => handleUpdateField(
                                       globalFieldIndex, 
@@ -687,7 +690,7 @@ const CustomFormCreatorPage = () => {
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Max File Size (in bytes)</label>
                                 <input
                                   type="number"
-                                  className="w-full px-2 py-1 border rounded text-sm"
+                                  className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
                                   value={(field.fileConfig && field.fileConfig.maxSize) || 5242880}
                                   onChange={(e) => {
                                     const fileConfig = { ...(field.fileConfig || {}), maxSize: parseInt(e.target.value) };
@@ -700,167 +703,104 @@ const CustomFormCreatorPage = () => {
                                 </p>
                               </div>
                               <div className="flex items-center">
-                                <input
+                              <input
                                   type="checkbox"
-                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                                   checked={(field.fileConfig && field.fileConfig.multiple) || false}
                                   onChange={(e) => {
                                     const fileConfig = { ...(field.fileConfig || {}), multiple: e.target.checked };
                                     handleUpdateField(globalFieldIndex, 'fileConfig', fileConfig);
                                   }}
-                                  id={`multiple-${field.fieldId}`}
+                                  id={`file-multiple-${field.fieldId}`}
                                 />
-                                <label htmlFor={`multiple-${field.fieldId}`} className="ml-2 block text-xs text-gray-700">
+                                <label htmlFor={`file-multiple-${field.fieldId}`} className="ml-2 block text-xs text-gray-700">
                                   Allow multiple files
                                 </label>
                               </div>
-                            </div>
-                            <div className="mt-2">
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Allowed File Types</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    checked={(field.fileConfig?.allowedTypes || []).includes('application/pdf')}
-                                    onChange={(e) => {
-                                      let allowedTypes = [...(field.fileConfig?.allowedTypes || [])];
-                                      if (e.target.checked) {
-                                        if (!allowedTypes.includes('application/pdf')) {
-                                          allowedTypes.push('application/pdf');
-                                        }
-                                      } else {
-                                        allowedTypes = allowedTypes.filter(type => type !== 'application/pdf');
-                                      }
-                                      const fileConfig = { ...(field.fileConfig || {}), allowedTypes };
-                                      handleUpdateField(globalFieldIndex, 'fileConfig', fileConfig);
-                                    }}
-                                    id={`pdf-${field.fieldId}`}
-                                  />
-                                  <label htmlFor={`pdf-${field.fieldId}`} className="ml-2 block text-xs text-gray-700">
-                                    PDF Files
-                                  </label>
-                                </div>
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    checked={(field.fileConfig?.allowedTypes || []).includes('image/jpeg')}
-                                    onChange={(e) => {
-                                      let allowedTypes = [...(field.fileConfig?.allowedTypes || [])];
-                                      if (e.target.checked) {
-                                        if (!allowedTypes.includes('image/jpeg')) {
-                                          allowedTypes.push('image/jpeg');
-                                        }
-                                      } else {
-                                        allowedTypes = allowedTypes.filter(type => type !== 'image/jpeg');
-                                      }
-                                      const fileConfig = { ...(field.fileConfig || {}), allowedTypes };
-                                      handleUpdateField(globalFieldIndex, 'fileConfig', fileConfig);
-                                    }}
-                                    id={`jpg-${field.fieldId}`}
-                                  />
-                                  <label htmlFor={`jpg-${field.fieldId}`} className="ml-2 block text-xs text-gray-700">
-                                    JPEG Images
-                                  </label>
-                                </div>
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    checked={(field.fileConfig?.allowedTypes || []).includes('image/png')}
-                                    onChange={(e) => {
-                                      let allowedTypes = [...(field.fileConfig?.allowedTypes || [])];
-                                      if (e.target.checked) {
-                                        if (!allowedTypes.includes('image/png')) {
-                                          allowedTypes.push('image/png');
-                                        }
-                                      } else {
-                                        allowedTypes = allowedTypes.filter(type => type !== 'image/png');
-                                      }
-                                      const fileConfig = { ...(field.fileConfig || {}), allowedTypes };
-                                      handleUpdateField(globalFieldIndex, 'fileConfig', fileConfig);
-                                    }}
-                                    id={`png-${field.fieldId}`}
-                                  />
-                                  <label htmlFor={`png-${field.fieldId}`} className="ml-2 block text-xs text-gray-700">
-                                    PNG Images
-                                  </label>
-                                </div>
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    checked={(field.fileConfig?.allowedTypes || []).includes('application/msword') || 
-                                            (field.fileConfig?.allowedTypes || []).includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')}
-                                    onChange={(e) => {
-                                      let allowedTypes = [...(field.fileConfig?.allowedTypes || [])];
-                                      if (e.target.checked) {
-                                        if (!allowedTypes.includes('application/msword')) {
-                                          allowedTypes.push('application/msword');
-                                        }
-                                        if (!allowedTypes.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
-                                          allowedTypes.push('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                                        }
-                                      } else {
-                                        allowedTypes = allowedTypes.filter(type => 
-                                          type !== 'application/msword' && 
-                                          type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                                        );
-                                      }
-                                      const fileConfig = { ...(field.fileConfig || {}), allowedTypes };
-                                      handleUpdateField(globalFieldIndex, 'fileConfig', fileConfig);
-                                    }}
-                                    id={`doc-${field.fieldId}`}
-                                  />
-                                  <label htmlFor={`doc-${field.fieldId}`} className="ml-2 block text-xs text-gray-700">
-                                    Word Documents
-                                  </label>
-                                </div>
+                              <div className="col-span-2">
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Allowed File Types (comma separated)</label>
+                                <input
+                                  type="text"
+                                  className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:border-orange-500"
+                                  value={(field.fileConfig && field.fileConfig.allowedTypes) ? field.fileConfig.allowedTypes.join(', ') : ''}
+                                  onChange={(e) => {
+                                    const types = e.target.value.split(',').map(type => type.trim()).filter(Boolean);
+                                    const fileConfig = { ...(field.fileConfig || {}), allowedTypes: types };
+                                    handleUpdateField(globalFieldIndex, 'fileConfig', fileConfig);
+                                  }}
+                                  placeholder="application/pdf, image/jpeg, image/png"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Example: application/pdf, image/jpeg, image/png</p>
                               </div>
                             </div>
                           </div>
                         )}
-                      </div>
+                      </div>  
                     );
                   })}
                   
                   <button
                     type="button"
-                    className="mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded text-sm flex items-center"
+                    className="mt-2 py-1 px-3 border border-orange-300 text-orange-600 hover:bg-orange-50 rounded text-sm"
                     onClick={() => handleAddField(section.sectionId)}
                   >
-                    + Add Field
+                    + Add a field to this section
                   </button>
                 </div>
               </div>
             ))}
           </div>
           
-          <div className="flex justify-between mt-6">
+          {/* Form Preview placeholder */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4 pb-2 border-b text-orange-600">Form Preview</h2>
+            <div className="bg-gray-100 p-4 rounded">
+              <p className="text-gray-600 text-center">
+                Form preview feature coming soon. You can view your form by navigating to the event page.
+              </p>
+            </div>
+          </div>
+          
+          {/* Form Actions */}
+          <div className="flex justify-between items-center mt-8 pt-4 border-t">
             <button
               type="button"
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded"
               onClick={() => navigate(`/events/${eventId}`)}
-              className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Save Form
-                </>
-              )}
-            </button>
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                className="bg-white hover:bg-gray-100 text-orange-600 border border-orange-500 font-semibold py-2 px-4 rounded"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to reset all changes?')) {
+                    // Reload the page to reset the form
+                    window.location.reload();
+                  }
+                }}
+              >
+                Reset
+              </button>
+              <button
+                type="submit"
+                className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </span>
+                ) : (
+                  'Save Form'
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
