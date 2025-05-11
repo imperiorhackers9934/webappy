@@ -31,7 +31,9 @@ import PostsFetcher from './pages/PostFetcher';
 import LinkCall from './pages/LinkCall';
 import TermsAndConditions from './pages/TermsAndConditions';
 import RefundPolicy from "./pages/RefundPolicy"
-
+import CustomFormCreatorPage from './pages/CustomFormCreatorPage';
+import CustomFormSubmissionPage from './pages/CustomFormSubmissionPage';
+import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
 // Event Management Pages
 import EventListingPage from './pages/EventsListingPage';
 import EventDetailPage from './pages/EventDetailPage';
@@ -81,7 +83,9 @@ const App = () => {
           <Route path="/network/suggested" element={<RecommendedConnections />} />
           <Route path="/network/nearby" element={<NearbyProfessionals />} />
           <Route path='/psf' element={<PostsFetcher/>}/>
-          
+          <Route path="/events/:eventId/form/edit" element={<CustomFormCreatorPage />} />
+<Route path="/events/:eventId/form" element={<CustomFormSubmissionPage />} />
+<Route path="/events/:eventId/submissions" element={<CustomFormSubmissionsPage />} />
           {/* Chat Routes */}
           <Route path="/chat">
             <Route index element={<ChatPage />} />
