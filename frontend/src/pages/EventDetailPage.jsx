@@ -102,7 +102,10 @@ const EventDetailPage = ({ user, onLogout }) => {
         
         // Check if user is host or creator
        // Inside fetchEventDetails function
-const isCreator = eventData.createdBy 
+const isCreators = eventData.createdBy
+let isCreator = null
+if(eventData.createdBy===user?.id) 
+ isCreator = user?.id
 const isEventHost = eventData.attendees && eventData.attendees.some(
   a => a.user === user?.id && (a.role === 'host' || a.role === 'organizer')
 );
