@@ -23,7 +23,7 @@ import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
 import customEventService from '../services/customeventService';
 import Sidebar from '../components/common/Navbar'; // Import the Sidebar component
-
+import { useAuth } from '../context/AuthContext';
 const EventDetailPage = ({ user, onLogout }) => {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -38,7 +38,7 @@ const EventDetailPage = ({ user, onLogout }) => {
   const [isHost, setIsHost] = useState(false);
   const [hasForm, setHasForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
-  
+  const users=useAuth()
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return "Date TBA";
@@ -96,18 +96,21 @@ const EventDetailPage = ({ user, onLogout }) => {
         // Fetch event details from API
         const response = await eventService.getEvent(eventId);
         const eventData = response.data;
+        console.log(eventData)
         setEvent(eventData);
         setUserResponse(eventData.userResponse);
         setOrganizer(eventData.createdBy);
-        
+        console.log("this",users)
         // Check if user is host or creator
        // Inside fetchEventDetails function
 const isCreators = eventData.createdBy
+console.log("hello",eventData.createdBy._id)
 let isCreator = null
-if(eventData.createdBy===user?.id) 
- isCreator = user?.id
+// console.log(user?._id)
+if(eventData.createdBy._id===users?.id) 
+ isCreator = users?.id
 const isEventHost = eventData.attendees && eventData.attendees.some(
-  a => a.user === user?.id && (a.role === 'host' || a.role === 'organizer')
+  a => a.users === users?.id && (a.role === 'host' || a.role === 'organizer')
 );
 setIsHost(isCreator || isEventHost);
         // Fetch ticket types if available
