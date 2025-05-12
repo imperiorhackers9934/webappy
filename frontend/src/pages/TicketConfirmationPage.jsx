@@ -1,508 +1,508 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
+  Check, 
   Calendar, 
   Clock, 
+  MapPin, 
+  Download, 
+  Share2, 
+  CalendarPlus, 
   Ticket, 
-  Plus, 
-  Minus, 
-  Info, 
-  ArrowLeft,
   ChevronRight,
-  User,
-  FileText,
-  Shield,
-  RefreshCw,
-  ExternalLink
+  Mail
 } from 'lucide-react';
+import eventService from '../services/eventService';
+import ticketService from '../services/ticketService'; // Import ticketService
 
 const TicketConfirmationPage = () => {
-  // State variables
-  const [step, setStep] = useState(1); // 1: Select tickets, 2: User info, 3: Confirmation
-  const [selectedTickets, setSelectedTickets] = useState({
-    'free-ticket': 0
-  });
-  const [userInfo, setUserInfo] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: ''
-  });
+  const { bookingId } = useParams();
+  const navigate = useNavigate();
   
-  // Policy modal state
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
-  const [activePolicyType, setActivePolicyType] = useState('');
+  const [booking, setBooking] = useState(null);
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  // Mock event data
-  const event = {
-    id: 'meetkats-event',
-    name: 'Meetkats',
-    startDateTime: '2023-05-30T19:30:00',
-    coverImage: {
-      url: '/meetkats-logo.png'
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return "Date TBA";
+    
+    try {
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString('en-US', options);
+    } catch (err) {
+      console.error("Date formatting error:", err);
+      return "Invalid date";
     }
   };
   
-  // Mock ticket types
-  const ticketTypes = [
-    {
-      id: 'free-ticket',
-      name: 'Free',
-      description: 'Basic',
-      price: 0,
-      available: 2497,
-      currency: 'USD'
+  // Format time for display
+  const formatTime = (dateString) => {
+    if (!dateString) return "Time TBA";
+    
+    try {
+      const options = { hour: '2-digit', minute: '2-digit' };
+      return new Date(dateString).toLocaleTimeString('en-US', options);
+    } catch (err) {
+      console.error("Time formatting error:", err);
+      return "Invalid time";
     }
-  ];
-  
-  // Handle ticket quantity changes
-  const handleTicketQuantityChange = (ticketId, increment) => {
-    setSelectedTickets(prevSelected => {
-      const currentQty = prevSelected[ticketId] || 0;
-      const ticketType = ticketTypes.find(t => t.id === ticketId);
-      
-      // Prevent negative quantities or exceeding available tickets
-      let newQty = currentQty + increment;
-      
-      if (newQty < 0) {
-        newQty = 0;
-      }
-      
-      if (ticketType && ticketType.available && newQty > ticketType.available) {
-        newQty = ticketType.available;
-      }
-      
-      // Check if max tickets per order exceeded
-      const newSelectedTickets = { ...prevSelected, [ticketId]: newQty };
-      const totalQuantity = Object.values(newSelectedTickets).reduce((sum, qty) => sum + qty, 0);
-      
-      if (totalQuantity > 10 && increment > 0) {
-        alert('Maximum 10 tickets per order');
-        return prevSelected;
-      }
-      
-      return newSelectedTickets;
-    });
   };
   
-  // Calculate order summary
-  const calculateOrderSummary = () => {
-    const summary = {
-      subtotal: 0,
-      ticketCount: 0,
-      items: [],
-      fees: 0,
-      total: 0
+  useEffect(() => {
+    const fetchBookingDetails = async () => {
+      try {
+        setLoading(true);
+        
+        if (!bookingId || bookingId === 'success') {
+          // Handle the case where we don't have a real booking ID (demo mode)
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch booking details using ticketService instead of eventService
+        const bookingResponse = await ticketService.getBooking(bookingId);
+        console.log('Booking response:', bookingResponse);
+        
+        // Check different possible response structures
+        const bookingData = bookingResponse.data || bookingResponse;
+        setBooking(bookingData);
+        
+        // Fetch related event details if not included in booking
+        if (bookingData) {
+          if (bookingData.event) {
+            if (typeof bookingData.event === 'object') {
+              setEvent(bookingData.event);
+            } else {
+              // If only event ID is provided, fetch the event details
+              const eventId = bookingData.event;
+              const eventResponse = await eventService.getEvent(eventId);
+              setEvent(eventResponse.data || eventResponse);
+            }
+          } else if (bookingData.eventId) {
+            // Try with eventId if event property doesn't exist
+            const eventResponse = await eventService.getEvent(bookingData.eventId);
+            setEvent(eventResponse.data || eventResponse);
+          }
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching booking details:', err);
+        setError('Failed to load booking information. Please check your email for confirmation details.');
+        setLoading(false);
+      }
     };
     
-    // Calculate subtotal and ticket count
-    Object.entries(selectedTickets).forEach(([ticketId, quantity]) => {
-      if (quantity > 0) {
-        const ticketType = ticketTypes.find(t => t.id === ticketId);
-        if (ticketType) {
-          const itemPrice = ticketType.price || 0;
-          const itemTotal = itemPrice * quantity;
-          summary.subtotal += itemTotal;
-          summary.ticketCount += quantity;
+    fetchBookingDetails();
+  }, [bookingId]);
+  
+  // Function to handle downloading tickets
+  const handleDownloadTickets = async () => {
+    try {
+      if (!booking || !booking.id) {
+        console.error('No booking ID available for download');
+        return;
+      }
+      
+      // For each ticket, download the PDF
+      const tickets = booking.tickets || [];
+      if (tickets.length === 0) {
+        alert('No tickets available for download');
+        return;
+      }
+      
+      // If there's just one ticket, download it directly
+      if (tickets.length === 1) {
+        const ticket = tickets[0];
+        const ticketId = ticket.id || ticket._id;
+        const blob = await ticketService.downloadTicketPdf(ticketId);
+        
+        // Create a URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Create a temporary link and click it to download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ticket-${ticketId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        // For multiple tickets, inform the user
+        alert('Your tickets will download individually');
+        
+        // Download each ticket
+        for (let i = 0; i < tickets.length; i++) {
+          const ticket = tickets[i];
+          const ticketId = ticket.id || ticket._id;
           
-          summary.items.push({
-            id: ticketId,
-            name: ticketType.name,
-            price: itemPrice,
-            quantity,
-            total: itemTotal,
-            currency: ticketType.currency || 'USD'
-          });
+          setTimeout(async () => {
+            const blob = await ticketService.downloadTicketPdf(ticketId);
+            
+            // Create a URL for the blob
+            const url = window.URL.createObjectURL(blob);
+            
+            // Create a temporary link and click it to download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ticket-${ticketId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Clean up
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          }, i * 1000); // Stagger downloads to avoid overwhelming the browser
         }
       }
-    });
-    
-    // Calculate total (no fees for free tickets)
-    summary.total = summary.subtotal + summary.fees;
-    
-    return summary;
+    } catch (err) {
+      console.error('Error downloading tickets:', err);
+      alert('Failed to download tickets. Please try again later or check your email.');
+    }
   };
   
-  // Handle form submissions for each step
-  const handleSubmit = (e) => {
-    if (e) e.preventDefault();
-    
-    if (step === 1) {
-      // Validate if tickets are selected before proceeding
-      const orderSummary = calculateOrderSummary();
-      if (orderSummary.ticketCount === 0) {
-        alert('Please select at least one ticket');
+  // Function to handle adding event to calendar
+  const handleAddToCalendar = async () => {
+    try {
+      if (!event || (!event._id && !event.id)) {
+        console.error('No event ID available for calendar');
         return;
       }
-      setStep(2);
-    } else if (step === 2) {
-      // Validate user info before proceeding
-      if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
-        alert('Please fill all required fields');
-        return;
+      
+      const eventId = event._id || event.id;
+      const response = await ticketService.addToCalendar(eventId);
+      console.log('Calendar response:', response);
+      
+      alert('Event added to your calendar');
+    } catch (err) {
+      console.error('Error adding to calendar:', err);
+      alert('Failed to add event to calendar. Please try again later.');
+    }
+  };
+  
+  // Format currency
+  const formatCurrency = (amount, currencyCode = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currencyCode
+    }).format(amount);
+  };
+  
+  // Demo data for when we don't have a real booking ID
+  const demoEvent = {
+    name: 'Sample Event Confirmation',
+    startDateTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+    location: {
+      name: 'Demo Venue',
+      city: 'Sample City'
+    },
+    coverImage: { url: '/api/placeholder/800/400' }
+  };
+  
+  const demoBooking = {
+    id: 'demo-booking',
+    createdAt: new Date(),
+    status: 'confirmed',
+    customerInfo: {
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'john.doe@example.com'
+    },
+    tickets: [
+      {
+        id: 'demo-ticket-1',
+        ticketType: {
+          name: 'General Admission',
+          price: 29.99
+        },
+        quantity: 2
       }
-      setStep(3);
-    }
-    
-    window.scrollTo(0, 0);
+    ],
+    total: 59.98,
+    currency: 'USD'
   };
   
-  // Back button functionality
-  const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
-      window.scrollTo(0, 0);
-    } else {
-      // Navigate back to event page (in a real app this would use router)
-      console.log('Navigate to event page');
-    }
-  };
+  // Use demo data if in demo mode
+  const displayEvent = event || (bookingId === 'success' ? demoEvent : null);
+  const displayBooking = booking || (bookingId === 'success' ? demoBooking : null);
   
-  // Handle user info changes
-  const handleUserInfoChange = (e) => {
-    const { name, value } = e.target;
-    setUserInfo(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <div className="w-16 h-16 border-t-4 border-orange-500 border-solid rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your booking confirmation...</p>
+        </div>
+      </div>
+    );
+  }
   
-  // Handle policy click
-  const openPolicyModal = (policyType) => {
-    setActivePolicyType(policyType);
-    setShowPolicyModal(true);
-  };
+  if (error && !displayBooking) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+          <button 
+            onClick={() => navigate('/events')} 
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
+          >
+            Browse Events
+          </button>
+        </div>
+      </div>
+    );
+  }
   
-  // Close policy modal
-  const closePolicyModal = () => {
-    setShowPolicyModal(false);
-  };
-  
-  // Get policy content based on type
-  const getPolicyContent = () => {
-    switch (activePolicyType) {
-      case 'terms':
-        return {
-          title: 'Terms and Conditions',
-          content: 'These are the terms and conditions for using our ticketing service. By purchasing tickets, you agree to these terms.',
-          icon: <FileText className="w-6 h-6 text-gray-600" />
-        };
-      case 'privacy':
-        return {
-          title: 'Privacy Policy',
-          content: 'This privacy policy explains how we collect, use, and protect your personal information when you use our ticketing service.',
-          icon: <Shield className="w-6 h-6 text-gray-600" />
-        };
-      case 'refund':
-        return {
-          title: 'Refund Policy',
-          content: 'Our refund policy outlines the conditions under which you may be eligible for a refund for purchased tickets.',
-          icon: <RefreshCw className="w-6 h-6 text-gray-600" />
-        };
-      default:
-        return { title: '', content: '', icon: null };
-    }
-  };
-  
-  const orderSummary = calculateOrderSummary();
+  if (!displayBooking || !displayEvent) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <p className="text-gray-600">Booking information not found</p>
+          <button 
+            onClick={() => navigate('/events')} 
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
+          >
+            Browse Events
+          </button>
+        </div>
+      </div>
+    );
+  }
   
   return (
-    <div className="bg-orange-50 min-h-screen">
-      {/* Header */}
-      <header className="bg-white py-4 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center">
-            <button 
-              onClick={handleBack}
-              className="text-orange-500 hover:text-orange-600 flex items-center"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              <span>Back to Event</span>
-            </button>
-            <h1 className="ml-4 text-xl font-semibold text-gray-900">
-              Select Tickets
-            </h1>
-          </div>
-        </div>
-      </header>
-      
-      {/* Progress Steps */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center text-sm font-medium">
-            <div className="flex items-center text-orange-500">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-500 mr-2">
-                <Ticket className="w-4 h-4" />
-              </div>
-              <span>Tickets</span>
-            </div>
-            
-            <div className="w-24 h-0.5 mx-2 bg-gray-300"></div>
-            
-            <div className="flex items-center text-gray-400">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-400 mr-2">
-                <User className="w-4 h-4" />
-              </div>
-              <span>Information</span>
-            </div>
-            
-            <div className="w-24 h-0.5 mx-2 bg-gray-300"></div>
-            
-            <div className="flex items-center text-gray-400">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-400 mr-2">
-                <Ticket className="w-4 h-4" />
-              </div>
-              <span>Confirmation</span>
-            </div>
+    <div className="bg-gray-50 min-h-screen pb-12">
+      {/* Success Banner */}
+      <div className="bg-green-100 border-b border-green-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center justify-center text-green-700">
+            <Check className="w-5 h-5 mr-2" />
+            <span className="font-medium">Order completed successfully!</span>
           </div>
         </div>
       </div>
       
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column */}
-          <div className="lg:col-span-2">
-            {/* Event Info */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <div className="flex items-start">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-200 to-green-200 rounded-lg mr-4 flex items-center justify-center text-xs font-bold">
-                  MeetKats
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">{event.name}</h2>
-                  <div className="flex space-x-4 text-sm text-gray-600">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1 text-gray-500" />
-                      Fri, May 30
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1 text-gray-500" />
-                      07:30 PM
-                    </div>
-                  </div>
-                </div>
-              </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Confirmation Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+            <Check className="w-8 h-8 text-green-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Tickets are Confirmed!</h1>
+          <p className="text-lg text-gray-600">
+            We've sent a confirmation to {displayBooking.customerInfo?.email || 'your email'}
+          </p>
+        </div>
+        
+        {/* Event Card */}
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
+          {displayEvent.coverImage?.url && (
+            <div className="h-48 w-full">
+              <img 
+                src={displayEvent.coverImage.url} 
+                alt={displayEvent.name || displayEvent.title}
+                className="w-full h-full object-cover"
+              />
             </div>
+          )}
+          
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">{displayEvent.name || displayEvent.title}</h2>
             
-            {/* Ticket Selection */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Select Tickets</h3>
+            <div className="flex flex-col md:flex-row md:items-center text-gray-600 mb-4 space-y-2 md:space-y-0 md:space-x-4">
+              <div className="flex items-center">
+                <Calendar className="w-5 h-5 mr-2 flex-shrink-0 text-gray-500" />
+                <span>{formatDate(displayEvent.startDateTime || displayEvent.startDate)}</span>
+              </div>
               
-              <div className="space-y-4">
-                {ticketTypes.map(ticket => {
-                  const ticketId = ticket.id;
-                  const currentQty = selectedTickets[ticketId] || 0;
-                  
-                  return (
-                    <div 
-                      key={ticketId} 
-                      className="border border-gray-200 rounded-lg p-4"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                        <div className="mb-3 md:mb-0">
-                          <h4 className="font-bold text-gray-900">{ticket.name}</h4>
-                          <p className="text-sm text-gray-600 mt-1">{ticket.description}</p>
-                          
-                          <div className="mt-1 text-sm">
-                            <span className="text-gray-500">
-                              {ticket.available} available
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between md:justify-end">
-                          <div className="font-bold text-gray-900 md:text-right md:mr-4">
-                            {ticket.price === 0 ? 'Free' : `$${ticket.price.toFixed(2)}`}
-                          </div>
-                          
-                          <div className="flex items-center border border-gray-300 rounded-md">
-                            <button 
-                              type="button"
-                              onClick={() => handleTicketQuantityChange(ticketId, -1)}
-                              disabled={currentQty === 0}
-                              className={`p-2 ${
-                                currentQty === 0
-                                  ? 'text-gray-300 cursor-not-allowed' 
-                                  : 'text-gray-600 hover:bg-gray-100'
-                              }`}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            
-                            <span className="w-10 text-center font-medium">
-                              {currentQty}
-                            </span>
-                            
-                            <button 
-                              type="button"
-                              onClick={() => handleTicketQuantityChange(ticketId, 1)}
-                              className="p-2 text-gray-600 hover:bg-gray-100"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center">
+                <Clock className="w-5 h-5 mr-2 flex-shrink-0 text-gray-500" />
+                <span>{formatTime(displayEvent.startDateTime || displayEvent.startDate)}</span>
+              </div>
+              
+              <div className="flex items-center">
+                <MapPin className="w-5 h-5 mr-2 flex-shrink-0 text-gray-500" />
+                <span>
+                  {displayEvent.virtual || displayEvent.isOnline
+                    ? "Virtual Event" 
+                    : `${displayEvent.location?.name || ''}${displayEvent.location?.city ? `, ${displayEvent.location.city}` : ''}`}
+                </span>
               </div>
             </div>
             
-            <button
-              onClick={handleSubmit}
-              disabled={orderSummary.ticketCount === 0}
-              className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
-                orderSummary.ticketCount === 0
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-600'
-              }`}
-            >
-              Continue to Information
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </button>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button 
+                onClick={handleDownloadTickets}
+                className="flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Tickets
+              </button>
+              
+              <button 
+                onClick={handleAddToCalendar}
+                className="flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <CalendarPlus className="w-4 h-4 mr-2" />
+                Add to Calendar
+              </button>
+              
+              <button className="flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <Share2 className="w-4 h-4 mr-2" />
+                Share
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Order Details */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Order Details</h2>
+          
+          <div className="space-y-4 mb-6">
+            <div className="flex justify-between">
+              <div className="text-gray-600">Order Number</div>
+              <div className="font-medium">{displayBooking.id || displayBooking._id || 'N/A'}</div>
+            </div>
+            
+            <div className="flex justify-between">
+              <div className="text-gray-600">Order Date</div>
+              <div className="font-medium">
+                {displayBooking.createdAt 
+                  ? new Date(displayBooking.createdAt).toLocaleDateString() 
+                  : new Date().toLocaleDateString()}
+              </div>
+            </div>
+            
+            <div className="flex justify-between">
+              <div className="text-gray-600">Status</div>
+              <div className="font-medium">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  {displayBooking.status || 'Confirmed'}
+                </span>
+              </div>
+            </div>
           </div>
           
-          {/* Right Column - Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Order Summary</h3>
-              
-              {orderSummary.ticketCount > 0 ? (
-                <>
-                  <div className="space-y-4 mb-6">
-                    {orderSummary.items.map(item => (
-                      <div key={item.id} className="flex justify-between">
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-gray-600">{item.quantity} × {item.price === 0 ? 'Free' : `$${item.price.toFixed(2)}`}</p>
-                        </div>
-                        <div className="font-medium">
-                          {item.price === 0 ? 'Free' : `$${item.total.toFixed(2)}`}
-                        </div>
+          <div className="border-t border-gray-200 pt-4 mb-4">
+            <h3 className="font-bold text-gray-900 mb-3">Tickets</h3>
+            
+            <div className="space-y-3">
+              {(displayBooking.tickets || []).map((ticket, index) => {
+                const ticketName = ticket.ticketType?.name || 'Standard Ticket';
+                const ticketPrice = ticket.ticketType?.price || 0;
+                const quantity = ticket.quantity || 1;
+                const total = ticketPrice * quantity;
+                
+                return (
+                  <div key={ticket.id || ticket._id || index} className="flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">{ticketName}</div>
+                      <div className="text-sm text-gray-600">
+                        {quantity} × {formatCurrency(ticketPrice, displayBooking.currency)}
                       </div>
-                    ))}
-                  </div>
-                  
-                  <div className="space-y-2 border-t border-gray-200 pt-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span>{orderSummary.subtotal === 0 ? 'Free' : `$${orderSummary.subtotal.toFixed(2)}`}</span>
                     </div>
-                    
-                    {orderSummary.fees > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Service Fee</span>
-                        <span>${orderSummary.fees.toFixed(2)}</span>
-                      </div>
-                    )}
-                    
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200 mt-2">
-                      <span>Total</span>
-                      <span>{orderSummary.total === 0 ? 'Free' : `$${orderSummary.total.toFixed(2)}`}</span>
+                    <div className="font-medium">
+                      {formatCurrency(total, displayBooking.currency)}
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="text-center py-6">
-                  <div className="w-16 h-16 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Ticket className="w-8 h-8 text-orange-500" />
-                  </div>
-                  <p className="text-gray-600 font-medium">No tickets selected</p>
-                  <p className="text-sm text-gray-500 mt-2">Select tickets to continue</p>
-                </div>
-              )}
-              
-              <div className="mt-6 border-t border-gray-200 pt-4">
-                <div className="flex items-start">
-                  <Info className="h-5 w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-500">
-                    Tickets are free but registration is required. Please review your information before completing your booking.
-                  </p>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex justify-between items-center font-bold text-lg">
+              <span>Total</span>
+              <span>
+                {formatCurrency(
+                  displayBooking.total || 
+                  (displayBooking.tickets || []).reduce((sum, ticket) => {
+                    const price = ticket.ticketType?.price || 0;
+                    const quantity = ticket.quantity || 1;
+                    return sum + (price * quantity);
+                  }, 0),
+                  displayBooking.currency
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Next Steps */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">What's Next?</h2>
+          
+          <div className="space-y-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
+                  <Mail className="h-5 w-5" />
                 </div>
               </div>
-              
-              {/* Added Policy Links */}
-              <div className="mt-4 space-y-3">
-                <button 
-                  onClick={() => openPolicyModal('terms')}
-                  className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center">
-                    <FileText className="w-5 h-5 text-gray-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-700">Terms and Conditions</span>
-                  </div>
-                  <ExternalLink className="w-4 h-4 text-gray-400" />
-                </button>
-                
-                <button 
-                  onClick={() => openPolicyModal('privacy')}
-                  className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center">
-                    <Shield className="w-5 h-5 text-gray-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-700">Privacy Policy</span>
-                  </div>
-                  <ExternalLink className="w-4 h-4 text-gray-400" />
-                </button>
-                
-                <button 
-                  onClick={() => openPolicyModal('refund')}
-                  className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center">
-                    <RefreshCw className="w-5 h-5 text-gray-500 mr-2" />
-                    <span className="text-sm font-medium text-gray-700">Refund Policy</span>
-                  </div>
-                  <ExternalLink className="w-4 h-4 text-gray-400" />
-                </button>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Check Your Email</h3>
+                <p className="mt-1 text-gray-600">
+                  We've sent your tickets and order confirmation to your email address.
+                </p>
               </div>
             </div>
+            
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
+                  <Ticket className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Save Your Tickets</h3>
+                <p className="mt-1 text-gray-600">
+                  Download your tickets now or access them later from your account.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
+                  <Calendar className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Add to Calendar</h3>
+                <p className="mt-1 text-gray-600">
+                  Don't forget to add this event to your calendar so you don't miss it.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-8 space-x-4 flex">
+            <Link 
+              to="/events" 
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
+            >
+              Browse More Events
+            </Link>
+            
+            <Link 
+              to="/tickets" 
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            >
+              View My Tickets
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Link>
           </div>
         </div>
       </div>
-      
-      {/* Policy Modal */}
-      {showPolicyModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-            
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 sm:mx-0 sm:h-10 sm:w-10">
-                    {getPolicyContent().icon}
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      {getPolicyContent().title}
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        {getPolicyContent().content}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-500 text-base font-medium text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={closePolicyModal}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
