@@ -50,7 +50,6 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import CustomFormCreatorPage from './pages/CustomFormCreatorPage';
 import CustomFormSubmissionPage from './pages/CustomFormSubmissionPage';
 import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
-import Landing
 const WithAuth = ({ children }) => {
   const { user, logout } = useAuth();
   return children(user, logout);
