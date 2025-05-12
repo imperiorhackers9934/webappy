@@ -10,12 +10,9 @@ import {
   Info, 
   ArrowLeft,
   ChevronRight,
-  Lock,
-  CreditCard,
   User,
   Mail,
-  Phone,
-  DollarSign
+  Phone
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
@@ -37,10 +34,11 @@ const TicketBookingPage = () => {
   const [loading, setLoading] = useState(true);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [step, setStep] = useState(1); // 1: Select tickets, 2: User info, 3: Payment
+  const [step, setStep] = useState(1); // 1: Select tickets, 2: User info, 3: Confirmation
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [discount, setDiscount] = useState(0);
+  const [bookingError, setBookingError] = useState(null);
   
   // Format date for display
   const formatDate = (dateString) => {
@@ -97,9 +95,9 @@ const TicketBookingPage = () => {
         const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
         console.log('Ticket types:', ticketsResponse);
         
-        // Filter out sold out ticket types
+        // Don't filter out paid tickets anymore - show all available tickets
         const availableTickets = (ticketsResponse.data || []).filter(ticket => 
-          !ticket.available || ticket.available > 0
+          (!ticket.available || ticket.available > 0)
         );
         
         setTicketTypes(availableTickets);
@@ -189,10 +187,10 @@ const TicketBookingPage = () => {
       }
     });
     
-    // Calculate service fee (typically 5-10% of subtotal)
-    summary.fees = summary.subtotal * 0.05;
+    // For free tickets, we don't need fees
+    summary.fees = 0;
     
-    // Apply discount if coupon applied
+    // Apply discount if coupon applied (not needed for free tickets but keeping code structure)
     const discountAmount = couponApplied ? (summary.subtotal * (discount / 100)) : 0;
     
     // Calculate total
@@ -212,151 +210,109 @@ const TicketBookingPage = () => {
   };
   
   // Handle form submissions for each step
- // Updated handleSubmitBooking function with enhanced debugging
-// Add this to your TicketPurchasePage.jsx file
-
-const handleSubmitBooking = async (e) => {
-    e.preventDefault();
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    setBookingError(null);
     
-    try {
-      setSubmitting(true);
-      
-      // Validate form
-      if (!customerInfo.firstName || !customerInfo.lastName || !customerInfo.email) {
-        setError('Please fill in all required fields');
-        setSubmitting(false);
+    if (step === 1) {
+      const orderSummary = calculateOrderSummary();
+      if (orderSummary.ticketCount === 0) {
+        alert('Please select at least one ticket');
         return;
       }
-      
-      // Check if any tickets are selected
-      const summary = calculateOrderSummary();
-      if (summary.ticketCount === 0) {
-        setError('Please select at least one ticket');
-        setSubmitting(false);
+      setStep(2);
+      window.scrollTo(0, 0);
+    } else if (step === 2) {
+      if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
+        alert('Please fill in all required fields');
         return;
       }
-      
-      // Transform the selected tickets into the format expected by the API
-      const ticketSelections = Object.entries(selectedTickets)
-        .filter(([_, quantity]) => quantity > 0)
-        .map(([ticketId, quantity]) => {
-          console.log(`Selected ticket: ${ticketId} with quantity: ${quantity}`);
-          return {
-            ticketTypeId: ticketId,
-            quantity
-          };
-        });
-      
-      console.log('Prepared ticket selections:', ticketSelections);
-      
-      // Prepare booking data according to the API's expected format
-      const bookingData = {
-        ticketSelections,
-        contactInformation: {
-          firstName: customerInfo.firstName,
-          lastName: customerInfo.lastName,
-          email: customerInfo.email,
-          phone: customerInfo.phone || ''
-        }
-      };
-      
-      console.log('Full booking data before submission:', JSON.stringify(bookingData, null, 2));
-      console.log('Event ID for booking:', eventId);
-      
-      // Call API to book tickets
-      const response = await ticketService.bookEventTickets(eventId, bookingData);
-      
-      console.log('Booking response received:', response);
-      
-      // Handle response and redirect
-      if (response && response.id) {
-        navigate(`/tickets/confirmation/${response.id}`);
-      } else if (response && response.booking && response.booking.id) {
-        navigate(`/tickets/confirmation/${response.booking.id}`);
-      } else if (response && response.success) {
-        navigate(`/tickets/confirmation/success`);
-      } else {
-        // Generic success if we don't have a specific ID
-        navigate(`/tickets/confirmation/success`);
-      }
-      
-    } catch (err) {
-      console.error('Error submitting booking:', err);
-      
-      // Enhanced error display
-      let errorMessage = 'Failed to complete your booking. Please try again later.';
-      
-      if (err.response && err.response.data && err.response.data.error) {
-        errorMessage = `Booking error: ${err.response.data.error}`;
-        console.error('Detailed error from server:', err.response.data);
-      } else if (err.message) {
-        errorMessage = `Booking error: ${err.message}`;
-      }
-      
-      setError(errorMessage);
-      setSubmitting(false);
+      setStep(3);
+      window.scrollTo(0, 0);
     }
   };
   
-  // Handle coupon code application
-  const handleApplyCoupon = () => {
-    if (!couponCode) {
-      alert('Please enter a coupon code');
+  // Handle completing the booking
+ // Fixed handleCompleteBooking function - use this in your TicketBookingPage component
+const handleCompleteBooking = async (e) => {
+  e.preventDefault();
+  setBookingError(null);
+  
+  try {
+    const orderSummary = calculateOrderSummary();
+    
+    // Check if there are tickets to book
+    if (orderSummary.ticketCount === 0) {
+      alert('Please select at least one ticket');
+      setStep(1);
       return;
     }
     
-    // Normally would validate with API
-    // Mock validation for demo purposes
-    if (couponCode.toUpperCase() === 'SAVE20') {
-      setCouponApplied(true);
-      setDiscount(20);
-      alert('Coupon applied: 20% off');
-    } else {
-      alert('Invalid coupon code');
-    }
-  };
-  
-  // Handle payment submission
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
+    // Calculate the total amount (for validation)
+    const totalAmount = orderSummary.total || 0;
     
+    // Get user data if available
+    let userId = null;
     try {
-      const orderSummary = calculateOrderSummary();
-      
-      // Check if there are tickets to book
-      if (orderSummary.ticketCount === 0) {
-        alert('Please select at least one ticket');
-        setStep(1);
-        return;
-      }
-      
-      // Prepare booking data
-      const bookingData = {
-        tickets: Object.entries(selectedTickets)
-          .filter(([_, quantity]) => quantity > 0)
-          .map(([ticketId, quantity]) => ({
-            ticketType: ticketId,
-            quantity
-          })),
-        customerInfo: userInfo,
-        couponCode: couponApplied ? couponCode : undefined,
-        discount: couponApplied ? discount : undefined
-      };
-      
-      console.log('Submitting booking:', bookingData);
-      
-      // Call API to book tickets
-      const response = await eventService.bookEventTickets(eventId, bookingData);
-      console.log('Booking response:', response);
-      
-      // Redirect to confirmation page
-      navigate(`/tickets/confirmation/${response.data?.id || 'success'}`);
-      
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      userId = userData.id || null;
     } catch (err) {
-      console.error('Error submitting booking:', err);
-      alert('Failed to complete your booking. Please try again later.');
+      console.log('No user data available in localStorage');
     }
-  };
+    
+    // Prepare booking data in the format expected by the API
+    const bookingData = {
+      // Key fix: Use ticketSelections with ticketTypeId as expected by API
+      ticketSelections: Object.entries(selectedTickets)
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([ticketId, quantity]) => ({
+          ticketTypeId: ticketId,
+          quantity: parseInt(quantity, 10)
+        })),
+      
+      // CRITICAL FIX: The backend expects contactInformation, not customerInfo
+      contactInformation: {
+        email: userInfo.email,
+        phone: userInfo.phone || ''
+      },
+      
+      // Still include customerInfo for backward compatibility
+      customerInfo: userInfo,
+      
+      // Add required fields that the API validation expects
+      paymentMethod: totalAmount > 0 ? 'pending' : 'free',
+      totalAmount: totalAmount,
+      returnUrl: window.location.origin + '/payment-confirmation'
+    };
+    
+    // Add userId if available
+    if (userId) {
+      bookingData.userId = userId;
+    }
+    
+    console.log('Submitting booking:', bookingData);
+    
+    // Call API to book tickets
+    const response = await ticketService.bookEventTickets(eventId, bookingData);
+    console.log('Booking response:', response);
+    
+    // Get the booking ID from the response
+    const bookingId = response.id || response._id || (response.booking && response.booking.id);
+    
+    // Redirect to confirmation page
+    navigate(`/tickets/confirmation/${bookingId || 'success'}`);
+    
+  } catch (err) {
+    console.error('Error submitting booking:', err);
+    setBookingError(
+      err.response?.data?.error || 
+      err.response?.data?.message || 
+      err.message || 
+      'Failed to complete your booking. Please try again later.'
+    );
+    // Stay on the confirmation page to show the error
+  }
+};
   
   // Back button functionality
   const handleBack = () => {
@@ -372,9 +328,9 @@ const handleSubmitBooking = async (e) => {
   
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
-          <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
+          <div className="w-16 h-16 border-t-4 border-orange-500 border-solid rounded-full animate-spin mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading event details...</p>
         </div>
       </div>
@@ -383,7 +339,7 @@ const handleSubmitBooking = async (e) => {
   
   if (error) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
             <strong className="font-bold">Error: </strong>
@@ -391,7 +347,7 @@ const handleSubmitBooking = async (e) => {
           </div>
           <button 
             onClick={() => navigate('/events')} 
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
           >
             Browse Events
           </button>
@@ -402,12 +358,12 @@ const handleSubmitBooking = async (e) => {
   
   if (!event) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
           <p className="text-gray-600">Event not found</p>
           <button 
             onClick={() => navigate('/events')} 
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
           >
             Browse Events
           </button>
@@ -417,14 +373,14 @@ const handleSubmitBooking = async (e) => {
   }
   
   return (
-    <div className="bg-gray-50 min-h-screen pb-12">
+    <div className="bg-orange-50 min-h-screen pb-12">
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center">
             <button 
               onClick={handleBack} 
-              className="text-gray-600 hover:text-gray-900 flex items-center"
+              className="text-orange-600 hover:text-orange-900 flex items-center"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               <span>{step === 1 ? 'Back to Event' : 'Back'}</span>
@@ -432,7 +388,7 @@ const handleSubmitBooking = async (e) => {
             <h1 className="ml-4 text-xl font-semibold text-gray-900">
               {step === 1 && 'Select Tickets'}
               {step === 2 && 'Your Information'}
-              {step === 3 && 'Payment'}
+              {step === 3 && 'Confirmation'}
             </h1>
           </div>
         </div>
@@ -442,27 +398,27 @@ const handleSubmitBooking = async (e) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-center">
           <div className="flex items-center text-sm font-medium">
-            <div className={`flex items-center ${step >= 1 ? 'text-blue-600' : 'text-gray-500'}`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 1 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
+            <div className={`flex items-center ${step >= 1 ? 'text-orange-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 1 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
                 <Ticket className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">Tickets</span>
             </div>
-            <div className={`w-12 h-0.5 mx-2 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+            <div className={`w-12 h-0.5 mx-2 ${step >= 2 ? 'bg-orange-600' : 'bg-gray-300'}`}></div>
             
-            <div className={`flex items-center ${step >= 2 ? 'text-blue-600' : 'text-gray-500'}`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 2 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
+            <div className={`flex items-center ${step >= 2 ? 'text-orange-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 2 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
                 <User className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">Information</span>
             </div>
-            <div className={`w-12 h-0.5 mx-2 ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+            <div className={`w-12 h-0.5 mx-2 ${step >= 3 ? 'bg-orange-600' : 'bg-gray-300'}`}></div>
             
-            <div className={`flex items-center ${step >= 3 ? 'text-blue-600' : 'text-gray-500'}`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
-                <CreditCard className="w-4 h-4" />
+            <div className={`flex items-center ${step >= 3 ? 'text-orange-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
+                <Ticket className="w-4 h-4" />
               </div>
-              <span className="hidden sm:inline">Payment</span>
+              <span className="hidden sm:inline">Confirmation</span>
             </div>
           </div>
         </div>
@@ -474,7 +430,7 @@ const handleSubmitBooking = async (e) => {
           {/* Left Column */}
           <div className="lg:col-span-2">
             {/* Event Info */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
               <div className="flex items-start">
                 {event.coverImage?.url && (
                   <img 
@@ -487,11 +443,11 @@ const handleSubmitBooking = async (e) => {
                   <h2 className="text-xl font-bold text-gray-900 mb-2">{event.name}</h2>
                   <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-600">
                     <div className="flex items-center mb-1 sm:mb-0">
-                      <Calendar className="w-4 h-4 mr-1 text-gray-500" />
+                      <Calendar className="w-4 h-4 mr-1 text-orange-500" />
                       {formatDate(event.startDateTime)}
                     </div>
                     <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1 text-gray-500" />
+                      <Clock className="w-4 h-4 mr-1 text-orange-500" />
                       {formatTime(event.startDateTime)}
                     </div>
                   </div>
@@ -502,17 +458,17 @@ const handleSubmitBooking = async (e) => {
             {/* Step 1: Ticket Selection */}
             {step === 1 && (
               <form onSubmit={handleSubmit}>
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Select Tickets</h3>
                   
                   {ticketsLoading ? (
                     <div className="text-center py-8">
-                      <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
+                      <div className="w-12 h-12 border-t-4 border-orange-500 border-solid rounded-full animate-spin mx-auto"></div>
                       <p className="mt-4 text-gray-600">Loading tickets...</p>
                     </div>
                   ) : ticketTypes.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg">
-                      <Ticket className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                    <div className="text-center py-8 bg-orange-50 rounded-lg">
+                      <Ticket className="w-12 h-12 text-orange-400 mx-auto mb-3" />
                       <p className="text-gray-700 font-medium">No tickets available</p>
                       <p className="text-gray-500 mt-1">There are currently no tickets available for this event.</p>
                     </div>
@@ -523,11 +479,12 @@ const handleSubmitBooking = async (e) => {
                         const currentQty = selectedTickets[ticketId] || 0;
                         const isAvailable = !ticket.available || ticket.available > 0;
                         const remainingTickets = ticket.available || 'Unlimited';
+                        const isPaid = ticket.price > 0;
                         
                         return (
                           <div 
                             key={ticketId} 
-                            className={`border rounded-lg p-4 ${isAvailable ? 'border-gray-200' : 'border-gray-200 bg-gray-50 opacity-75'}`}
+                            className={`border rounded-lg p-4 ${isAvailable ? 'border-orange-200 hover:border-orange-300' : 'border-gray-200 bg-gray-50 opacity-75'}`}
                           >
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                               <div className="mb-3 md:mb-0">
@@ -551,10 +508,10 @@ const handleSubmitBooking = async (e) => {
                               
                               <div className="flex items-center justify-between md:justify-end">
                                 <div className="font-bold text-gray-900 md:text-right md:mr-4">
-                                  {ticket.price === 0 ? 'Free' : formatCurrency(ticket.price, ticket.currency || 'USD')}
+                                  {isPaid ? formatCurrency(ticket.price, ticket.currency || 'USD') : 'Free'}
                                 </div>
                                 
-                                <div className="flex items-center border border-gray-300 rounded-md">
+                                <div className="flex items-center border border-orange-300 rounded-md">
                                   <button 
                                     type="button"
                                     onClick={() => handleTicketQuantityChange(ticketId, -1)}
@@ -562,7 +519,7 @@ const handleSubmitBooking = async (e) => {
                                     className={`p-2 ${
                                       currentQty === 0 || !isAvailable
                                         ? 'text-gray-300 cursor-not-allowed' 
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                        : 'text-orange-600 hover:bg-orange-100'
                                     }`}
                                   >
                                     <Minus className="w-4 h-4" />
@@ -579,7 +536,7 @@ const handleSubmitBooking = async (e) => {
                                     className={`p-2 ${
                                       !isAvailable || (ticket.available && currentQty >= ticket.available)
                                         ? 'text-gray-300 cursor-not-allowed' 
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                        : 'text-orange-600 hover:bg-orange-100'
                                     }`}
                                   >
                                     <Plus className="w-4 h-4" />
@@ -587,14 +544,6 @@ const handleSubmitBooking = async (e) => {
                                 </div>
                               </div>
                             </div>
-                            
-                            {currentQty > 0 && (
-                              <div className="mt-3 pt-3 border-t border-gray-200 flex justify-end">
-                                <span className="font-medium text-gray-900">
-                                  {formatCurrency(ticket.price * currentQty, ticket.currency || 'USD')}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -609,7 +558,7 @@ const handleSubmitBooking = async (e) => {
                     className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
                       orderSummary.ticketCount === 0
                         ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700'
+                        : 'bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500'
                     }`}
                   >
                     Continue to Information
@@ -622,18 +571,18 @@ const handleSubmitBooking = async (e) => {
             {/* Step 2: Attendee Information */}
             {step === 2 && (
               <form onSubmit={handleSubmit}>
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Your Information</h3>
                   
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                          First Name <span className="text-red-500">*</span>
+                          First Name <span className="text-orange-500">*</span>
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <User className="h-5 w-5 text-gray-400" />
+                            <User className="h-5 w-5 text-orange-400" />
                           </div>
                           <input
                             type="text"
@@ -642,18 +591,18 @@ const handleSubmitBooking = async (e) => {
                             value={userInfo.firstName}
                             onChange={handleUserInfoChange}
                             required
-                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                            className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
                           />
                         </div>
                       </div>
                       
                       <div>
                         <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                          Last Name <span className="text-red-500">*</span>
+                          Last Name <span className="text-orange-500">*</span>
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <User className="h-5 w-5 text-gray-400" />
+                            <User className="h-5 w-5 text-orange-400" />
                           </div>
                           <input
                             type="text"
@@ -662,7 +611,7 @@ const handleSubmitBooking = async (e) => {
                             value={userInfo.lastName}
                             onChange={handleUserInfoChange}
                             required
-                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                            className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
                           />
                         </div>
                       </div>
@@ -670,11 +619,11 @@ const handleSubmitBooking = async (e) => {
                     
                     <div>
                       <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                        Email <span className="text-red-500">*</span>
+                        Email <span className="text-orange-500">*</span>
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Mail className="h-5 w-5 text-gray-400" />
+                          <Mail className="h-5 w-5 text-orange-400" />
                         </div>
                         <input
                           type="email"
@@ -683,7 +632,7 @@ const handleSubmitBooking = async (e) => {
                           value={userInfo.email}
                           onChange={handleUserInfoChange}
                           required
-                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                          className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
                         />
                       </div>
                       <p className="mt-1 text-xs text-gray-500">Your tickets will be sent to this email address</p>
@@ -695,7 +644,7 @@ const handleSubmitBooking = async (e) => {
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Phone className="h-5 w-5 text-gray-400" />
+                          <Phone className="h-5 w-5 text-orange-400" />
                         </div>
                         <input
                           type="tel"
@@ -703,7 +652,7 @@ const handleSubmitBooking = async (e) => {
                           name="phone"
                           value={userInfo.phone}
                           onChange={handleUserInfoChange}
-                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                          className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-orange-300 rounded-md"
                         />
                       </div>
                       <p className="mt-1 text-xs text-gray-500">For important updates about the event</p>
@@ -714,107 +663,83 @@ const handleSubmitBooking = async (e) => {
                 <div className="hidden sm:block">
                   <button
                     type="submit"
-                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                   >
-                    Continue to Payment
+                    Continue to Confirmation
                     <ChevronRight className="ml-2 h-5 w-5" />
                   </button>
                 </div>
               </form>
             )}
-            
-            {/* Step 3: Payment */}
+           
+            {/* Step 3: Confirmation */}
             {step === 3 && (
-              <form onSubmit={handlePaymentSubmit}>
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Payment Method</h3>
+              <form onSubmit={handleCompleteBooking}>
+                <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Your Details</h3>
+                  
+                  {bookingError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                      <div className="flex">
+                        <div className="py-1">
+                          <svg className="h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-medium">Booking failed</p>
+                          <p className="text-sm">{bookingError}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="space-y-6">
-                    <div className="bg-blue-50 rounded-lg p-4 flex items-start">
-                      <Info className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
+                    {/* Information Summary */}
+                    <div className="border-b border-orange-100 pb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Attendee Information</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Name</p>
+                          <p className="font-medium">{userInfo.firstName} {userInfo.lastName}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Email</p>
+                          <p className="font-medium">{userInfo.email}</p>
+                        </div>
+                        {userInfo.phone && (
+                          <div>
+                            <p className="text-gray-500">Phone</p>
+                            <p className="font-medium">{userInfo.phone}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Ticket Summary */}
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Ticket Summary</h4>
+                      <div className="space-y-2">
+                        {orderSummary.items.map(item => (
+                          <div key={item.id} className="flex justify-between text-sm">
+                            <span>{item.name} × {item.quantity}</span>
+                            <span className="font-medium">
+                              {item.price > 0 
+                                ? formatCurrency(item.price * item.quantity, item.currency)
+                                : 'Free'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Disclaimer */}
+                    <div className="bg-orange-50 rounded-lg p-4 flex items-start border border-orange-200">
+                      <Info className="h-5 w-5 text-orange-500 mr-3 mt-0.5" />
                       <div>
-                        <p className="text-sm text-blue-700">
-                          This is a demo payment page. No actual payment will be processed.
+                        <p className="text-sm text-orange-700">
+                          By completing this booking, you agree to receive your tickets via email. Please make sure your contact information is correct.
                         </p>
-                      </div>
-                    </div>
-                    
-                    <div className="border rounded-lg p-4 space-y-4">
-                      <div>
-                        <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                          Card Number
-                        </label>
-                        <div className="mt-1 relative rounded-md shadow-sm">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <CreditCard className="h-5 w-5 text-gray-400" />
-                          </div>
-                          <input
-                            type="text"
-                            id="cardNumber"
-                            placeholder="4242 4242 4242 4242"
-                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
-                          />
-                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <Lock className="h-5 w-5 text-gray-400" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                            Expiry Date
-                          </label>
-                          <input
-                            type="text"
-                            id="expiryDate"
-                            placeholder="MM/YY"
-                            className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-1">
-                            CVV
-                          </label>
-                          <input
-                            type="text"
-                            id="cvv"
-                            placeholder="123"
-                            className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="nameOnCard" className="block text-sm font-medium text-gray-700 mb-1">
-                          Name on Card
-                        </label>
-                        <input
-                          type="text"
-                          id="nameOnCard"
-                          placeholder="Jane Doe"
-                          className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                      <div className="flex items-center">
-                        <input
-                          id="saveCard"
-                          type="checkbox"
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="saveCard" className="ml-2 block text-sm text-gray-900">
-                          Save card for future purchases
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/visa/visa-original.svg" alt="Visa" className="h-6" />
-                        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mastercard/mastercard-original.svg" alt="Mastercard" className="h-6" />
-                        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/apple/apple-original.svg" alt="Apple Pay" className="h-6" />
                       </div>
                     </div>
                   </div>
@@ -823,9 +748,9 @@ const handleSubmitBooking = async (e) => {
                 <div className="hidden sm:block">
                   <button
                     type="submit"
-                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                   >
-                    Complete Purchase
+                    Complete Booking
                     <ChevronRight className="ml-2 h-5 w-5" />
                   </button>
                 </div>
@@ -835,7 +760,7 @@ const handleSubmitBooking = async (e) => {
           
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
+            <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 sticky top-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">Order Summary</h3>
               
               {orderSummary.ticketCount > 0 ? (
@@ -845,68 +770,54 @@ const handleSubmitBooking = async (e) => {
                       <div key={item.id} className="flex justify-between">
                         <div>
                           <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-gray-600">{item.quantity} × {formatCurrency(item.price, item.currency)}</p>
+                          <p className="text-sm text-gray-600">{item.quantity} ticket{item.quantity > 1 ? 's' : ''}</p>
                         </div>
                         <div className="font-medium">
-                          {formatCurrency(item.total, item.currency)}
+                          {item.price > 0 
+                            ? formatCurrency(item.price * item.quantity, item.currency)
+                            : 'Free'}
                         </div>
                       </div>
                     ))}
                   </div>
                   
-                  {/* Coupon Code Input */}
-                  {!couponApplied && step >= 2 && (
-                    <div className="mb-4">
-                      <label htmlFor="couponCode" className="block text-sm font-medium text-gray-700 mb-1">
-                        Coupon Code
-                      </label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          id="couponCode"
-                          value={couponCode}
-                          onChange={(e) => setCouponCode(e.target.value)}
-                          placeholder="Enter code"
-                          className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyCoupon}
-                          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  
                   {/* Price Breakdown */}
-                  <div className="space-y-2 border-t border-gray-200 pt-4">
+                  <div className="space-y-2 border-t border-orange-200 pt-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
-                      <span>{formatCurrency(orderSummary.subtotal)}</span>
+                      <span>
+                        {orderSummary.subtotal > 0 
+                          ? formatCurrency(orderSummary.subtotal)
+                          : 'Free'}
+                      </span>
                     </div>
                     
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Service Fee</span>
-                      <span>{formatCurrency(orderSummary.fees)}</span>
-                    </div>
+                    {orderSummary.fees > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Service fees</span>
+                        <span>{formatCurrency(orderSummary.fees)}</span>
+                      </div>
+                    )}
                     
-                    {couponApplied && (
+                    {couponApplied && orderSummary.discount > 0 && (
                       <div className="flex justify-between text-sm text-green-600">
-                        <span>Discount ({discount}%)</span>
+                        <span>Discount</span>
                         <span>-{formatCurrency(orderSummary.discount)}</span>
                       </div>
                     )}
                     
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200 mt-2">
+                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-orange-200 mt-2">
                       <span>Total</span>
-                      <span>{formatCurrency(orderSummary.total)}</span>
+                      <span>
+                        {orderSummary.total > 0 
+                          ? formatCurrency(orderSummary.total)
+                          : 'Free'}
+                      </span>
                     </div>
                   </div>
                   
                   {/* Mobile Submit Button */}
-                  <div className="mt-6 sm:hidden">
+                  <div className="mt-6 block sm:hidden">
                     {step === 1 && (
                       <button
                         type="button"
@@ -915,7 +826,7 @@ const handleSubmitBooking = async (e) => {
                         className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
                           orderSummary.ticketCount === 0
                             ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700'
+                            : 'bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500'
                         }`}
                       >
                         Continue to Information
@@ -927,9 +838,9 @@ const handleSubmitBooking = async (e) => {
                       <button
                         type="button"
                         onClick={handleSubmit}
-                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                       >
-                        Continue to Payment
+                        Continue to Confirmation
                         <ChevronRight className="ml-2 h-5 w-5" />
                       </button>
                     )}
@@ -937,10 +848,10 @@ const handleSubmitBooking = async (e) => {
                     {step === 3 && (
                       <button
                         type="button"
-                        onClick={handlePaymentSubmit}
-                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                        onClick={handleCompleteBooking}
+                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
                       >
-                        Complete Purchase
+                        Complete Booking
                         <ChevronRight className="ml-2 h-5 w-5" />
                       </button>
                     )}
@@ -948,17 +859,19 @@ const handleSubmitBooking = async (e) => {
                 </>
               ) : (
                 <div className="text-center py-6">
-                  <Ticket className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <Ticket className="w-12 h-12 text-orange-400 mx-auto mb-3" />
                   <p className="text-gray-600">No tickets selected</p>
                   <p className="text-sm text-gray-500 mt-2">Select tickets to continue</p>
                 </div>
               )}
               
-              <div className="mt-6 border-t border-gray-200 pt-4">
+              <div className="mt-6 border-t border-orange-200 pt-4">
                 <div className="flex items-start">
-                  <Info className="h-5 w-5 text-gray-400 mr-2 mt-0.5" />
+                  <Info className="h-5 w-5 text-orange-400 mr-2 mt-0.5" />
                   <p className="text-xs text-gray-500">
-                    All sales are final. Please review your order before completing your purchase.
+                    {orderSummary.total > 0 
+                      ? "All purchases are final. Please review your order details before completing your purchase."
+                      : "Tickets are free but registration is required. Please review your information before completing your booking."}
                   </p>
                 </div>
               </div>
