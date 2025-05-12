@@ -82,71 +82,64 @@ const EventDetailPage = ({ user, onLogout }) => {
     return 0;
   };
 
-  useEffect(() => {
-    const fetchEventDetails = async () => {
-      setLoading(true);
-      try {
-        // Check if we have a valid eventId
-        if (!eventId) {
-          setError('Invalid event ID. Please check the URL and try again.');
-          setLoading(false);
-          return;
-        }
-        
-        // Fetch event details from API
-        const response = await eventService.getEvent(eventId);
-        const eventData = response.data;
-        console.log(eventData)
-        setEvent(eventData);
-        setUserResponse(eventData.userResponse);
-        setOrganizer(eventData.createdBy);
-        console.log("this",users)
-        // Check if user is host or creator
-       // Inside fetchEventDetails function
-const isCreators = eventData.createdBy
-console.log("hello",eventData.createdBy._id)
-let isCreator = null
-// console.log(user?._id)
-if(eventData.createdBy._id===users?.id) 
- isCreator = users?.id
-const isEventHost = eventData.attendees && eventData.attendees.some(
-  a => a.users === users?.id && (a.role === 'host' || a.role === 'organizer')
-);
-setIsHost(isCreator || isEventHost);
-        // Fetch ticket types if available
-        try {
-          setTicketsLoading(true);
-          const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
-          setTicketTypes(ticketsResponse.data || []);
-          setTicketsLoading(false);
-        } catch (ticketError) {
-          console.error('Error fetching ticket types:', ticketError);
-          setTicketsLoading(false);
-        }
-
-        // Check if the event has a custom form
-        try {
-          setFormLoading(true);
-          const formResponse = await customEventService.getCustomForm(eventId);
-          setHasForm(!!formResponse);
-          setFormLoading(false);
-        } catch (formError) {
-          console.log('No custom form found for this event');
-          setHasForm(false);
-          setFormLoading(false);
-        }
-        
+useEffect(() => {
+  const fetchEventDetails = async () => {
+    setLoading(true);
+    try {
+      // Check if we have a valid eventId
+      if (!eventId) {
+        setError('Invalid event ID. Please check the URL and try again.');
         setLoading(false);
-      } catch (err) {
-        console.error('Error fetching event details:', err);
-        setError('Failed to load event details. Please try again later.');
-        setLoading(false);
+        return;
       }
-    };
-    
-    fetchEventDetails();
-  }, [eventId, user?.id]);
+      
+      // Fetch event details from API
+      const response = await eventService.getEvent(eventId);
+      const eventData = response.data;
+      setEvent(eventData);
+      setUserResponse(eventData.userResponse);
+      setOrganizer(eventData.createdBy);
 
+      // Check if user is host or creator
+      const isCreator = eventData.createdBy?._id === user?.id;
+      const isEventHost = eventData.attendees?.some(
+        attendee => attendee.user === user?.id && ['host', 'organizer'].includes(attendee.role)
+      );
+      setIsHost(isCreator || isEventHost);
+
+      // Fetch ticket types if available
+      try {
+        setTicketsLoading(true);
+        const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
+        setTicketTypes(ticketsResponse.data || []);
+      } catch (ticketError) {
+        console.error('Error fetching ticket types:', ticketError);
+      } finally {
+        setTicketsLoading(false);
+      }
+
+      // Check if the event has a custom form
+      try {
+        setFormLoading(true);
+        const formResponse = await customEventService.getCustomForm(eventId);
+        setHasForm(!!formResponse);
+      } catch (formError) {
+        console.log('No custom form found for this event');
+        setHasForm(false);
+      } finally {
+        setFormLoading(false);
+      }
+      
+    } catch (err) {
+      console.error('Error fetching event details:', err);
+      setError(err.message || 'Failed to load event details. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  fetchEventDetails();
+}, [eventId, user?.id]);  // Make sure to use the same variable name as in your component props
   const handleResponseClick = async (status) => {
     try {
       // Check if we have a valid eventId
