@@ -30,7 +30,7 @@ import AchievementCreationPage from './components/portfolio/AchievementCreation'
 import StreakCreationPage from './components/portfolio/StreakCreation';
 import PostsFetcher from './pages/PostFetcher';
 import LinkCall from './pages/LinkCall';
-
+import LandingPage from './pages/LandingPage';
 // Event Management Pages
 import EventListingPage from './pages/EventsListingPage';
 import EventDetailPage from './pages/EventDetailPage';
@@ -50,6 +50,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import CustomFormCreatorPage from './pages/CustomFormCreatorPage';
 import CustomFormSubmissionPage from './pages/CustomFormSubmissionPage';
 import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
+import Landing
 const WithAuth = ({ children }) => {
   const { user, logout } = useAuth();
   return children(user, logout);
@@ -61,6 +62,7 @@ const App = () => {
           <ToastProvider>
         <Routes>
           {/* Auth Routes */}
+            <Route path="/landingpage" element={<LandingPage />} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/signup" element={<AuthPage type="signup" />} />
           <Route path="/phone-login" element={<AuthPage type="phone-login" />} />
