@@ -93,10 +93,7 @@ const PrivacyPolicy = () => {
             <p className="text-gray-700 mb-1"><span className="font-semibold">Email:</span> official@meetkats.com</p>
             <p className="text-gray-700"><span className="font-semibold">Address:</span> 237/3C ROOMA KANPUR</p>
           </section>
-          
-          <section className="mt-8 pt-6 border-t border-orange-200">
-            <a href="#" className="text-orange-600 font-semibold hover:text-orange-800 transition-colors">Terms of Service</a>
-          </section>
+   
         </div>
         
         {/* Footer */}
