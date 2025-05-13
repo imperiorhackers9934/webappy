@@ -491,7 +491,7 @@ const LandingPage = () => {
           <div className="bg-green-100 p-6 rounded-lg mb-8">
             <h3 className="font-medium text-lg mb-4">Contact us:</h3>
             <p className="mb-2">Email: official@meetkats.com</p>
-            <p className="mb-2">Phone: 555-567-8901</p>
+            <p className="mb-2">Phone: +919532448802</p>
             <p>Address: 237/3C ROOMA <br/> KANPUR UTTARPARDESH 208001</p>
           </div>
           
