@@ -279,15 +279,22 @@ useEffect(() => {
           <>
             {/* Event Header/Hero */}
             <div className="relative bg-orange-900 h-80">
-              {event.coverImage?.url ? (
-                <img 
-                  src={event.coverImage.url} 
-                  alt={event.name}
-                  className="w-full h-full object-cover opacity-60"
-                />
-              ) : (
-                <div className="bg-gradient-to-r from-orange-600 to-orange-900 w-full h-full"></div>
-              )}
+            {event.coverImage?.url ? (
+  <img 
+    src={event.coverImage.url} 
+    alt={event.name}
+    className="w-full h-full object-cover opacity-60"
+    onError={(e) => {
+      console.log("Image failed to load:", e);
+      e.target.onerror = null;
+      e.target.src = ""; // Clear the source
+      e.target.style.display = "none"; // Hide the image
+      e.target.parentElement.classList.add("bg-gradient-to-r", "from-orange-600", "to-orange-900");
+    }}
+  />
+) : (
+  <div className="bg-gradient-to-r from-orange-600 to-orange-900 w-full h-full"></div>
+)}
               
               <div className="absolute inset-0 bg-black bg-opacity-30"></div>
               
