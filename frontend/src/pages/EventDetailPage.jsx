@@ -854,13 +854,13 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Users, 
-  Tag, 
-  Share2, 
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Tag,
+  Share2,
   MessageSquare,
   ChevronDown,
   ChevronUp,
@@ -874,10 +874,7 @@ import {
   MapPinned,
   ChevronRight,
   Check,
-  X,
-  BookOpen,
-  FileText,
-  Edit
+  X
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import Sidebar from '../components/common/Navbar';
@@ -887,12 +884,12 @@ import { useAuth } from '../context/AuthContext';
 const ImageWithFallback = ({ src, alt, className }) => {
   const [hasError, setHasError] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  
+
   return (
     <div className={`bg-gray-200 ${className}`}>
       {!hasError && src && (
-        <img 
-          src={src} 
+        <img
+          src={src}
           alt={alt}
           className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           onError={() => {
@@ -921,12 +918,12 @@ const EventDetailPage = ({ user, onLogout }) => {
   const [isHost, setIsHost] = useState(false);
   const [hasForm, setHasForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
-  const users = useAuth();
+  const { user: authUser } = useAuth();
 
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return "Date TBA";
-    
+
     try {
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
       return new Date(dateString).toLocaleDateString('en-US', options);
@@ -935,11 +932,11 @@ const EventDetailPage = ({ user, onLogout }) => {
       return "Invalid date";
     }
   };
-  
+
   // Format time for display
   const formatTime = (dateString) => {
     if (!dateString) return "Time TBA";
-    
+
     try {
       const options = { hour: '2-digit', minute: '2-digit' };
       return new Date(dateString).toLocaleTimeString('en-US', options);
@@ -952,17 +949,17 @@ const EventDetailPage = ({ user, onLogout }) => {
   // Safely get the attendee count
   const getAttendeeCount = (attendeeCounts, type) => {
     if (!attendeeCounts) return 0;
-    
+
     const count = attendeeCounts[type];
-    
+
     if (typeof count === 'number') {
       return count;
     }
-    
+
     if (count && typeof count === 'object' && count.count !== undefined) {
       return count.count;
     }
-    
+
     return 0;
   };
 
@@ -976,12 +973,17 @@ const EventDetailPage = ({ user, onLogout }) => {
           setLoading(false);
           return;
         }
-        
+
         // Fetch event details from API
         const response = await eventService.getEvent(eventId);
         const eventData = response.data;
         setEvent(eventData);
         setUserResponse(eventData.userResponse);
+
+        // Check if current user is the host
+        if (authUser && eventData.createdBy && authUser.id === eventData.createdBy.id) {
+          setIsHost(true);
+        }
 
         // Fetch ticket types if available
         try {
@@ -1017,15 +1019,15 @@ const EventDetailPage = ({ user, onLogout }) => {
         setLoading(false);
       }
     };
-    
+
     fetchEventDetails();
-  }, [eventId]);
+  }, [eventId, authUser]);
 
   const handleResponseClick = async (status) => {
     try {
       // Call API to update response
       await eventService.respondToEvent(eventId, status);
-      
+
       // Update local state
       setUserResponse(status);
       
@@ -1037,7 +1039,7 @@ const EventDetailPage = ({ user, onLogout }) => {
       alert('Failed to update your response. Please try again later.');
     }
   };
-  
+
   const handleAddToCalendar = async () => {
     try {
       // Check if we have a valid eventId
@@ -1046,7 +1048,7 @@ const EventDetailPage = ({ user, onLogout }) => {
         alert('Cannot add this event to calendar. Invalid event ID.');
         return;
       }
-      
+
       const response = await eventService.addToCalendar(eventId);
       
       // Show success message
@@ -1056,7 +1058,7 @@ const EventDetailPage = ({ user, onLogout }) => {
       alert('Failed to add event to calendar. Please try again later.');
     }
   };
-  
+
   // Handle form navigation based on user role
   const handleFormNavigation = () => {
     if (isHost) {
@@ -1078,7 +1080,7 @@ const EventDetailPage = ({ user, onLogout }) => {
       <div className="z-20 relative">
         <Sidebar user={user} onLogout={onLogout} />
       </div>
-    
+
       {/* Main content */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
@@ -1367,17 +1369,6 @@ const EventDetailPage = ({ user, onLogout }) => {
                     rows={3}
                   ></textarea>
                   <div className="mt-2 flex justify-end">
-                    <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                      Post Comment
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-6">
-                <p className="text-gray-500 text-center italic">No comments yet. Be the first to start the discussion!</p>
-              </div>
-            </div>2 flex justify-end">
                     <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
                       Post Comment
                     </button>
