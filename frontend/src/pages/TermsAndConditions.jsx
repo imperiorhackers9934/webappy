@@ -10,7 +10,7 @@ const TermsAndConditions = () => {
       </div>
 
       <p className="mb-4">
-        Welcome to MeetKats! These Terms and Conditions govern your use of MeetKats, a mobile application operated by us. By downloading or using our app, you agree to these terms.
+        Welcome to MeetKats! These Terms and Conditions govern your use of MEETKATS CREATIONS PRIVATE LIMITED, a mobile and web application operated by us. By downloading or using our app, you agree to these terms.
       </p>
 
       <h2 className="text-xl font-semibold text-orange-600 mt-6 mb-2">Terms of Use</h2>
