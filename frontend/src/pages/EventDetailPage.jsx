@@ -861,6 +861,10 @@ import {
   Users, 
   Tag, 
   Share2, 
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  CalendarPlus,
   Ticket,
   Heart,
   Award,
@@ -868,7 +872,12 @@ import {
   User,
   DollarSign,
   MapPinned,
-  ChevronRight
+  ChevronRight,
+  Check,
+  X,
+  BookOpen,
+  FileText,
+  Edit
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import Sidebar from '../components/common/Navbar';
@@ -906,6 +915,12 @@ const EventDetailPage = ({ user, onLogout }) => {
   const [userResponse, setUserResponse] = useState(null);
   const [ticketTypes, setTicketTypes] = useState([]);
   const [attendees, setAttendees] = useState([]);
+  const [showAllDescription, setShowAllDescription] = useState(false);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [organizer, setOrganizer] = useState(null);
+  const [isHost, setIsHost] = useState(false);
+  const [hasForm, setHasForm] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   const users = useAuth();
 
   // Format date for display
@@ -983,6 +998,17 @@ const EventDetailPage = ({ user, onLogout }) => {
         } catch (attendeesError) {
           console.error('Error fetching attendees:', attendeesError);
         }
+
+        // Check if event has custom form
+        try {
+          const formResponse = await eventService.getCustomForm(eventId);
+          setHasForm(!!formResponse);
+        } catch (formError) {
+          console.log('No custom form found for this event');
+          setHasForm(false);
+        } finally {
+          setFormLoading(false);
+        }
         
       } catch (err) {
         console.error('Error fetching event details:', err);
@@ -1012,12 +1038,39 @@ const EventDetailPage = ({ user, onLogout }) => {
     }
   };
   
+  const handleAddToCalendar = async () => {
+    try {
+      // Check if we have a valid eventId
+      if (!eventId) {
+        console.error('Cannot add to calendar: Invalid event ID');
+        alert('Cannot add this event to calendar. Invalid event ID.');
+        return;
+      }
+      
+      const response = await eventService.addToCalendar(eventId);
+      
+      // Show success message
+      alert('Event added to your calendar');
+    } catch (error) {
+      console.error('Failed to add to calendar:', error);
+      alert('Failed to add event to calendar. Please try again later.');
+    }
+  };
+  
+  // Handle form navigation based on user role
+  const handleFormNavigation = () => {
+    if (isHost) {
+      // If user is host/organizer, navigate to form edit/create page
+      navigate(`/events/${eventId}/form/edit`);
+    } else {
+      // If user is attendee, navigate to form submission page
+      navigate(`/events/${eventId}/form`);
+    }
+  };
+
   const handleBuyTickets = () => {
     navigate(`/tickets/book/${eventId}`);
   };
-
-  // Get going count safely
-  const goingCount = event ? getAttendeeCount(event.attendeeCounts, 'going') : 0;
 
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -1093,7 +1146,47 @@ const EventDetailPage = ({ user, onLogout }) => {
                 <div className="md:w-2/3 p-6">
                   <h1 className="text-2xl font-bold text-gray-900 mb-2">{event.name}</h1>
                   
-                  <p className="text-gray-700 mb-4 whitespace-pre-line">{event.description}</p>
+                  <div className={`text-gray-700 mb-4 ${showAllDescription ? '' : 'line-clamp-3'}`}>
+                    {event.description}
+                  </div>
+                  
+                  {/* Form Registration Section */}
+                  {hasForm && (
+                    <div className="mt-4 bg-orange-50 p-4 rounded-lg border border-orange-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-semibold text-gray-900">Registration Required</h3>
+                        <button 
+                          onClick={handleFormNavigation}
+                          className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded text-sm transition"
+                        >
+                          {isHost ? 'Manage Form' : 'Register Now'}
+                        </button>
+                      </div>
+                      
+                      <p className="text-sm text-gray-700">
+                        {isHost 
+                          ? 'This event has a custom registration form. You can manage submissions and modify the form.'
+                          : 'This event requires additional registration information.'}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {event.description && event.description.length > 150 && (
+                    <button 
+                      onClick={() => setShowAllDescription(!showAllDescription)}
+                      className="mb-4 text-orange-600 font-medium flex items-center"
+                    >
+                      {showAllDescription ? (
+                        <>
+                          Show Less <ChevronUp className="ml-1 h-4 w-4" />
+                        </>
+                      ) : (
+                        <>
+                          Read More <ChevronDown className="ml-1 h-4 w-4" />
+                        </>
+                      )}
+                    </button>
+                  )}
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                     {/* Venue section */}
@@ -1199,23 +1292,50 @@ const EventDetailPage = ({ user, onLogout }) => {
                       <span>Book tickets</span>
                     </button>
                     
-                    <button 
-                      onClick={() => handleResponseClick('going')}
-                      className={`flex items-center space-x-2 py-2 px-4 rounded-lg border transition ${
-                        userResponse === 'going' 
-                          ? 'bg-green-100 border-green-600 text-green-700' 
-                          : 'bg-white hover:bg-gray-100 border-gray-300 text-gray-700'
-                      }`}
-                    >
-                      <Users size={18} />
-                      <span>{userResponse === 'going' ? 'Going' : 'Attend'}</span>
-                    </button>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleResponseClick('going')}
+                        className={`flex items-center space-x-1 py-2 px-3 rounded-lg border transition ${
+                          userResponse === 'going' 
+                            ? 'bg-green-100 border-green-600 text-green-700' 
+                            : 'bg-white hover:bg-gray-100 border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <Check size={16} className={userResponse === 'going' ? 'text-green-600' : 'text-gray-500'} />
+                        <span>Going</span>
+                      </button>
+                      
+                      <button 
+                        onClick={() => handleResponseClick('maybe')}
+                        className={`flex items-center space-x-1 py-2 px-3 rounded-lg border transition ${
+                          userResponse === 'maybe' 
+                            ? 'bg-orange-100 border-orange-600 text-orange-700' 
+                            : 'bg-white hover:bg-gray-100 border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <Calendar size={16} className={userResponse === 'maybe' ? 'text-orange-600' : 'text-gray-500'} />
+                        <span>Maybe</span>
+                      </button>
+                      
+                      <button 
+                        onClick={() => handleResponseClick('declined')}
+                        className={`flex items-center space-x-1 py-2 px-3 rounded-lg border transition ${
+                          userResponse === 'declined' 
+                            ? 'bg-red-100 border-red-600 text-red-700' 
+                            : 'bg-white hover:bg-gray-100 border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <X size={16} className={userResponse === 'declined' ? 'text-red-600' : 'text-gray-500'} />
+                        <span>Can't Go</span>
+                      </button>
+                    </div>
                     
                     <button 
+                      onClick={handleAddToCalendar}
                       className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg flex items-center space-x-2 transition"
                     >
-                      <Heart size={18} />
-                      <span>Interested</span>
+                      <CalendarPlus size={18} />
+                      <span>Add to Calendar</span>
                     </button>
                   </div>
                 </div>
@@ -1227,6 +1347,46 @@ const EventDetailPage = ({ user, onLogout }) => {
               <h2 className="text-xl font-bold text-gray-900 mb-4">About the Event</h2>
               <div className="text-gray-700 whitespace-pre-line">
                 {event.description}
+              </div>
+            </div>
+            
+            {/* Comments/Discussion Section */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Discussion</h2>
+              
+              <div className="flex items-start space-x-3 mb-6">
+                <div className="w-10 h-10 rounded-full bg-orange-200 flex items-center justify-center">
+                  <span className="text-orange-600 font-semibold">
+                    {user?.firstName?.charAt(0) || 'U'}
+                  </span>
+                </div>
+                <div className="flex-grow">
+                  <textarea 
+                    className="w-full border border-orange-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Ask a question or leave a comment..." 
+                    rows={3}
+                  ></textarea>
+                  <div className="mt-2 flex justify-end">
+                    <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                      Post Comment
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <p className="text-gray-500 text-center italic">No comments yet. Be the first to start the discussion!</p>
+              </div>
+            </div>2 flex justify-end">
+                    <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                      Post Comment
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <p className="text-gray-500 text-center italic">No comments yet. Be the first to start the discussion!</p>
               </div>
             </div>
             
