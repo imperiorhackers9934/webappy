@@ -278,7 +278,6 @@ useEffect(() => {
           </div>
         ) : (
           <>
-// Updated Hero Section with Image Size Considerations
 <div className="relative bg-gradient-to-r from-orange-600 to-orange-900 h-80">
   {event.coverImage?.url && (
     <ImageWithFallback 
