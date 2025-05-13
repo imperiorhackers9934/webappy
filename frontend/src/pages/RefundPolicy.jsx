@@ -28,7 +28,7 @@ const Refundpolicy = () => {
         <li>If you cancel your ticket a week before the event, you will receive 90% of the total purchase amount as refund. 10% service charges.</li>
         <li>If a bulk booking is made, one cancelled ticket will lead to the cancellation of the entire order.</li>
         <li>To request a refund, write an email to <strong>official@meetkats.com</strong> with your account ID, purchase receipt, and a brief explanation of the issue.</li>
-        <li>Approved refunds will be processed within 7–10 business days to the original method of payment.</li>
+        <li>Approved refunds will be processed and credited within 7–10 business days to the original method of payment.</li>
         <li>We reserve the right to update this refund policy at any time.</li>
       </ul>
 
