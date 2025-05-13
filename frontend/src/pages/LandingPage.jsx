@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 import blueBoy from "../assets/blue-boy.png";
 import greenBoy from "../assets/green-boy.png";
@@ -23,8 +23,30 @@ import step4Icon from "../assets/image.png";
 import testimonialProfile1 from "../assets/image.png";
 import testimonialProfile2 from "../assets/image.png";
 import testimonialProfile3 from "../assets/image.png";
+import { useNavigate } from "react-router-dom";
 
 const LandingPage = () => {
+  const navigate = useNavigate();
+  
+  // Refs for section scrolling
+  const featuresRef = useRef(null);
+  const whyMeetkatsRef = useRef(null);
+  const howItWorksRef = useRef(null);
+  const eventsRef = useRef(null);
+  const contactRef = useRef(null);
+
+  // Handle continue to website button click
+  const handleContinueClick = () => {
+    navigate("/login");
+  };
+
+  // Handle scroll to section
+  const scrollToSection = (ref) => {
+    if (ref && ref.current) {
+      ref.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   const offers = [
     {
       title: "Micro Networking",
@@ -174,25 +196,25 @@ const LandingPage = () => {
           Meetkats
         </div>
         <div className="hidden md:flex gap-6 items-center text-sm">
-          <a href="#" className="hover:underline">
+          <a href="#" onClick={(e) => {e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' })}} className="hover:underline">
             Home
           </a>
-          <a href="#" className="hover:underline">
+          <a href="#" onClick={(e) => {e.preventDefault(); scrollToSection(featuresRef)}} className="hover:underline">
             Features
           </a>
-          <a href="#" className="hover:underline">
+          <a href="#" onClick={(e) => {e.preventDefault(); scrollToSection(whyMeetkatsRef)}} className="hover:underline">
             Why MeetKats
           </a>
-          <a href="#" className="hover:underline">
+          {/* <a href="#" onClick={(e) => {e.preventDefault(); scrollToSection(eventsRef)}} className="hover:underline">
             Events
-          </a>
-          <a href="#" className="hover:underline">
+          </a> */}
+          <a href="#" onClick={(e) => {e.preventDefault(); scrollToSection(contactRef)}} className="hover:underline">
             Contact
           </a>
-          <a href="#" className="hover:underline">
+          <a href="/login" className="hover:underline">
             Sign In
           </a>
-          <button className="bg-pink-500 text-white px-4 py-2 rounded-md text-sm">
+          <button className="bg-pink-500 text-white px-4 py-2 rounded-md text-sm" onClick={handleContinueClick}>
             Join the wanted
           </button>
         </div>
@@ -208,19 +230,16 @@ const LandingPage = () => {
             Micro-networking for meaningful career growth — from classrooms to conferences.
           </p>
           <div className="space-y-4">
-            <button className="w-full md:w-[500px] bg-[#4285F4] text-white px-6 py-3 rounded-lg font-medium">
-              Continue with Google
-            </button>
-            <button className="w-full md:w-[500px] bg-black text-white px-6 py-3 rounded-lg font-medium">
-              Continue with Apple
-            </button>
-            <button className="w-full md:w-[500px] bg-white border px-6 py-3 rounded-lg font-medium">
-              Sign in with email
+            <button 
+              className="w-full md:w-[500px] bg-[#4285F4] text-white px-6 py-3 rounded-lg font-medium"
+              onClick={handleContinueClick}
+            >
+              Continue to Website
             </button>
           </div>
           <p className="text-sm text-gray-600">
             Are you a Newbie?{' '}
-            <a href="#" className="text-green-600 font-semibold underline">
+            <a href="#" onClick={handleContinueClick} className="text-green-600 font-semibold underline">
               Join MeetKats - IT'S FREE
             </a>
           </p>
@@ -287,7 +306,7 @@ const LandingPage = () => {
       </section>
 
       {/* LinkedIn vs MeetKats Comparison */}
-      <section className="w-full bg-green-50 py-16 px-6 md:px-20">
+      <section ref={whyMeetkatsRef} className="w-full bg-green-50 py-16 px-6 md:px-20">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
           LinkedIn vs MeetKats
         </h2>
@@ -321,7 +340,7 @@ const LandingPage = () => {
       </section>
 
       {/* How it Works */}
-      <section className="w-full bg-white py-16 px-6 md:px-20">
+      <section ref={howItWorksRef} className="w-full bg-white py-16 px-6 md:px-20">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
           How it Works
         </h2>
@@ -361,7 +380,7 @@ const LandingPage = () => {
       </section>
 
       {/* What We Offer */}
-      <section className="w-full bg-white py-16 px-6 md:px-20">
+      <section ref={featuresRef} className="w-full bg-white py-16 px-6 md:px-20">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
           What MeetKats Can Offer
         </h2>
@@ -379,18 +398,21 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Statistics and CTA */}
-      <section className="w-full bg-rose-50 py-16 px-6 md:px-20 text-center">
+      {/* Events and Statistics */}
+      {/* <section ref={eventsRef} className="w-full bg-rose-50 py-16 px-6 md:px-20 text-center">
         <h2 className="text-2xl md:text-3xl font-bold mb-8">
           More than 10,000 students across 200 colleges choose MeetKats!
         </h2>
-        <button className="bg-green-100 text-gray-800 font-medium px-8 py-3 rounded-full text-lg shadow-sm hover:shadow-md transition-all">
+        <button 
+          className="bg-green-100 text-gray-800 font-medium px-8 py-3 rounded-full text-lg shadow-sm hover:shadow-md transition-all"
+          onClick={handleContinueClick}
+        >
           Get Started Now
         </button>
-      </section>
+      </section> */}
 
-      {/* Testimonials */}
-      <section className="w-full bg-rose-50 py-16 px-6 md:px-20">
+     
+      {/* <section className="w-full bg-rose-50 py-16 px-6 md:px-20">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-2">
           Few Words About Our <span className="relative">Platform <span className="absolute -right-8 -top-1 text-green-500">✓</span></span>
         </h2>
@@ -421,7 +443,7 @@ const LandingPage = () => {
           <span className="w-8 h-1 bg-gray-300 rounded-full"></span>
           <span className="w-8 h-1 bg-red-500 rounded-full"></span>
         </div>
-      </section>
+      {/* </section> */} 
 
       {/* FAQ Section */}
       <section className="w-full bg-white py-16 px-6 md:px-20">
@@ -452,7 +474,7 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="w-full bg-green-50 py-12 px-6 md:px-20">
+      <footer ref={contactRef} className="w-full bg-green-50 py-12 px-6 md:px-20">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-center gap-4 mb-8">
             <a href="#" className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
@@ -470,7 +492,7 @@ const LandingPage = () => {
             <h3 className="font-medium text-lg mb-4">Contact us:</h3>
             <p className="mb-2">Email: official@meetkats.com</p>
             <p className="mb-2">Phone: 555-567-8901</p>
-            <p>Address: 1234 Main St<br/>Baker City, Xyz State 12345</p>
+            <p>Address: 237/3C ROOMA <br/> KANPUR UTTARPARDESH 208001</p>
           </div>
           
           <div className="border-t pt-6 text-center text-sm text-gray-600">
