@@ -23,6 +23,7 @@ import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
 import customEventService from '../services/customeventService';
 import Sidebar from '../components/common/Navbar'; // Import the Sidebar component
+import ImageWithFallback from "../components/common/ImageWithFallback"
 import { useAuth } from '../context/AuthContext';
 const EventDetailPage = ({ user, onLogout }) => {
   const { eventId } = useParams();
