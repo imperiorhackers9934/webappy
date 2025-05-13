@@ -277,10 +277,6 @@ useEffect(() => {
           </div>
         ) : (
           <>
-            {/* Event Header/Hero */}
-           // Updated Image Handling Code for EventDetailPage.jsx
-
-// Replace the existing event header/hero section with this improved version
 <div className="relative bg-gradient-to-r from-orange-600 to-orange-900 h-80">
   {event.coverImage?.url && (
     <img 
