@@ -277,21 +277,20 @@ useEffect(() => {
           </div>
         ) : (
           <>
+// Updated Hero Section with Image Size Considerations
 <div className="relative bg-gradient-to-r from-orange-600 to-orange-900 h-80">
   {event.coverImage?.url && (
-    <img 
+    <ImageWithFallback 
       src={event.coverImage.url} 
       alt={event.name}
-      className="w-full h-full object-cover opacity-60"
-      onError={(e) => {
-        console.log("Image failed to load:", e.target.src);
-        e.target.onerror = null; // Prevent infinite loop
-        e.target.style.display = "none"; // Hide the broken image
-      }}
+      className="w-full h-full absolute inset-0"
+      fallbackClass="w-full h-full bg-gradient-to-r from-orange-600 to-orange-900"
+      objectFit="cover" // Ensures the image covers the area without distortion
     />
   )}
   
-  <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+  {/* Overlay gradient to ensure text readability regardless of image */}
+  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-60"></div>
   
   <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
     <div className="max-w-5xl mx-auto">
