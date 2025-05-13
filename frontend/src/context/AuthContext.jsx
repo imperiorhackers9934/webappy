@@ -1,3 +1,4 @@
+// frontend/src/context/AuthContext.jsx - Updated
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
@@ -6,13 +7,15 @@ import api from '../services/api';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  // Initialize user state from localStorage immediately to prevent flicker
+  const initialUserData = localStorage.getItem('@user_data');
+  const [user, setUser] = useState(initialUserData ? JSON.parse(initialUserData) : null);
   const [token, setToken] = useState(localStorage.getItem('@auth_token'));
   const [loading, setLoading] = useState(true);
   const [isNewSignup, setIsNewSignup] = useState(false);
   const navigate = useNavigate();
 
-  // Load user info when token changes
+  // Load user info when token changes or on initial mount
   useEffect(() => {
     const loadUserInfo = async () => {
       if (token) {
@@ -27,7 +30,6 @@ export const AuthProvider = ({ children }) => {
               const parsedUserData = JSON.parse(userData);
               setUser(parsedUserData);
               console.log('User data loaded from localStorage:', parsedUserData);
-              setLoading(false);
             } catch (parseError) {
               console.error('Error parsing user data from localStorage:', parseError);
               await fetchUserDataFromToken();
@@ -181,91 +183,90 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-// Update the handleAuthCallback function in AuthContext.js
-
-const handleAuthCallback = async (searchParams) => {
-  console.log('Auth callback triggered', searchParams.toString());
-  
-  // Extract tokens from URL
-  const token = searchParams.get('token');
-  const refreshToken = searchParams.get('refreshToken');
-  const provider = searchParams.get('provider');
-  const isNewUser = searchParams.get('new') === 'true';
-  const error = searchParams.get('error');
-  
-  // Check for error
-  if (error) {
-    console.error('Auth error in callback params:', error);
-    throw new Error(error);
-  }
-  
-  console.log('Token from URL:', token ? 'Received' : 'None');
-  console.log('Provider:', provider);
-  console.log('Is new user:', isNewUser);
-  
-  if (!token) {
-    console.error('No token found in URL parameters');
-    throw new Error('No token found in URL parameters');
-  }
-  
-  try {
-    // Store tokens in localStorage
-    localStorage.setItem('@auth_token', token);
-    if (refreshToken) {
-      localStorage.setItem('@refresh_token', refreshToken);
+  const handleAuthCallback = async (searchParams) => {
+    console.log('Auth callback triggered', searchParams.toString());
+    
+    // Extract tokens from URL
+    const token = searchParams.get('token');
+    const refreshToken = searchParams.get('refreshToken');
+    const provider = searchParams.get('provider');
+    const isNewUser = searchParams.get('new') === 'true';
+    const error = searchParams.get('error');
+    
+    // Check for error
+    if (error) {
+      console.error('Auth error in callback params:', error);
+      throw new Error(error);
     }
     
-    // Update token state
-    setToken(token);
+    console.log('Token from URL:', token ? 'Received' : 'None');
+    console.log('Provider:', provider);
+    console.log('Is new user:', isNewUser);
     
-    // Set the auth header for subsequent requests
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    
-    // Extract user info from token
-    const payload = authService.parseJwt(token);
-    console.log('User info from token:', payload);
-    
-    if (payload && payload.id) {
-      // Create a basic user object from the token
-      const basicUserData = {
-        id: payload.id,
-        email: payload.email || '',
-        firstName: payload.firstName || payload.given_name || '',
-        lastName: payload.lastName || payload.family_name || '',
-        role: payload.role || 'user',
-        provider: provider || null
-      };
-      
-      // Store user data
-      localStorage.setItem('@user_data', JSON.stringify(basicUserData));
-      setUser(basicUserData);
-      setIsNewSignup(isNewUser);
-      
-      // Determine redirect path based on whether it's a new user
-      const redirectPath = isNewUser ? '/profile-setup' : '/dashboard';
-      console.log(`Redirecting to: ${redirectPath}`);
-      
-      // Important: Force a slight delay to ensure state update before navigation
-      await new Promise(resolve => setTimeout(resolve, 100));
-      navigate(redirectPath);
-      
-      return { user: basicUserData, isNewUser };
-    } else {
-      console.warn('Could not extract user info from token, redirecting to login');
-      throw new Error('Invalid token payload');
+    if (!token) {
+      console.error('No token found in URL parameters');
+      throw new Error('No token found in URL parameters');
     }
-  } catch (error) {
-    console.error('Error in handleAuthCallback:', error);
-    // Clear any partial auth data
-    localStorage.removeItem('@auth_token');
-    localStorage.removeItem('@refresh_token');
-    localStorage.removeItem('@user_data');
-    setToken(null);
-    setUser(null);
     
-    throw error;
-  }
-};
+    try {
+      // Store tokens in localStorage
+      localStorage.setItem('@auth_token', token);
+      if (refreshToken) {
+        localStorage.setItem('@refresh_token', refreshToken);
+      }
+      
+      // Update token state
+      setToken(token);
+      
+      // Set the auth header for subsequent requests
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Extract user info from token
+      const payload = authService.parseJwt(token);
+      console.log('User info from token:', payload);
+      
+      if (payload && payload.id) {
+        // Create a basic user object from the token
+        const basicUserData = {
+          id: payload.id,
+          email: payload.email || '',
+          firstName: payload.firstName || payload.given_name || '',
+          lastName: payload.lastName || payload.family_name || '',
+          role: payload.role || 'user',
+          provider: provider || null
+        };
+        
+        // Store user data
+        localStorage.setItem('@user_data', JSON.stringify(basicUserData));
+        setUser(basicUserData);
+        setIsNewSignup(isNewUser);
+        
+        // Determine redirect path based on whether it's a new user
+        const redirectPath = isNewUser ? '/profile-setup' : '/dashboard';
+        console.log(`Redirecting to: ${redirectPath}`);
+        
+        // Important: Force a slight delay to ensure state update before navigation
+        await new Promise(resolve => setTimeout(resolve, 100));
+        navigate(redirectPath);
+        
+        return { user: basicUserData, isNewUser };
+      } else {
+        console.warn('Could not extract user info from token, redirecting to login');
+        throw new Error('Invalid token payload');
+      }
+    } catch (error) {
+      console.error('Error in handleAuthCallback:', error);
+      // Clear any partial auth data
+      localStorage.removeItem('@auth_token');
+      localStorage.removeItem('@refresh_token');
+      localStorage.removeItem('@user_data');
+      setToken(null);
+      setUser(null);
+      
+      throw error;
+    }
+  };
+  
   const sendPhoneVerification = async (phoneNumber) => {
     if (!user || !user.id) {
       throw new Error('User must be logged in to verify phone');
@@ -297,23 +298,23 @@ const handleAuthCallback = async (searchParams) => {
       throw error;
     }
   };
-// In AuthContext.js, update the socialLogin function
 
-const socialLogin = (provider) => {
-  // Create a redirect URL back to your application
-  const redirectUri = `${window.location.origin}/auth/callback`;
+  const socialLogin = (provider) => {
+    // Create a redirect URL back to your application
+    const redirectUri = `${window.location.origin}/auth/callback`;
+    
+    // Get the API base URL
+    const apiBaseUrl = 'https://new-backend-w86d.onrender.com';
+    
+    // Properly format the URL with query parameters - use proper encoding
+    const oauthUrl = `${apiBaseUrl}/auth/${provider}?redirectTo=${encodeURIComponent(redirectUri)}`;
+    
+    console.log(`Redirecting to OAuth provider: ${oauthUrl}`);
+    
+    // Redirect the user to the OAuth URL
+    window.location.href = oauthUrl;
+  };
   
-  // Get the API base URL
-  const apiBaseUrl =  'https://new-backend-w86d.onrender.com';
-  
-  // Properly format the URL with query parameters - use proper encoding
-  const oauthUrl = `${apiBaseUrl}/auth/${provider}?redirectTo=${encodeURIComponent(redirectUri)}`;
-  
-  console.log(`Redirecting to OAuth provider: ${oauthUrl}`);
-  
-  // Redirect the user to the OAuth URL
-  window.location.href = oauthUrl;
-};
   const value = {
     user,
     token,
