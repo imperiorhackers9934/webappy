@@ -278,61 +278,60 @@ useEffect(() => {
         ) : (
           <>
             {/* Event Header/Hero */}
-            <div className="relative bg-orange-900 h-80">
-            {event.coverImage?.url ? (
-  <img 
-    src={event.coverImage.url} 
-    alt={event.name}
-    className="w-full h-full object-cover opacity-60"
-    onError={(e) => {
-      console.log("Image failed to load:", e);
-      e.target.onerror = null;
-      e.target.src = ""; // Clear the source
-      e.target.style.display = "none"; // Hide the image
-      e.target.parentElement.classList.add("bg-gradient-to-r", "from-orange-600", "to-orange-900");
-    }}
-  />
-) : (
-  <div className="bg-gradient-to-r from-orange-600 to-orange-900 w-full h-full"></div>
-)}
-              
-              <div className="absolute inset-0 bg-black bg-opacity-30"></div>
-              
-              <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
-                <div className="max-w-5xl mx-auto">
-                  <div className="inline-block mb-4 bg-orange-600 px-3 py-1 rounded-full text-sm font-medium">
-                    {event.category}
-                  </div>
-                  <h1 className="text-3xl md:text-4xl font-bold mb-4">{event.name}</h1>
-                  
-                  <div className="flex flex-wrap gap-4 text-sm md:text-base">
-                    <div className="flex items-center">
-                      <Calendar className="w-5 h-5 mr-2" />
-                      <span>{formatDate(event.startDateTime)}</span>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Clock className="w-5 h-5 mr-2" />
-                      <span>{formatTime(event.startDateTime)} - {formatTime(event.endDateTime)}</span>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <MapPin className="w-5 h-5 mr-2" />
-                      <span>
-                        {event.virtual 
-                          ? "Virtual Event" 
-                          : `${event.location?.name || 'TBA'}${event.location?.city ? `, ${event.location.city}` : ''}`}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Users className="w-5 h-5 mr-2" />
-                      <span>{goingCount} attending</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+           // Updated Image Handling Code for EventDetailPage.jsx
+
+// Replace the existing event header/hero section with this improved version
+<div className="relative bg-gradient-to-r from-orange-600 to-orange-900 h-80">
+  {event.coverImage?.url && (
+    <img 
+      src={event.coverImage.url} 
+      alt={event.name}
+      className="w-full h-full object-cover opacity-60"
+      onError={(e) => {
+        console.log("Image failed to load:", e.target.src);
+        e.target.onerror = null; // Prevent infinite loop
+        e.target.style.display = "none"; // Hide the broken image
+      }}
+    />
+  )}
+  
+  <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+  
+  <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
+    <div className="max-w-5xl mx-auto">
+      <div className="inline-block mb-4 bg-orange-600 px-3 py-1 rounded-full text-sm font-medium">
+        {event.category}
+      </div>
+      <h1 className="text-3xl md:text-4xl font-bold mb-4">{event.name}</h1>
+      
+      <div className="flex flex-wrap gap-4 text-sm md:text-base">
+        <div className="flex items-center">
+          <Calendar className="w-5 h-5 mr-2" />
+          <span>{formatDate(event.startDateTime)}</span>
+        </div>
+        
+        <div className="flex items-center">
+          <Clock className="w-5 h-5 mr-2" />
+          <span>{formatTime(event.startDateTime)} - {formatTime(event.endDateTime)}</span>
+        </div>
+        
+        <div className="flex items-center">
+          <MapPin className="w-5 h-5 mr-2" />
+          <span>
+            {event.virtual 
+              ? "Virtual Event" 
+              : `${event.location?.name || 'TBA'}${event.location?.city ? `, ${event.location.city}` : ''}`}
+          </span>
+        </div>
+        
+        <div className="flex items-center">
+          <Users className="w-5 h-5 mr-2" />
+          <span>{goingCount} attending</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
             
             {/* Main Content */}
             <div className="max-w-5xl mx-auto px-4 py-8">
