@@ -51,7 +51,6 @@ import CustomFormCreatorPage from './pages/CustomFormCreatorPage';
 import CustomFormSubmissionPage from './pages/CustomFormSubmissionPage';
 import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
 import TermsAndConditions from './pages/TermsAndConditions';
-import TermsAndConditions from './pages/TermsAndConditions';
 import Refundpolicy from './pages/RefundPolicy';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
