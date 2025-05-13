@@ -474,7 +474,11 @@ const LandingPage = () => {
           </div>
           
           <div className="border-t pt-6 text-center text-sm text-gray-600">
-            <p>© 2023 Meetkats. All Rights Reserved.  <span className="mx-4">|</span>  <a href="#" className="underline">Privacy Policy</a></p>
+          <p>© 2025 Meetkats. All Rights Reserved.  <span className="mx-4">|</span>  <a href="/privacypolicy" className="underline">Privacy Policy</a>
+            <span className="mx-4">|</span> <a href="/termsandconditons" className="underline">Terms&Conditons</a>
+            <span className="mx-4">|</span> <a href="/refundpolicy" className="underline">Refund Policy </a>
+            
+            </p>
           </div>
         </div>
       </footer>
