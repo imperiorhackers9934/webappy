@@ -50,7 +50,9 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import CustomFormCreatorPage from './pages/CustomFormCreatorPage';
 import CustomFormSubmissionPage from './pages/CustomFormSubmissionPage';
 import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
-
+import TermsAndConditions from './pages/TermsAndConditions';
+import TermsAndConditions from './pages/TermsAndConditions';
+import Refundpolicy from './pages/RefundPolicy';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -87,6 +89,8 @@ const App = () => {
           <Route path="/phone-login" element={<AuthPage type="phone-login" />} />
           <Route path="/auth/callback" element={<AuthPage />} />
           <Route path="/privacypolicy" element={<PrivacyPolicy />} />
+          <Route path="/termsandconditons" element={<TermsAndConditions/>} />
+          <Route path="/refundpolicy" element={<Refundpolicy/>} />
           <Route path="/auth/linkedin-callback" element={<LinkCall />} />
           
           {/* Protected Routes - Require authentication */}
