@@ -100,16 +100,17 @@ const eventService = {
 
   // Get a specific event by ID
   getEvent: async (eventId) => {
-    try {
-      const response = await api.get(`/api/events/${eventId}`);
-      return {
-        data: normalizeData(response.data || response)
-      };
-    } catch (error) {
-      console.error(`Error fetching event ${eventId}:`, error);
-      throw error;
-    }
-  },
+  try {
+    console.log('Fetching event with ID:', eventId); // Add for debugging
+    const response = await api.get(`/api/events/${eventId}`);
+    return {
+      data: normalizeData(response.data || response)
+    };
+  } catch (error) {
+    console.error(`Error fetching event ${eventId}:`, error);
+    throw error;
+  }
+}
 
   // Create a new event
  // Update eventService.js to include customFields support
