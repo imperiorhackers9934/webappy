@@ -47,5 +47,5 @@ export const CURRENCY = {
  * @returns {JSX.Element} - Price with rupee symbol
  */
 export const RupeePrice = ({ price }) => {
-  return <span>{formatRupees(price)}</span>;
+  return <span>{formatRupees(price)}</span>
 };
