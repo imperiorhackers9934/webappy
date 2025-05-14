@@ -468,7 +468,20 @@ verifyTicketByCode: async (eventId, code) => {
       throw error;
     }
   },
-  
+  /**
+ * Check payment status
+ * @param {string} transactionId - Transaction ID
+ * @returns {Promise<Object>} - Payment status
+ */
+checkPaymentStatus: async (transactionId) => {
+  try {
+    const response = await api.get(`/api/payments/phonepe/status/${transactionId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error checking payment status for transaction ${transactionId}:`, error);
+    throw error;
+  }
+},
   /**
    * Add event to calendar (alternative implementation)
    * @param {string} eventId - Event ID
