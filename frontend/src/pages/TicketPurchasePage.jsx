@@ -67,7 +67,7 @@ const TicketBookingPage = () => {
   };
   
   // Format currency
-  const formatCurrency = (amount, currencyCode = 'USD') => {
+  const formatCurrency = (amount, currencyCode = 'INR') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currencyCode
