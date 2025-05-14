@@ -904,8 +904,12 @@ const ImageWithFallback = ({ src, alt, className }) => {
 };
 
 const EventDetailPage = ({ user, onLogout }) => {
+  // Get the eventId from URL parameters
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  
+  // State management
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -918,7 +922,6 @@ const EventDetailPage = ({ user, onLogout }) => {
   const [isHost, setIsHost] = useState(false);
   const [hasForm, setHasForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
-  const { user: authUser } = useAuth();
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -969,32 +972,48 @@ const EventDetailPage = ({ user, onLogout }) => {
       try {
         // Check if we have a valid eventId
         if (!eventId) {
+          console.error('Missing event ID in URL parameters');
           setError('Invalid event ID. Please check the URL and try again.');
           setLoading(false);
           return;
         }
+        
+        console.log('Fetching event with ID:', eventId);
 
         // Fetch event details from API
         const response = await eventService.getEvent(eventId);
         const eventData = response.data;
+        console.log('Event data received:', eventData);
+        
         setEvent(eventData);
         setUserResponse(eventData.userResponse);
-
+        
         // Check if current user is the host
-        if (authUser && eventData.createdBy && authUser.id === eventData.createdBy.id) {
-          setIsHost(true);
+        if (authUser && eventData.createdBy) {
+          const isCreator = eventData.createdBy._id === authUser.id || eventData.createdBy.id === authUser.id;
+          const isEventHost = eventData.attendees?.some(
+            attendee => (attendee.user === authUser.id || attendee.user?._id === authUser.id) && 
+            ['host', 'organizer'].includes(attendee.role)
+          );
+          setIsHost(isCreator || isEventHost);
+          setOrganizer(eventData.createdBy);
         }
 
         // Fetch ticket types if available
         try {
+          setTicketsLoading(true);
+          console.log('Fetching ticket types for event:', eventId);
           const ticketsResponse = await eventService.getEventTicketTypes(eventId);
           setTicketTypes(ticketsResponse.data || []);
         } catch (ticketError) {
           console.error('Error fetching ticket types:', ticketError);
+        } finally {
+          setTicketsLoading(false);
         }
 
         // Fetch attendees
         try {
+          console.log('Fetching attendees for event:', eventId);
           const attendeesResponse = await eventService.getEventAttendees(eventId);
           setAttendees(attendeesResponse.going || []);
         } catch (attendeesError) {
@@ -1003,6 +1022,8 @@ const EventDetailPage = ({ user, onLogout }) => {
 
         // Check if event has custom form
         try {
+          setFormLoading(true);
+          console.log('Checking for custom form for event:', eventId);
           const formResponse = await eventService.getCustomForm(eventId);
           setHasForm(!!formResponse);
         } catch (formError) {
@@ -1025,6 +1046,15 @@ const EventDetailPage = ({ user, onLogout }) => {
 
   const handleResponseClick = async (status) => {
     try {
+      // Check if we have a valid eventId
+      if (!eventId) {
+        console.error('Cannot respond: Invalid event ID');
+        alert('Cannot respond to this event. Invalid event ID.');
+        return;
+      }
+      
+      console.log(`Responding to event ${eventId} with status: ${status}`);
+      
       // Call API to update response
       await eventService.respondToEvent(eventId, status);
 
@@ -1049,6 +1079,7 @@ const EventDetailPage = ({ user, onLogout }) => {
         return;
       }
 
+      console.log('Adding event to calendar:', eventId);
       const response = await eventService.addToCalendar(eventId);
       
       // Show success message
