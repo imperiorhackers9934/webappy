@@ -1044,23 +1044,24 @@ const TicketBookingPage = () => {
                 </div>
               </div>
               
-              <div className="mt-6 space-y-2">
-                {[
-                  { label: "Privacy Policy", href: "/privacypolicy" },
-                  { label: "Refund Policy", href: "/refundpolicy" },
-                  { label: "Terms of Service", href: "/termsandconditions" },
-                ].map((item) => (
-                  
-                    key={item.label}
-                    href={item.href}
-                    className="block text-xs text-gray-600 hover:text-orange-500 underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </div>
+             <div className="mt-6 space-y-2">
+  {[
+    { label: "Privacy Policy", href: "/privacypolicy" },
+    { label: "Refund Policy", href: "/refundpolicy" },
+    { label: "Terms of Service", href: "/termsandconditions" },
+  ].map((item) => (
+    <a
+      key={item.label}
+      href={item.href}
+      className="block text-xs text-gray-600 hover:text-orange-500 underline"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {item.label}
+    </a>
+  ))}
+</div>
+
             </div>
           </div>
         </div>
