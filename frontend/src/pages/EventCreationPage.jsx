@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import Sidebar from '../components/common/Navbar';
-import CustomFieldsSection from '../components/events/CustomFieldsSection'; // Import the new component
+import CustomFieldsSection from '../components/common/CustomFieldsSection'; // Import the new component
 
 const EventCreationPage = ({ user, onLogout }) => {
   const navigate = useNavigate();
