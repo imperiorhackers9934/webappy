@@ -110,7 +110,7 @@ const eventService = {
     console.error(`Error fetching event ${eventId}:`, error);
     throw error;
   }
-}
+},
 
   // Create a new event
  // Update eventService.js to include customFields support
