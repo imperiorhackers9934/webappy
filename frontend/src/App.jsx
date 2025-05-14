@@ -345,7 +345,11 @@ const App = () => {
               <PaymentSuccessPage />
             </ProtectedRoute>
           } />
-          
+          <Route path="/payment-response" element={
+  <ProtectedRoute>
+    <PaymentResponsePage />
+  </ProtectedRoute>
+} />
           <Route path="/discover" element={
             <ProtectedRoute>
               <Discover/>
