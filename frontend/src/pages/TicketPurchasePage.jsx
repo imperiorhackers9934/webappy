@@ -18,13 +18,14 @@ import {
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
-import { toast } from 'react-toastify';
+import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
 
 const TicketBookingPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   
   // State variables
   const [event, setEvent] = useState(null);
@@ -80,8 +81,7 @@ const TicketBookingPage = () => {
       currency: currencyCode
     }).format(amount);
   };
-  
-  // Fetch event and ticket types
+// Fetch event and ticket types
   useEffect(() => {
     const fetchEventAndTickets = async () => {
       try {
@@ -162,7 +162,7 @@ const TicketBookingPage = () => {
       
       // Check if max tickets per order exceeded (usually 10)
       if (totalQuantity > 10 && increment > 0) {
-        toast.warn('Maximum 10 tickets per order');
+        toast.warning({ description: 'Maximum 10 tickets per order' });
         return prevSelected;
       }
       
@@ -238,7 +238,7 @@ const TicketBookingPage = () => {
   // Handle coupon code application
   const handleApplyCoupon = () => {
     if (!couponCode) {
-      toast.error('Please enter a coupon code');
+      toast.error({ description: 'Please enter a coupon code' });
       return;
     }
     
@@ -246,10 +246,9 @@ const TicketBookingPage = () => {
     // For now, let's simulate a successful coupon application
     setCouponApplied(true);
     setDiscount(10); // 10% discount
-    toast.success('Coupon applied successfully!');
+    toast.success({ description: 'Coupon applied successfully!' });
   };
-  
-  // Handle payment method selection
+// Handle payment method selection
   const handlePaymentMethodChange = (method) => {
     setPaymentMethod(method);
   };
@@ -262,7 +261,7 @@ const TicketBookingPage = () => {
     if (step === 1) {
       const orderSummary = calculateOrderSummary();
       if (orderSummary.ticketCount === 0) {
-        toast.error('Please select at least one ticket');
+        toast.error({ description: 'Please select at least one ticket' });
         return;
       }
       setStep(2);
@@ -270,14 +269,14 @@ const TicketBookingPage = () => {
     } else if (step === 2) {
       // Validate user info
       if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
-        toast.error('Please fill in all required fields');
+        toast.error({ description: 'Please fill in all required fields' });
         return;
       }
       
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(userInfo.email)) {
-        toast.error('Please enter a valid email address');
+        toast.error({ description: 'Please enter a valid email address' });
         return;
       }
       
@@ -297,7 +296,7 @@ const TicketBookingPage = () => {
       
       // Check if there are tickets to book
       if (orderSummary.ticketCount === 0) {
-        toast.error('Please select at least one ticket');
+        toast.error({ description: 'Please select at least one ticket' });
         setStep(1);
         setProcessingPayment(false);
         return;
