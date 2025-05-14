@@ -52,6 +52,7 @@ import CustomFormSubmissionPage from './pages/CustomFormSubmissionPage';
 import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
 import TermsAndConditions from './pages/TermsAndConditions';
 import Refundpolicy from './pages/RefundPolicy';
+import PaymentResponsePage from './pages/PaymentResponsePage';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, isLoading } = useAuth();
