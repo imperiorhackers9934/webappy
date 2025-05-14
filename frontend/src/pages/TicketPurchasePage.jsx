@@ -12,14 +12,19 @@ import {
   ChevronRight,
   User,
   Mail,
-  Phone
+  Phone,
+  CreditCard,
+  CheckCircle
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
+import { toast } from 'react-toastify';
+import { useAuth } from '../context/AuthContext';
 
 const TicketBookingPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   // State variables
   const [event, setEvent] = useState(null);
@@ -39,6 +44,8 @@ const TicketBookingPage = () => {
   const [couponApplied, setCouponApplied] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [bookingError, setBookingError] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('phonepe');
+  const [processingPayment, setProcessingPayment] = useState(false);
   
   // Format date for display
   const formatDate = (dateString) => {
@@ -97,7 +104,7 @@ const TicketBookingPage = () => {
         
         // Don't filter out paid tickets anymore - show all available tickets
         const availableTickets = (ticketsResponse.data || []).filter(ticket => 
-          (!ticket.available || ticket.available > 0)
+          (!ticket.available || ticket.available > 0) && ticket.isOnSale !== false
         );
         
         setTicketTypes(availableTickets);
@@ -108,6 +115,16 @@ const TicketBookingPage = () => {
           initialSelectedTickets[ticket._id || ticket.id] = 0;
         });
         setSelectedTickets(initialSelectedTickets);
+        
+        // Pre-fill user info if available
+        if (user) {
+          setUserInfo({
+            firstName: user.firstName || '',
+            lastName: user.lastName || '',
+            email: user.email || '',
+            phone: user.phone || ''
+          });
+        }
         
         setTicketsLoading(false);
         setLoading(false);
@@ -120,7 +137,7 @@ const TicketBookingPage = () => {
     };
     
     fetchEventAndTickets();
-  }, [eventId]);
+  }, [eventId, user]);
   
   // Handle ticket quantity changes
   const handleTicketQuantityChange = (ticketId, increment) => {
@@ -145,7 +162,7 @@ const TicketBookingPage = () => {
       
       // Check if max tickets per order exceeded (usually 10)
       if (totalQuantity > 10 && increment > 0) {
-        alert('Maximum 10 tickets per order');
+        toast.warn('Maximum 10 tickets per order');
         return prevSelected;
       }
       
@@ -160,7 +177,8 @@ const TicketBookingPage = () => {
       ticketCount: 0,
       items: [],
       fees: 0,
-      total: 0
+      total: 0,
+      currency: 'INR'
     };
     
     if (!ticketTypes || !ticketTypes.length) return summary;
@@ -175,22 +193,30 @@ const TicketBookingPage = () => {
           summary.subtotal += itemTotal;
           summary.ticketCount += quantity;
           
+          // Set the currency from the first ticket type that has one
+          if (ticketType.currency) {
+            summary.currency = ticketType.currency;
+          }
+          
           summary.items.push({
             id: ticketId,
             name: ticketType.name,
             price: itemPrice,
             quantity,
             total: itemTotal,
-            currency: ticketType.currency || 'USD'
+            currency: ticketType.currency || summary.currency
           });
         }
       }
     });
     
-    // For free tickets, we don't need fees
-    summary.fees = 0;
+    // Add platform fees (3% of subtotal or minimum 20)
+    if (summary.subtotal > 0) {
+      summary.fees = Math.max(summary.subtotal * 0.03, 20);
+      summary.fees = Math.round(summary.fees * 100) / 100; // Round to 2 decimal places
+    }
     
-    // Apply discount if coupon applied (not needed for free tickets but keeping code structure)
+    // Apply discount if coupon applied
     const discountAmount = couponApplied ? (summary.subtotal * (discount / 100)) : 0;
     
     // Calculate total
@@ -209,6 +235,25 @@ const TicketBookingPage = () => {
     }));
   };
   
+  // Handle coupon code application
+  const handleApplyCoupon = () => {
+    if (!couponCode) {
+      toast.error('Please enter a coupon code');
+      return;
+    }
+    
+    // Here you would normally call an API to validate the coupon
+    // For now, let's simulate a successful coupon application
+    setCouponApplied(true);
+    setDiscount(10); // 10% discount
+    toast.success('Coupon applied successfully!');
+  };
+  
+  // Handle payment method selection
+  const handlePaymentMethodChange = (method) => {
+    setPaymentMethod(method);
+  };
+  
   // Handle form submissions for each step
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
@@ -217,102 +262,122 @@ const TicketBookingPage = () => {
     if (step === 1) {
       const orderSummary = calculateOrderSummary();
       if (orderSummary.ticketCount === 0) {
-        alert('Please select at least one ticket');
+        toast.error('Please select at least one ticket');
         return;
       }
       setStep(2);
       window.scrollTo(0, 0);
     } else if (step === 2) {
+      // Validate user info
       if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
-        alert('Please fill in all required fields');
+        toast.error('Please fill in all required fields');
         return;
       }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(userInfo.email)) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
+      
       setStep(3);
       window.scrollTo(0, 0);
     }
   };
   
   // Handle completing the booking
- // Fixed handleCompleteBooking function - use this in your TicketBookingPage component
-const handleCompleteBooking = async (e) => {
-  e.preventDefault();
-  setBookingError(null);
-  
-  try {
-    const orderSummary = calculateOrderSummary();
+  const handleCompleteBooking = async (e) => {
+    e.preventDefault();
+    setBookingError(null);
+    setProcessingPayment(true);
     
-    // Check if there are tickets to book
-    if (orderSummary.ticketCount === 0) {
-      alert('Please select at least one ticket');
-      setStep(1);
-      return;
-    }
-    
-    // Calculate the total amount (for validation)
-    const totalAmount = orderSummary.total || 0;
-    
-    // Get user data if available
-    let userId = null;
     try {
-      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      userId = userData.id || null;
+      const orderSummary = calculateOrderSummary();
+      
+      // Check if there are tickets to book
+      if (orderSummary.ticketCount === 0) {
+        toast.error('Please select at least one ticket');
+        setStep(1);
+        setProcessingPayment(false);
+        return;
+      }
+      
+      // Calculate the total amount (for validation)
+      const totalAmount = orderSummary.total || 0;
+      
+      // Prepare booking data in the format expected by the API
+      const bookingData = {
+        // Use ticketSelections with ticketTypeId as expected by API
+        ticketSelections: Object.entries(selectedTickets)
+          .filter(([_, quantity]) => quantity > 0)
+          .map(([ticketId, quantity]) => ({
+            ticketTypeId: ticketId,
+            quantity: parseInt(quantity, 10)
+          })),
+        
+        // Include contactInformation as required by API
+        contactInformation: {
+          email: userInfo.email,
+          phone: userInfo.phone || ''
+        },
+        
+        // Add required fields for payment
+        paymentMethod: totalAmount > 0 ? paymentMethod : 'free',
+        currency: orderSummary.currency,
+        totalAmount: totalAmount,
+        
+        // For PhonePe, include return URL
+        returnUrl: window.location.origin + '/payment-response'
+      };
+      
+      console.log('Submitting booking:', bookingData);
+      
+      // Call API to book tickets
+      const response = await ticketService.bookEventTickets(eventId, bookingData);
+      console.log('Booking response:', response);
+      
+      // Handle different payment methods
+      if (totalAmount > 0 && paymentMethod === 'phonepe') {
+        // Check if we have a PhonePe redirect URL
+        if (response.payment && response.payment.redirectUrl) {
+          console.log('Redirecting to PhonePe payment:', response.payment.redirectUrl);
+          
+          // Store booking ID in localStorage for retrieval after payment
+          localStorage.setItem('pendingBookingId', response.id || response._id || (response.booking && response.booking.id));
+          
+          // Redirect to PhonePe
+          window.location.href = response.payment.redirectUrl;
+          return;
+        } else {
+          console.error('No redirect URL provided for PhonePe payment');
+          throw new Error('Payment initialization failed. Please try again.');
+        }
+      } else if (totalAmount === 0 || paymentMethod === 'free') {
+        // Free booking, no payment needed
+        console.log('Free booking completed');
+        
+        // Redirect to confirmation page
+        const bookingId = response.id || response._id || (response.booking && response.booking.id);
+        navigate(`/tickets/confirmation/${bookingId || 'success'}`);
+        return;
+      } else {
+        // Other payment methods would be handled here
+        throw new Error('Selected payment method is not yet implemented');
+      }
     } catch (err) {
-      console.log('No user data available in localStorage');
+      console.error('Error submitting booking:', err);
+      setBookingError(
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        err.message || 
+        'Failed to complete your booking. Please try again later.'
+      );
+      setProcessingPayment(false);
+      // Stay on the confirmation page to show the error
+      window.scrollTo(0, 0);
     }
-    
-    // Prepare booking data in the format expected by the API
-    const bookingData = {
-      // Key fix: Use ticketSelections with ticketTypeId as expected by API
-      ticketSelections: Object.entries(selectedTickets)
-        .filter(([_, quantity]) => quantity > 0)
-        .map(([ticketId, quantity]) => ({
-          ticketTypeId: ticketId,
-          quantity: parseInt(quantity, 10)
-        })),
-      
-      // CRITICAL FIX: The backend expects contactInformation, not customerInfo
-      contactInformation: {
-        email: userInfo.email,
-        phone: userInfo.phone || ''
-      },
-      
-      // Still include customerInfo for backward compatibility
-      customerInfo: userInfo,
-      
-      // Add required fields that the API validation expects
-      paymentMethod: totalAmount > 0 ? 'pending' : 'free',
-      totalAmount: totalAmount,
-      returnUrl: window.location.origin + '/payment-confirmation'
-    };
-    
-    // Add userId if available
-    if (userId) {
-      bookingData.userId = userId;
-    }
-    
-    console.log('Submitting booking:', bookingData);
-    
-    // Call API to book tickets
-    const response = await ticketService.bookEventTickets(eventId, bookingData);
-    console.log('Booking response:', response);
-    
-    // Get the booking ID from the response
-    const bookingId = response.id || response._id || (response.booking && response.booking.id);
-    
-    // Redirect to confirmation page
-    navigate(`/tickets/confirmation/${bookingId || 'success'}`);
-    
-  } catch (err) {
-    console.error('Error submitting booking:', err);
-    setBookingError(
-      err.response?.data?.error || 
-      err.response?.data?.message || 
-      err.message || 
-      'Failed to complete your booking. Please try again later.'
-    );
-    // Stay on the confirmation page to show the error
-  }
-};
+  };
   
   // Back button functionality
   const handleBack = () => {
@@ -416,7 +481,7 @@ const handleCompleteBooking = async (e) => {
             
             <div className={`flex items-center ${step >= 3 ? 'text-orange-600' : 'text-gray-500'}`}>
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-600'} mr-2`}>
-                <Ticket className="w-4 h-4" />
+                <CreditCard className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">Confirmation</span>
             </div>
@@ -455,6 +520,23 @@ const handleCompleteBooking = async (e) => {
               </div>
             </div>
             
+            {/* Display booking error if any */}
+            {bookingError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                <div className="flex">
+                  <div className="py-1">
+                    <svg className="h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium">Booking failed</p>
+                    <p className="text-sm">{bookingError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Step 1: Ticket Selection */}
             {step === 1 && (
               <form onSubmit={handleSubmit}>
@@ -477,7 +559,7 @@ const handleCompleteBooking = async (e) => {
                       {ticketTypes.map(ticket => {
                         const ticketId = ticket._id || ticket.id;
                         const currentQty = selectedTickets[ticketId] || 0;
-                        const isAvailable = !ticket.available || ticket.available > 0;
+                        const isAvailable = (!ticket.available || ticket.available > 0) && (ticket.isOnSale !== false);
                         const remainingTickets = ticket.available || 'Unlimited';
                         const isPaid = ticket.price > 0;
                         
@@ -508,7 +590,7 @@ const handleCompleteBooking = async (e) => {
                               
                               <div className="flex items-center justify-between md:justify-end">
                                 <div className="font-bold text-gray-900 md:text-right md:mr-4">
-                                  {isPaid ? formatCurrency(ticket.price, ticket.currency || 'USD') : 'Free'}
+                                  {isPaid ? formatCurrency(ticket.price, ticket.currency || 'INR') : 'Free'}
                                 </div>
                                 
                                 <div className="flex items-center border border-orange-300 rounded-md">
@@ -622,7 +704,7 @@ const handleCompleteBooking = async (e) => {
                         Email <span className="text-orange-500">*</span>
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <Mail className="h-5 w-5 text-orange-400" />
                         </div>
                         <input
@@ -659,28 +741,7 @@ const handleCompleteBooking = async (e) => {
                     </div>
                   </div>
                 </div>
-                <div className="mt-4">
-  <label className="block text-sm font-medium text-gray-700 mb-1">
-    Payment Method
-  </label>
-  <div className="space-y-2">
-    <div className="flex items-center">
-      <input
-        id="payment-phonepe"
-        name="paymentMethod"
-        type="radio"
-        value="phonepe"
-        checked={paymentMethod === 'phonepe'}
-        onChange={() => setPaymentMethod('phonepe')}
-        className="h-4 w-4 text-orange-600 focus:ring-orange-500"
-      />
-      <label htmlFor="payment-phonepe" className="ml-3 block text-sm font-medium text-gray-700">
-        PhonePe
-      </label>
-    </div>
-    {/* Add other payment methods as needed */}
-  </div>
-</div>
+                
                 <div className="hidden sm:block">
                   <button
                     type="submit"
@@ -698,22 +759,6 @@ const handleCompleteBooking = async (e) => {
               <form onSubmit={handleCompleteBooking}>
                 <div className="bg-white rounded-lg shadow-sm border border-orange-100 p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Your Details</h3>
-                  
-                  {bookingError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-                      <div className="flex">
-                        <div className="py-1">
-                          <svg className="h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-medium">Booking failed</p>
-                          <p className="text-sm">{bookingError}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   
                   <div className="space-y-6">
                     {/* Information Summary */}
@@ -754,12 +799,66 @@ const handleCompleteBooking = async (e) => {
                       </div>
                     </div>
                     
+                    {/* Payment Method Selection (only for paid tickets) */}
+                    {orderSummary.total > 0 && (
+                      <div className="border-t border-orange-100 pt-4">
+                        <h4 className="font-medium text-gray-900 mb-2">Payment Method</h4>
+                        
+                        <div className="space-y-3">
+                          <div className="flex items-center">
+                            <input
+                              id="payment-phonepe"
+                              name="paymentMethod"
+                              type="radio"
+                              checked={paymentMethod === 'phonepe'}
+                              onChange={() => handlePaymentMethodChange('phonepe')}
+                              className="h-4 w-4 text-orange-600 focus:ring-orange-500"
+                            />
+                            <label htmlFor="payment-phonepe" className="ml-3 block text-sm font-medium text-gray-700 flex items-center">
+                              <span className="mr-2">PhonePe</span>
+                              <img src="/path/to/phonepe-logo.png" alt="PhonePe" className="h-6" />
+                            </label>
+                          </div>
+                          
+                          {/* Add other payment methods like this: */}
+                          <div className="flex items-center opacity-50 cursor-not-allowed">
+                            <input
+                              id="payment-card"
+                              name="paymentMethod"
+                              type="radio"
+                              disabled
+                              className="h-4 w-4 text-gray-400 focus:ring-orange-500"
+                            />
+                            <label htmlFor="payment-card" className="ml-3 block text-sm font-medium text-gray-500">
+                              Credit/Debit Card (Coming Soon)
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center opacity-50 cursor-not-allowed">
+                            <input
+                              id="payment-upi"
+                              name="paymentMethod"
+                              type="radio"
+                              disabled
+                              className="h-4 w-4 text-gray-400 focus:ring-orange-500"
+                            />
+                            <label htmlFor="payment-upi" className="ml-3 block text-sm font-medium text-gray-500">
+                              UPI (Coming Soon)
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Disclaimer */}
                     <div className="bg-orange-50 rounded-lg p-4 flex items-start border border-orange-200">
-                      <Info className="h-5 w-5 text-orange-500 mr-3 mt-0.5" />
+                      <Info className="h-5 w-5 text-orange-500 mr-3 mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="text-sm text-orange-700">
-                          By completing this booking, you agree to receive your tickets via email. Please make sure your contact information is correct.
+                          By completing this booking, you agree to our Terms of Service, Privacy Policy, and Refund Policy. 
+                          {orderSummary.total > 0 
+                            ? " Please review your order details before proceeding to payment." 
+                            : " Your free tickets will be sent to your email."}
                         </p>
                       </div>
                     </div>
@@ -769,10 +868,20 @@ const handleCompleteBooking = async (e) => {
                 <div className="hidden sm:block">
                   <button
                     type="submit"
-                    className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
+                    disabled={processingPayment}
+                    className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 ${processingPayment ? 'opacity-75 cursor-not-allowed' : ''}`}
                   >
-                    Complete Booking
-                    <ChevronRight className="ml-2 h-5 w-5" />
+                    {processingPayment ? (
+                      <>
+                        <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        {orderSummary.total > 0 ? 'Proceed to Payment' : 'Complete Booking'}
+                        <ChevronRight className="ml-2 h-5 w-5" />
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -802,13 +911,41 @@ const handleCompleteBooking = async (e) => {
                     ))}
                   </div>
                   
+                  {/* Coupon Code Input (Step 1 Only) */}
+                  {step === 1 && orderSummary.subtotal > 0 && (
+                    <div className="flex space-x-2 mb-4">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value)}
+                        placeholder="Coupon code"
+                        className="flex-1 focus:ring-orange-500 focus:border-orange-500 block w-full sm:text-sm border-orange-300 rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Applied Coupon (All Steps) */}
+                  {couponApplied && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-2 mb-4 flex items-center">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                      <span className="text-sm text-green-800">Coupon applied: {discount}% off</span>
+                    </div>
+                  )}
+                  
                   {/* Price Breakdown */}
                   <div className="space-y-2 border-t border-orange-200 pt-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
                       <span>
                         {orderSummary.subtotal > 0 
-                          ? formatCurrency(orderSummary.subtotal)
+                          ? formatCurrency(orderSummary.subtotal, orderSummary.currency)
                           : 'Free'}
                       </span>
                     </div>
@@ -816,14 +953,14 @@ const handleCompleteBooking = async (e) => {
                     {orderSummary.fees > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Service fees</span>
-                        <span>{formatCurrency(orderSummary.fees)}</span>
+                        <span>{formatCurrency(orderSummary.fees, orderSummary.currency)}</span>
                       </div>
                     )}
                     
                     {couponApplied && orderSummary.discount > 0 && (
                       <div className="flex justify-between text-sm text-green-600">
                         <span>Discount</span>
-                        <span>-{formatCurrency(orderSummary.discount)}</span>
+                        <span>-{formatCurrency(orderSummary.discount, orderSummary.currency)}</span>
                       </div>
                     )}
                     
@@ -831,7 +968,7 @@ const handleCompleteBooking = async (e) => {
                       <span>Total</span>
                       <span>
                         {orderSummary.total > 0 
-                          ? formatCurrency(orderSummary.total)
+                          ? formatCurrency(orderSummary.total, orderSummary.currency)
                           : 'Free'}
                       </span>
                     </div>
@@ -870,10 +1007,20 @@ const handleCompleteBooking = async (e) => {
                       <button
                         type="button"
                         onClick={handleCompleteBooking}
-                        className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500"
+                        disabled={processingPayment}
+                        className={`w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 ${processingPayment ? 'opacity-75 cursor-not-allowed' : ''}`}
                       >
-                        Complete Booking
-                        <ChevronRight className="ml-2 h-5 w-5" />
+                        {processingPayment ? (
+                          <>
+                            <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            {orderSummary.total > 0 ? 'Proceed to Payment' : 'Complete Booking'}
+                            <ChevronRight className="ml-2 h-5 w-5" />
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
@@ -888,7 +1035,7 @@ const handleCompleteBooking = async (e) => {
               
               <div className="mt-6 border-t border-orange-200 pt-4">
                 <div className="flex items-start">
-                  <Info className="h-5 w-5 text-orange-400 mr-2 mt-0.5" />
+                  <Info className="h-5 w-5 text-orange-400 mr-2 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-500">
                     {orderSummary.total > 0 
                       ? "All purchases are final. Please review your order details before completing your purchase."
@@ -896,24 +1043,24 @@ const handleCompleteBooking = async (e) => {
                   </p>
                 </div>
               </div>
+              
               <div className="mt-6 space-y-2">
-  {[
-    { label: "Privacy Policy", href: "/privacypolicy" },
-    { label: "Refund Policy", href: "/refundpolicy" },
-    { label: "Terms of Service", href: "/termsandconditions" },
-  ].map((item) => (
-    <a
-      key={item.label}
-      href={item.href}
-      className="block text-xs text-gray-600 hover:text-orange-500 underline"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      {item.label}
-    </a>
-  ))}
-</div>
-
+                {[
+                  { label: "Privacy Policy", href: "/privacypolicy" },
+                  { label: "Refund Policy", href: "/refundpolicy" },
+                  { label: "Terms of Service", href: "/termsandconditions" },
+                ].map((item) => (
+                  
+                    key={item.label}
+                    href={item.href}
+                    className="block text-xs text-gray-600 hover:text-orange-500 underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
