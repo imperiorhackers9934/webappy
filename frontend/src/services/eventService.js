@@ -112,202 +112,220 @@ const eventService = {
   },
 
   // Create a new event
-  createEvent: async (eventData) => {
-    try {
-      console.log('Creating event with data:', eventData);
-      
-      // Check network connectivity first
-      const isConnected = checkNetworkConnectivity();
-      if (!isConnected) {
-        throw new Error('No internet connection. Please check your network settings and try again.');
-      }
-      
-      // Create a FormData object for sending both JSON data and files
-      const formData = new FormData();
-      
-      // Append all the JSON fields to the FormData - USING THE CORRECT FIELD NAMES TO MATCH BACKEND
-      formData.append('name', eventData.title); // Backend expects 'name' not 'title'
-      formData.append('description', eventData.description || '');
-      formData.append('startDateTime', new Date(eventData.startDate).toISOString());
-      
-      if (eventData.endDate) {
-        formData.append('endDateTime', new Date(eventData.endDate).toISOString());
-      }
-      
-      formData.append('virtual', eventData.isOnline ? 'true' : 'false');
-      formData.append('category', mapCategory(eventData.category));
-      formData.append('visibility', eventData.isPrivate ? 'private' : 'public');
-      
-      if (eventData.maxAttendees) {
-        formData.append('maxAttendees', eventData.maxAttendees.toString());
-      }
-      
-      // Add location if this is not an online event
-      if (!eventData.isOnline && eventData.location) {
-        formData.append('location[name]', eventData.location);
-        
-        // These fields are optional but expected by the backend
-        if (eventData.locationDetails) {
-          if (eventData.locationDetails.address)
-            formData.append('location[address]', eventData.locationDetails.address);
-          if (eventData.locationDetails.city)
-            formData.append('location[city]', eventData.locationDetails.city);
-          if (eventData.locationDetails.state)
-            formData.append('location[state]', eventData.locationDetails.state);
-          if (eventData.locationDetails.country)
-            formData.append('location[country]', eventData.locationDetails.country);
-          if (eventData.locationDetails.postalCode)
-            formData.append('location[postalCode]', eventData.locationDetails.postalCode);
-        } else {
-          // Add empty values to ensure the location object is created properly
-          formData.append('location[address]', '');
-          formData.append('location[city]', '');
-          formData.append('location[state]', '');
-          formData.append('location[country]', '');
-          formData.append('location[postalCode]', '');
-        }
-      }
-      
-      // Add cover image - use coverImage field name for web
-      if (eventData.coverImage) {
-        formData.append('coverImage', eventData.coverImage);
-        console.log('Appending image for event creation');
-      }
-      
-      console.log('Sending form data to create event');
-      
-      // Make the API request with the FormData
-      const response = await api.post('/api/events', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Accept': 'application/json'
-        },
-        timeout: 60000 // 60 second timeout for upload
-      });
-      
-      return {
-        data: normalizeData(response.data || response)
-      };
-    } catch (error) {
-      console.error('Error creating event:', error);
-      console.error('Error details:', error.response?.data);
-      
-      // If there's a network error, try the fallback approach
-      if (error.message === 'Network Error') {
-        console.log('Network error detected, trying fallback approach...');
-        return eventService.createEventWithoutImage(eventData);
-      }
-      
-      throw error;
-    }
-  },
+ // Update eventService.js to include customFields support
 
-  // Fallback method to create event without image
-  createEventWithoutImage: async (eventData) => {
-    try {
-      console.log('Attempting to create event without image...');
-      
-      // Create a simple JSON payload instead of FormData
-      const payload = {
-        name: eventData.title,
-        description: eventData.description || '',
-        startDateTime: new Date(eventData.startDate).toISOString(),
-        endDateTime: eventData.endDate ? new Date(eventData.endDate).toISOString() : undefined,
-        virtual: eventData.isOnline,
-        category: mapCategory(eventData.category),
-        visibility: eventData.isPrivate ? 'private' : 'public',
-        maxAttendees: eventData.maxAttendees ? parseInt(eventData.maxAttendees) : undefined
-      };
-      
-      // Add location if needed
-      if (!eventData.isOnline && eventData.location) {
-        payload.location = {
-          name: eventData.location,
-          address: eventData.locationDetails?.address || '',
-          city: eventData.locationDetails?.city || '',
-          state: eventData.locationDetails?.state || '',
-          country: eventData.locationDetails?.country || '',
-          postalCode: eventData.locationDetails?.postalCode || ''
-        };
-      }
-      
-      // Send the request with JSON
-      const response = await api.post('/api/events', payload, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        timeout: 30000 // 30 second timeout
-      });
-      
-      return {
-        data: normalizeData(response.data || response),
-        imageSkipped: true,
-        message: 'Event created successfully but without an image due to upload issues. You can add an image later.'
-      };
-    } catch (error) {
-      console.error('Error in fallback event creation:', error);
-      throw new Error('Failed to create event. Please try again later or check your network connection.');
+// Update createEvent method in eventService.js to handle custom fields
+createEvent: async (eventData) => {
+  try {
+    console.log('Creating event with data:', eventData);
+    
+    // Check network connectivity first
+    const isConnected = checkNetworkConnectivity();
+    if (!isConnected) {
+      throw new Error('No internet connection. Please check your network settings and try again.');
     }
-  },
+    
+    // Create a FormData object for sending both JSON data and files
+    const formData = new FormData();
+    
+    // Append all the JSON fields to the FormData - USING THE CORRECT FIELD NAMES TO MATCH BACKEND
+    formData.append('name', eventData.title); // Backend expects 'name' not 'title'
+    formData.append('description', eventData.description || '');
+    formData.append('startDateTime', new Date(eventData.startDate).toISOString());
+    
+    if (eventData.endDate) {
+      formData.append('endDateTime', new Date(eventData.endDate).toISOString());
+    }
+    
+    formData.append('virtual', eventData.isOnline ? 'true' : 'false');
+    formData.append('category', mapCategory(eventData.category));
+    formData.append('visibility', eventData.isPrivate ? 'private' : 'public');
+    
+    if (eventData.maxAttendees) {
+      formData.append('maxAttendees', eventData.maxAttendees.toString());
+    }
+    
+    // Add location if this is not an online event
+    if (!eventData.isOnline && eventData.location) {
+      formData.append('location[name]', eventData.location);
+      
+      // These fields are optional but expected by the backend
+      if (eventData.locationDetails) {
+        if (eventData.locationDetails.address)
+          formData.append('location[address]', eventData.locationDetails.address);
+        if (eventData.locationDetails.city)
+          formData.append('location[city]', eventData.locationDetails.city);
+        if (eventData.locationDetails.state)
+          formData.append('location[state]', eventData.locationDetails.state);
+        if (eventData.locationDetails.country)
+          formData.append('location[country]', eventData.locationDetails.country);
+        if (eventData.locationDetails.postalCode)
+          formData.append('location[postalCode]', eventData.locationDetails.postalCode);
+      } else {
+        // Add empty values to ensure the location object is created properly
+        formData.append('location[address]', '');
+        formData.append('location[city]', '');
+        formData.append('location[state]', '');
+        formData.append('location[country]', '');
+        formData.append('location[postalCode]', '');
+      }
+    }
+    
+    // Add custom fields if provided
+    if (eventData.customFields && eventData.customFields.length > 0) {
+      formData.append('customFields', JSON.stringify(eventData.customFields));
+    }
+    
+    // Add cover image - use coverImage field name for web
+    if (eventData.coverImage) {
+      formData.append('coverImage', eventData.coverImage);
+      console.log('Appending image for event creation');
+    }
+    
+    console.log('Sending form data to create event');
+    
+    // Make the API request with the FormData
+    const response = await api.post('/api/events', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'application/json'
+      },
+      timeout: 60000 // 60 second timeout for upload
+    });
+    
+    return {
+      data: normalizeData(response.data || response)
+    };
+  } catch (error) {
+    console.error('Error creating event:', error);
+    console.error('Error details:', error.response?.data);
+    
+    // If there's a network error, try the fallback approach
+    if (error.message === 'Network Error') {
+      console.log('Network error detected, trying fallback approach...');
+      return eventService.createEventWithoutImage(eventData);
+    }
+    
+    throw error;
+  }
+},
 
-  // Update an existing event
-  updateEvent: async (eventId, eventData) => {
-    try {
-      // Create a FormData object for sending both JSON data and files
-      const formData = new FormData();
-      
-      // Append all available fields to the FormData
-      if (eventData.title) formData.append('name', eventData.title); // Use 'name', not 'title'
-      if (eventData.description !== undefined) formData.append('description', eventData.description);
-      if (eventData.startDate) formData.append('startDateTime', new Date(eventData.startDate).toISOString());
-      if (eventData.endDate) formData.append('endDateTime', new Date(eventData.endDate).toISOString());
-      if (eventData.isOnline !== undefined) formData.append('virtual', eventData.isOnline ? 'true' : 'false');
-      if (eventData.category) formData.append('category', mapCategory(eventData.category));
-      if (eventData.isPrivate !== undefined) formData.append('visibility', eventData.isPrivate ? 'private' : 'public');
-      if (eventData.maxAttendees) formData.append('maxAttendees', eventData.maxAttendees.toString());
-      
-      // Add location if this is not an online event
-      if (!eventData.isOnline && eventData.location) {
-        formData.append('location[name]', eventData.location);
-        // Add other location fields if available
-        if (eventData.locationDetails) {
-          if (eventData.locationDetails.address)
-            formData.append('location[address]', eventData.locationDetails.address);
-          if (eventData.locationDetails.city)
-            formData.append('location[city]', eventData.locationDetails.city);
-          if (eventData.locationDetails.state)
-            formData.append('location[state]', eventData.locationDetails.state);
-          if (eventData.locationDetails.country)
-            formData.append('location[country]', eventData.locationDetails.country);
-          if (eventData.locationDetails.postalCode)
-            formData.append('location[postalCode]', eventData.locationDetails.postalCode);
-        }
-      }
-      
-      // Add cover image if provided - for web browsers, handle as standard file
-      if (eventData.coverImage) {
-        formData.append('file', eventData.coverImage); 
-        console.log('Appending image for update');
-      }
-      
-      // Make the API request with the FormData
-      const response = await api.put(`/api/events/${eventId}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Accept': 'application/json'
-        },
-        timeout: 60000 // 60 second timeout for upload
-      });
-      
-      return {
-        data: normalizeData(response.data || response)
+// Update the fallback createEventWithoutImage method to handle custom fields
+createEventWithoutImage: async (eventData) => {
+  try {
+    console.log('Attempting to create event without image...');
+    
+    // Create a simple JSON payload instead of FormData
+    const payload = {
+      name: eventData.title,
+      description: eventData.description || '',
+      startDateTime: new Date(eventData.startDate).toISOString(),
+      endDateTime: eventData.endDate ? new Date(eventData.endDate).toISOString() : undefined,
+      virtual: eventData.isOnline,
+      category: mapCategory(eventData.category),
+      visibility: eventData.isPrivate ? 'private' : 'public',
+      maxAttendees: eventData.maxAttendees ? parseInt(eventData.maxAttendees) : undefined
+    };
+    
+    // Add location if needed
+    if (!eventData.isOnline && eventData.location) {
+      payload.location = {
+        name: eventData.location,
+        address: eventData.locationDetails?.address || '',
+        city: eventData.locationDetails?.city || '',
+        state: eventData.locationDetails?.state || '',
+        country: eventData.locationDetails?.country || '',
+        postalCode: eventData.locationDetails?.postalCode || ''
       };
-    } catch (error) {
-      console.error(`Error updating event ${eventId}:`, error);
-      throw error;
     }
-  },
+    
+    // Add custom fields if provided
+    if (eventData.customFields && eventData.customFields.length > 0) {
+      payload.customFields = eventData.customFields;
+    }
+    
+    // Send the request with JSON
+    const response = await api.post('/api/events', payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      timeout: 30000 // 30 second timeout
+    });
+    
+    return {
+      data: normalizeData(response.data || response),
+      imageSkipped: true,
+      message: 'Event created successfully but without an image due to upload issues. You can add an image later.'
+    };
+  } catch (error) {
+    console.error('Error in fallback event creation:', error);
+    throw new Error('Failed to create event. Please try again later or check your network connection.');
+  }
+},
+
+// Update the updateEvent method to handle custom fields
+updateEvent: async (eventId, eventData) => {
+  try {
+    // Create a FormData object for sending both JSON data and files
+    const formData = new FormData();
+    
+    // Append all available fields to the FormData
+    if (eventData.title) formData.append('name', eventData.title); // Use 'name', not 'title'
+    if (eventData.description !== undefined) formData.append('description', eventData.description);
+    if (eventData.startDate) formData.append('startDateTime', new Date(eventData.startDate).toISOString());
+    if (eventData.endDate) formData.append('endDateTime', new Date(eventData.endDate).toISOString());
+    if (eventData.isOnline !== undefined) formData.append('virtual', eventData.isOnline ? 'true' : 'false');
+    if (eventData.category) formData.append('category', mapCategory(eventData.category));
+    if (eventData.isPrivate !== undefined) formData.append('visibility', eventData.isPrivate ? 'private' : 'public');
+    if (eventData.maxAttendees) formData.append('maxAttendees', eventData.maxAttendees.toString());
+    
+    // Add location if this is not an online event
+    if (!eventData.isOnline && eventData.location) {
+      formData.append('location[name]', eventData.location);
+      // Add other location fields if available
+      if (eventData.locationDetails) {
+        if (eventData.locationDetails.address)
+          formData.append('location[address]', eventData.locationDetails.address);
+        if (eventData.locationDetails.city)
+          formData.append('location[city]', eventData.locationDetails.city);
+        if (eventData.locationDetails.state)
+          formData.append('location[state]', eventData.locationDetails.state);
+        if (eventData.locationDetails.country)
+          formData.append('location[country]', eventData.locationDetails.country);
+        if (eventData.locationDetails.postalCode)
+          formData.append('location[postalCode]', eventData.locationDetails.postalCode);
+      }
+    }
+    
+    // Add custom fields if provided
+    if (eventData.customFields && eventData.customFields.length > 0) {
+      formData.append('customFields', JSON.stringify(eventData.customFields));
+    }
+    
+    // Add cover image if provided - for web browsers, handle as standard file
+    if (eventData.coverImage) {
+      formData.append('coverImage', eventData.coverImage); 
+      console.log('Appending image for update');
+    }
+    
+    // Make the API request with the FormData
+    const response = await api.put(`/api/events/${eventId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'application/json'
+      },
+      timeout: 60000 // 60 second timeout for upload
+    });
+    
+    return {
+      data: normalizeData(response.data || response)
+    };
+  } catch (error) {
+    console.error(`Error updating event ${eventId}:`, error);
+    throw error;
+  }
+},
 
   // Delete an event
   deleteEvent: async (eventId, deleteSeries = false) => {
