@@ -1,4 +1,4 @@
-// currency-utils.js
+  // currency-utils.js
 // Utility functions for handling currency conversion and formatting
 
 /**
@@ -39,13 +39,4 @@ export const CURRENCY = {
   code: 'INR',
   symbol: '₹',
   name: 'Indian Rupee'
-};
-
-/**
- * Render price with currency symbol
- * @param {number} price - The price value
- * @returns {JSX.Element} - Price with rupee symbol
- */
-export const RupeePrice = ({ price }) => {
-  return <span>{formatRupees(price)}</span>
 };
