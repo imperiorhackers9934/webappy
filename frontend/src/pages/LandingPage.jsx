@@ -72,19 +72,8 @@ const LandingPage = () => {
         "Not just numbers. Build a meaningful network that helps you move forward.",
       bgColor: "bg-red-100",
       icon: iconImpact,
-    },
-    {
-      title: "Micro Networking",
-      description: "Connect with peers from your college, city, or field.",
-      bgColor: "bg-green-100",
-      icon: iconNetworking,
-    },
-    {
-      title: "Event Hosting & Discovery",
-      description: "Host and manage professional events with ease.",
-      bgColor: "bg-blue-100",
-      icon: iconEvent,
-    },
+    }
+    
   ];
 
   // FAQ state
