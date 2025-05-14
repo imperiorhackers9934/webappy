@@ -659,7 +659,28 @@ const handleCompleteBooking = async (e) => {
                     </div>
                   </div>
                 </div>
-                
+                <div className="mt-4">
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Payment Method
+  </label>
+  <div className="space-y-2">
+    <div className="flex items-center">
+      <input
+        id="payment-phonepe"
+        name="paymentMethod"
+        type="radio"
+        value="phonepe"
+        checked={paymentMethod === 'phonepe'}
+        onChange={() => setPaymentMethod('phonepe')}
+        className="h-4 w-4 text-orange-600 focus:ring-orange-500"
+      />
+      <label htmlFor="payment-phonepe" className="ml-3 block text-sm font-medium text-gray-700">
+        PhonePe
+      </label>
+    </div>
+    {/* Add other payment methods as needed */}
+  </div>
+</div>
                 <div className="hidden sm:block">
                   <button
                     type="submit"
