@@ -339,19 +339,20 @@ const TicketBookingPage = () => {
       // Handle different payment methods
       if (totalAmount > 0 && paymentMethod === 'phonepe') {
         // Check if we have a PhonePe redirect URL
-        if (response.payment && response.payment.redirectUrl) {
-          console.log('Redirecting to PhonePe payment:', response.payment.redirectUrl);
-          
-          // Store booking ID in localStorage for retrieval after payment
-          localStorage.setItem('pendingBookingId', response.id || response._id || (response.booking && response.booking.id));
-          
-          // Redirect to PhonePe
-          window.location.href = response.payment.redirectUrl;
-          return;
-        } else {
-          console.error('No redirect URL provided for PhonePe payment');
-          throw new Error('Payment initialization failed. Please try again.');
-        }
+        // In handleCompleteBooking function
+if (response.payment && response.payment.redirectUrl) {
+  console.log('Redirecting to PhonePe payment:', response.payment.redirectUrl);
+  
+  // Store booking ID in localStorage for retrieval after payment
+  localStorage.setItem('pendingBookingId', response.id || response._id || (response.booking && response.booking.id));
+  
+  // Redirect to PhonePe
+  window.location.href = response.payment.redirectUrl;
+  return;
+} else {
+  console.error('No redirect URL provided for PhonePe payment');
+  throw new Error('Payment initialization failed. Please try again or contact support.');
+}
       } else if (totalAmount === 0 || paymentMethod === 'free') {
         // Free booking, no payment needed
         console.log('Free booking completed');
