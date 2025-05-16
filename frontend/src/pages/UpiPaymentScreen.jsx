@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode.react';
 import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon } from 'lucide-react';
-import ticketService from '../../services/ticketService';
+import ticketService from '../services/ticketService';
 
 const UpiPaymentScreen = ({ 
   paymentData,
