@@ -20,7 +20,7 @@ import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
 import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
-
+import UpiPaymentScreen from '../components/payment/UpiPaymentScreen';
 const TicketBookingPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -47,8 +47,17 @@ const TicketBookingPage = () => {
   const [bookingError, setBookingError] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('phonepe');
   const [processingPayment, setProcessingPayment] = useState(false);
-  
+  const [upiPaymentData, setUpiPaymentData] = useState(null);
+const [paymentStep, setPaymentStep] = useState(0); // 0: not started, 1: UPI in progress
   // Format date for display
+
+
+const paymentMethods = [
+  { id: 'phonepe', name: 'PhonePe', logo: '/images/phonepe-logo.png', enabled: true },
+  { id: 'upi', name: 'UPI / BHIM', logo: '/images/upi-logo.png', enabled: true }, // Add UPI option
+  { id: 'card', name: 'Credit/Debit Card', logo: '/images/card-logo.png', enabled: false },
+];
+
   const formatDate = (dateString) => {
     if (!dateString) return "Date TBA";
     
@@ -378,7 +387,48 @@ if (response.payment && response.payment.redirectUrl) {
       window.scrollTo(0, 0);
     }
   };
-  
+  if (totalAmount > 0 && paymentMethod === 'upi') {
+  try {
+    // Get user info for payment
+    const userInfo = {
+      name: `${userInfo.firstName} ${userInfo.lastName}`,
+      email: userInfo.email,
+      phone: userInfo.phone || ''
+    };
+    
+    // Create UPI payment request
+    const upiResponse = await ticketService.initiateUpiPayment(eventId, {
+      bookingId: response.booking?.id,
+      amount: totalAmount,
+      eventName: event.name,
+      customerName: userInfo.name,
+      customerEmail: userInfo.email,
+      customerPhone: userInfo.phone
+    });
+    
+    if (upiResponse.success) {
+      console.log('UPI payment initiated:', upiResponse);
+      
+      // Store booking info in localStorage
+      localStorage.setItem('pendingBookingId', response.booking?.id || '');
+      localStorage.setItem('pendingPaymentMethod', 'upi');
+      localStorage.setItem('pendingOrderId', upiResponse.orderId);
+      
+      // Display UPI payment options
+      setUpiPaymentData(upiResponse);
+      setPaymentStep(1);
+      setProcessingPayment(false);
+    } else {
+      throw new Error(upiResponse.message || 'UPI payment initialization failed');
+    }
+  } catch (error) {
+    console.error('UPI payment error:', error);
+    setBookingError(error.message || 'Failed to initialize UPI payment');
+    setProcessingPayment(false);
+  }
+  return;
+}
+
   // Back button functionality
   const handleBack = () => {
     if (step > 1) {
@@ -798,7 +848,23 @@ if (response.payment && response.payment.redirectUrl) {
                         ))}
                       </div>
                     </div>
-                    
+                    {paymentStep === 1 && upiPaymentData && (
+  <UpiPaymentScreen
+    paymentData={upiPaymentData}
+    bookingId={pendingBookingId || (response && response.booking?.id)}
+    onSuccess={(result) => {
+      // Handle successful payment
+      toast.success({ description: 'Payment successful!' });
+      navigate(`/tickets/confirmation/${pendingBookingId || (response && response.booking?.id)}`);
+    }}
+    onCancel={() => {
+      // Go back to payment method selection
+      setPaymentStep(0);
+      setUpiPaymentData(null);
+      setStep(3);
+    }}
+  />
+)}
                     {/* Payment Method Selection (only for paid tickets) */}
                     {orderSummary.total > 0 && (
                       <div className="border-t border-orange-100 pt-4">
