@@ -20,7 +20,7 @@ import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
 import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
-import UpiPaymentScreen from '../components/payment/UpiPaymentScreen';
+import UpiPaymentScreen from './UpiPaymentScreen';
 
 const TicketBookingPage = () => {
   const { eventId } = useParams();
