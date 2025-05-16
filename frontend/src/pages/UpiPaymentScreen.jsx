@@ -1,0 +1,271 @@
+// components/payment/UpiPaymentScreen.jsx
+import { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcode.react';
+import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import ticketService from '../../services/ticketService';
+
+const UpiPaymentScreen = ({ 
+  paymentData,
+  bookingId,
+  onSuccess,
+  onCancel
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+  const intervalRef = useRef(null);
+  const pollingRef = useRef(null);
+  
+  // Start countdown and payment status polling on mount
+  useEffect(() => {
+    // Start countdown timer
+    intervalRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    // Start payment status polling
+    startPolling();
+    
+    return () => {
+      clearInterval(intervalRef.current);
+      clearInterval(pollingRef.current);
+    };
+  }, []);
+  
+  // Handle payment verification
+  const startPolling = () => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    
+    // Poll payment status every 5 seconds
+    pollingRef.current = setInterval(async () => {
+      try {
+        await checkPaymentStatus();
+      } catch (error) {
+        console.error('Payment status polling error:', error);
+      }
+    }, 5000);
+  };
+  
+  // Check payment status
+  const checkPaymentStatus = async () => {
+    try {
+      const result = await ticketService.checkUpiPaymentStatus(paymentData.orderId);
+      
+      if (result.success && result.status === 'PAYMENT_SUCCESS') {
+        clearInterval(pollingRef.current);
+        setStatusMessage('Payment successful! Redirecting...');
+        
+        // Delay to show success message
+        setTimeout(() => onSuccess(result), 2000);
+      }
+    } catch (error) {
+      console.error('Payment status check error:', error);
+    }
+  };
+  
+  // Manually verify payment
+  const verifyPayment = async () => {
+    try {
+      setVerifying(true);
+      setStatusMessage('Verifying payment...');
+      
+      const result = await ticketService.verifyUpiPayment({
+        orderId: paymentData.orderId,
+        bookingId
+      });
+      
+      if (result.success && result.status === 'PAYMENT_SUCCESS') {
+        setStatusMessage('Payment successful! Redirecting...');
+        setTimeout(() => onSuccess(result), 2000);
+      } else {
+        setStatusMessage('Payment not confirmed yet. If you have completed the payment, please wait a moment and try again.');
+        setVerifying(false);
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      setStatusMessage(error.message || 'Verification failed. Please try again.');
+      setVerifying(false);
+    }
+  };
+  
+  // Format countdown time
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+  
+  // Copy UPI ID to clipboard
+  const copyUpiLink = () => {
+    if (paymentData.upiData?.upiUrl) {
+      navigator.clipboard.writeText(paymentData.upiData.upiUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
+  
+  // Open Cashfree payment link
+  const openPaymentLink = () => {
+    window.open(paymentData.paymentLink, '_blank');
+  };
+  
+  // Open UPI app directly
+  const openUpiApp = () => {
+    if (paymentData.upiData?.upiUrl) {
+      window.location.href = paymentData.upiData.upiUrl;
+    } else {
+      // Use Cashfree payment link as fallback
+      window.location.href = paymentData.paymentLink;
+    }
+  };
+  
+  // Handle expired case
+  if (countdown <= 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6 max-w-md mx-auto">
+        <div className="text-center py-6">
+          <div className="text-red-600 mb-4 font-bold">Payment session expired</div>
+          <p className="text-gray-600 mb-4">
+            The payment session has expired. Please restart the booking process.
+          </p>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="bg-orange-600 text-white py-2 px-6 rounded-md hover:bg-orange-700"
+          >
+            Start Over
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 max-w-md mx-auto">
+      <h2 className="text-xl font-bold text-center mb-4">Complete Your UPI Payment</h2>
+      
+      <div className="text-center mb-6">
+        <div className="text-sm text-gray-500 mb-1">Payment expires in</div>
+        <div className="text-xl font-medium text-orange-600">{formatTime(countdown)}</div>
+      </div>
+      
+      {/* QR Code Section */}
+      {paymentData.upiData?.upiUrl && (
+        <div className="flex flex-col items-center mb-6">
+          <div className="bg-orange-50 p-3 rounded-lg mb-4">
+            <QRCode 
+              value={paymentData.upiData.upiUrl} 
+              size={200} 
+              level="H" 
+              renderAs="svg"
+              includeMargin={true}
+              imageSettings={{
+                src: "/path-to-your-logo/logo.png",
+                height: 30,
+                width: 30,
+                excavate: true,
+              }}
+            />
+          </div>
+          <p className="text-sm text-gray-600 text-center">
+            Scan this QR code with any UPI app to pay
+          </p>
+        </div>
+      )}
+      
+      {/* Action Buttons */}
+      <div className="space-y-4 mb-6">
+        <button
+          type="button"
+          onClick={openUpiApp}
+          className="w-full flex items-center justify-center bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700"
+        >
+          <Smartphone className="w-5 h-5 mr-2" />
+          Pay via UPI App
+        </button>
+        
+        <button
+          type="button"
+          onClick={openPaymentLink}
+          className="w-full flex items-center justify-center bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700"
+        >
+          <LinkIcon className="w-5 h-5 mr-2" />
+          Open Payment Page
+        </button>
+        
+        {paymentData.upiData?.upiUrl && (
+          <div className="relative flex items-center mt-3">
+            <input
+              type="text"
+              value={paymentData.upiData.upiUrl}
+              readOnly
+              className="w-full bg-gray-100 border border-gray-300 rounded-md py-2 px-3 pr-10 text-sm"
+            />
+            <button
+              type="button"
+              onClick={copyUpiLink}
+              className="absolute right-2 text-gray-500 hover:text-gray-700"
+              title="Copy UPI link"
+            >
+              {copied ? 
+                <CheckCircle className="w-5 h-5 text-green-500" /> : 
+                <Copy className="w-5 h-5" />
+              }
+            </button>
+          </div>
+        )}
+      </div>
+      
+      {/* Payment Verification */}
+      <div className="border-t border-gray-200 pt-4">
+        {statusMessage && (
+          <div className={`text-sm text-center mb-3 ${
+            statusMessage.includes('successful') ? 'text-green-600' : 'text-orange-600'
+          }`}>
+            {statusMessage}
+          </div>
+        )}
+        
+        <button
+          type="button"
+          onClick={verifyPayment}
+          disabled={verifying}
+          className={`w-full flex items-center justify-center py-3 px-4 rounded-md ${
+            verifying 
+              ? 'bg-gray-300 cursor-not-allowed' 
+              : 'bg-orange-600 hover:bg-orange-700 text-white'
+          }`}
+        >
+          {verifying ? (
+            <>
+              <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin mr-2"></div>
+              Verifying Payment...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-5 h-5 mr-2" />
+              I've Completed the Payment
+            </>
+          )}
+        </button>
+        
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-full text-gray-600 py-2 px-4 mt-3 text-sm hover:text-orange-600"
+        >
+          Cancel and Try Another Payment Method
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default UpiPaymentScreen;
