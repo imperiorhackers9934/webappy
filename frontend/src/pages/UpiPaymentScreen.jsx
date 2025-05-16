@@ -1,8 +1,8 @@
 // components/payment/UpiPaymentScreen.jsx
 import { useState, useEffect, useRef } from 'react';
-import QRCode from 'qrcode.react';
+import QRCode from 'react-qr-code';
 import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon } from 'lucide-react';
-import ticketService from '../../services/ticketService';
+import ticketService from '../services/ticketService';
 
 const UpiPaymentScreen = ({ 
   paymentData,
