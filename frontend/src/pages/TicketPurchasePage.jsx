@@ -21,6 +21,7 @@ import ticketService from '../services/ticketService';
 import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
 import UpiPaymentScreen from '../components/payment/UpiPaymentScreen';
+
 const TicketBookingPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -48,15 +49,13 @@ const TicketBookingPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('phonepe');
   const [processingPayment, setProcessingPayment] = useState(false);
   const [upiPaymentData, setUpiPaymentData] = useState(null);
-const [paymentStep, setPaymentStep] = useState(0); // 0: not started, 1: UPI in progress
-  // Format date for display
+  const [paymentStep, setPaymentStep] = useState(0); // 0: not started, 1: UPI in progress
 
-
-const paymentMethods = [
-  { id: 'phonepe', name: 'PhonePe', logo: '/images/phonepe-logo.png', enabled: true },
-  { id: 'upi', name: 'UPI / BHIM', logo: '/images/upi-logo.png', enabled: true }, // Add UPI option
-  { id: 'card', name: 'Credit/Debit Card', logo: '/images/card-logo.png', enabled: false },
-];
+  const paymentMethods = [
+    { id: 'phonepe', name: 'PhonePe', logo: '/images/phonepe-logo.png', enabled: true },
+    { id: 'upi', name: 'UPI / BHIM', logo: '/images/upi-logo.png', enabled: true },
+    { id: 'card', name: 'Credit/Debit Card', logo: '/images/card-logo.png', enabled: false },
+  ];
 
   const formatDate = (dateString) => {
     if (!dateString) return "Date TBA";
@@ -70,7 +69,6 @@ const paymentMethods = [
     }
   };
   
-  // Format time for display
   const formatTime = (dateString) => {
     if (!dateString) return "Time TBA";
     
@@ -83,14 +81,13 @@ const paymentMethods = [
     }
   };
   
-  // Format currency
   const formatCurrency = (amount, currencyCode = 'INR') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currencyCode
     }).format(amount);
   };
-// Fetch event and ticket types
+
   useEffect(() => {
     const fetchEventAndTickets = async () => {
       try {
@@ -102,30 +99,24 @@ const paymentMethods = [
           return;
         }
         
-        // Fetch event details
         const eventResponse = await eventService.getEvent(eventId);
         setEvent(eventResponse.data);
         
-        // Fetch ticket types
         setTicketsLoading(true);
         const ticketsResponse = await ticketService.getEventTicketTypes(eventId);
-        console.log('Ticket types:', ticketsResponse);
         
-        // Don't filter out paid tickets anymore - show all available tickets
         const availableTickets = (ticketsResponse.data || []).filter(ticket => 
           (!ticket.available || ticket.available > 0) && ticket.isOnSale !== false
         );
         
         setTicketTypes(availableTickets);
         
-        // Initialize selected tickets with zero quantity for each type
         const initialSelectedTickets = {};
         availableTickets.forEach(ticket => {
           initialSelectedTickets[ticket._id || ticket.id] = 0;
         });
         setSelectedTickets(initialSelectedTickets);
         
-        // Pre-fill user info if available
         if (user) {
           setUserInfo({
             firstName: user.firstName || '',
@@ -148,13 +139,11 @@ const paymentMethods = [
     fetchEventAndTickets();
   }, [eventId, user]);
   
-  // Handle ticket quantity changes
   const handleTicketQuantityChange = (ticketId, increment) => {
     setSelectedTickets(prevSelected => {
       const currentQty = prevSelected[ticketId] || 0;
       const ticketType = ticketTypes.find(t => (t._id || t.id) === ticketId);
       
-      // Prevent negative quantities or exceeding available tickets
       let newQty = currentQty + increment;
       
       if (newQty < 0) {
@@ -165,11 +154,9 @@ const paymentMethods = [
         newQty = ticketType.available;
       }
       
-      // Calculate new total tickets
       const newSelectedTickets = { ...prevSelected, [ticketId]: newQty };
       const totalQuantity = Object.values(newSelectedTickets).reduce((sum, qty) => sum + qty, 0);
       
-      // Check if max tickets per order exceeded (usually 10)
       if (totalQuantity > 10 && increment > 0) {
         toast.warning({ description: 'Maximum 10 tickets per order' });
         return prevSelected;
@@ -179,7 +166,6 @@ const paymentMethods = [
     });
   };
   
-  // Calculate order summary
   const calculateOrderSummary = () => {
     const summary = {
       subtotal: 0,
@@ -192,7 +178,6 @@ const paymentMethods = [
     
     if (!ticketTypes || !ticketTypes.length) return summary;
     
-    // Calculate subtotal and ticket count
     Object.entries(selectedTickets).forEach(([ticketId, quantity]) => {
       if (quantity > 0) {
         const ticketType = ticketTypes.find(t => (t._id || t.id) === ticketId);
@@ -202,7 +187,6 @@ const paymentMethods = [
           summary.subtotal += itemTotal;
           summary.ticketCount += quantity;
           
-          // Set the currency from the first ticket type that has one
           if (ticketType.currency) {
             summary.currency = ticketType.currency;
           }
@@ -219,23 +203,19 @@ const paymentMethods = [
       }
     });
     
-    // Add platform fees (3% of subtotal or minimum 20)
     if (summary.subtotal > 0) {
       summary.fees = Math.max(summary.subtotal * 0.03, 20);
-      summary.fees = Math.round(summary.fees * 100) / 100; // Round to 2 decimal places
+      summary.fees = Math.round(summary.fees * 100) / 100;
     }
     
-    // Apply discount if coupon applied
     const discountAmount = couponApplied ? (summary.subtotal * (discount / 100)) : 0;
     
-    // Calculate total
     summary.total = summary.subtotal + summary.fees - discountAmount;
     summary.discount = discountAmount;
     
     return summary;
   };
   
-  // Handle user info changes
   const handleUserInfoChange = (e) => {
     const { name, value } = e.target;
     setUserInfo(prev => ({
@@ -244,25 +224,21 @@ const paymentMethods = [
     }));
   };
   
-  // Handle coupon code application
   const handleApplyCoupon = () => {
     if (!couponCode) {
       toast.error({ description: 'Please enter a coupon code' });
       return;
     }
     
-    // Here you would normally call an API to validate the coupon
-    // For now, let's simulate a successful coupon application
     setCouponApplied(true);
-    setDiscount(10); // 10% discount
+    setDiscount(10);
     toast.success({ description: 'Coupon applied successfully!' });
   };
-// Handle payment method selection
+
   const handlePaymentMethodChange = (method) => {
     setPaymentMethod(method);
   };
   
-  // Handle form submissions for each step
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
     setBookingError(null);
@@ -276,13 +252,11 @@ const paymentMethods = [
       setStep(2);
       window.scrollTo(0, 0);
     } else if (step === 2) {
-      // Validate user info
       if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
         toast.error({ description: 'Please fill in all required fields' });
         return;
       }
       
-      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(userInfo.email)) {
         toast.error({ description: 'Please enter a valid email address' });
@@ -294,7 +268,6 @@ const paymentMethods = [
     }
   };
   
-  // Handle completing the booking
   const handleCompleteBooking = async (e) => {
     e.preventDefault();
     setBookingError(null);
@@ -302,8 +275,8 @@ const paymentMethods = [
     
     try {
       const orderSummary = calculateOrderSummary();
+      const totalAmount = orderSummary.total || 0;
       
-      // Check if there are tickets to book
       if (orderSummary.ticketCount === 0) {
         toast.error({ description: 'Please select at least one ticket' });
         setStep(1);
@@ -311,67 +284,66 @@ const paymentMethods = [
         return;
       }
       
-      // Calculate the total amount (for validation)
-      const totalAmount = orderSummary.total || 0;
-      
-      // Prepare booking data in the format expected by the API
       const bookingData = {
-        // Use ticketSelections with ticketTypeId as expected by API
         ticketSelections: Object.entries(selectedTickets)
           .filter(([_, quantity]) => quantity > 0)
           .map(([ticketId, quantity]) => ({
             ticketTypeId: ticketId,
             quantity: parseInt(quantity, 10)
           })),
-        
-        // Include contactInformation as required by API
         contactInformation: {
           email: userInfo.email,
           phone: userInfo.phone || ''
         },
-        
-        // Add required fields for payment
         paymentMethod: totalAmount > 0 ? paymentMethod : 'free',
         currency: orderSummary.currency,
         totalAmount: totalAmount,
-        
-        // For PhonePe, include return URL
         returnUrl: window.location.origin + '/payment-response'
       };
       
-      console.log('Submitting booking:', bookingData);
-      
-      // Call API to book tickets
       const response = await ticketService.bookEventTickets(eventId, bookingData);
-      console.log('Booking response:', response);
       
-      // Handle different payment methods
       if (totalAmount > 0 && paymentMethod === 'phonepe') {
-        // Check if we have a PhonePe redirect URL
-        // In handleCompleteBooking function
-if (response.payment && response.payment.redirectUrl) {
-  console.log('Redirecting to PhonePe payment:', response.payment.redirectUrl);
-  
-  // Store booking ID in localStorage for retrieval after payment
-  localStorage.setItem('pendingBookingId', response.id || response._id || (response.booking && response.booking.id));
-  
-  // Redirect to PhonePe
-  window.location.href = response.payment.redirectUrl;
-  return;
-} else {
-  console.error('No redirect URL provided for PhonePe payment');
-  throw new Error('Payment initialization failed. Please try again or contact support.');
-}
-      } else if (totalAmount === 0 || paymentMethod === 'free') {
-        // Free booking, no payment needed
-        console.log('Free booking completed');
+        if (response.payment && response.payment.redirectUrl) {
+          localStorage.setItem('pendingBookingId', response.id || response._id || (response.booking && response.booking.id));
+          window.location.href = response.payment.redirectUrl;
+          return;
+        } else {
+          throw new Error('Payment initialization failed. Please try again or contact support.');
+        }
+      } else if (totalAmount > 0 && paymentMethod === 'upi') {
+        const upiUserInfo = {
+          name: `${userInfo.firstName} ${userInfo.lastName}`,
+          email: userInfo.email,
+          phone: userInfo.phone || ''
+        };
         
-        // Redirect to confirmation page
+        const upiResponse = await ticketService.initiateUpiPayment(eventId, {
+          bookingId: response.booking?.id,
+          amount: totalAmount,
+          eventName: event.name,
+          customerName: upiUserInfo.name,
+          customerEmail: upiUserInfo.email,
+          customerPhone: upiUserInfo.phone
+        });
+        
+        if (upiResponse.success) {
+          localStorage.setItem('pendingBookingId', response.booking?.id || '');
+          localStorage.setItem('pendingPaymentMethod', 'upi');
+          localStorage.setItem('pendingOrderId', upiResponse.orderId);
+          
+          setUpiPaymentData(upiResponse);
+          setPaymentStep(1);
+          setProcessingPayment(false);
+        } else {
+          throw new Error(upiResponse.message || 'UPI payment initialization failed');
+        }
+        return;
+      } else if (totalAmount === 0 || paymentMethod === 'free') {
         const bookingId = response.id || response._id || (response.booking && response.booking.id);
         navigate(`/tickets/confirmation/${bookingId || 'success'}`);
         return;
       } else {
-        // Other payment methods would be handled here
         throw new Error('Selected payment method is not yet implemented');
       }
     } catch (err) {
@@ -383,53 +355,10 @@ if (response.payment && response.payment.redirectUrl) {
         'Failed to complete your booking. Please try again later.'
       );
       setProcessingPayment(false);
-      // Stay on the confirmation page to show the error
       window.scrollTo(0, 0);
     }
   };
-  if (totalAmount > 0 && paymentMethod === 'upi') {
-  try {
-    // Get user info for payment
-    const userInfo = {
-      name: `${userInfo.firstName} ${userInfo.lastName}`,
-      email: userInfo.email,
-      phone: userInfo.phone || ''
-    };
-    
-    // Create UPI payment request
-    const upiResponse = await ticketService.initiateUpiPayment(eventId, {
-      bookingId: response.booking?.id,
-      amount: totalAmount,
-      eventName: event.name,
-      customerName: userInfo.name,
-      customerEmail: userInfo.email,
-      customerPhone: userInfo.phone
-    });
-    
-    if (upiResponse.success) {
-      console.log('UPI payment initiated:', upiResponse);
-      
-      // Store booking info in localStorage
-      localStorage.setItem('pendingBookingId', response.booking?.id || '');
-      localStorage.setItem('pendingPaymentMethod', 'upi');
-      localStorage.setItem('pendingOrderId', upiResponse.orderId);
-      
-      // Display UPI payment options
-      setUpiPaymentData(upiResponse);
-      setPaymentStep(1);
-      setProcessingPayment(false);
-    } else {
-      throw new Error(upiResponse.message || 'UPI payment initialization failed');
-    }
-  } catch (error) {
-    console.error('UPI payment error:', error);
-    setBookingError(error.message || 'Failed to initialize UPI payment');
-    setProcessingPayment(false);
-  }
-  return;
-}
 
-  // Back button functionality
   const handleBack = () => {
     if (step > 1) {
       setStep(step - 1);
@@ -484,6 +413,24 @@ if (response.payment && response.payment.redirectUrl) {
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (paymentStep === 1 && upiPaymentData) {
+    return (
+      <UpiPaymentScreen
+        paymentData={upiPaymentData}
+        bookingId={localStorage.getItem('pendingBookingId')}
+        onSuccess={(result) => {
+          toast.success({ description: 'Payment successful!' });
+          navigate(`/tickets/confirmation/${localStorage.getItem('pendingBookingId')}`);
+        }}
+        onCancel={() => {
+          setPaymentStep(0);
+          setUpiPaymentData(null);
+          setStep(3);
+        }}
+      />
     );
   }
   
@@ -570,7 +517,6 @@ if (response.payment && response.payment.redirectUrl) {
               </div>
             </div>
             
-            {/* Display booking error if any */}
             {bookingError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
                 <div className="flex">
@@ -754,7 +700,7 @@ if (response.payment && response.payment.redirectUrl) {
                         Email <span className="text-orange-500">*</span>
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
-<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <Mail className="h-5 w-5 text-orange-400" />
                         </div>
                         <input
@@ -848,70 +794,38 @@ if (response.payment && response.payment.redirectUrl) {
                         ))}
                       </div>
                     </div>
-                    {paymentStep === 1 && upiPaymentData && (
-  <UpiPaymentScreen
-    paymentData={upiPaymentData}
-    bookingId={pendingBookingId || (response && response.booking?.id)}
-    onSuccess={(result) => {
-      // Handle successful payment
-      toast.success({ description: 'Payment successful!' });
-      navigate(`/tickets/confirmation/${pendingBookingId || (response && response.booking?.id)}`);
-    }}
-    onCancel={() => {
-      // Go back to payment method selection
-      setPaymentStep(0);
-      setUpiPaymentData(null);
-      setStep(3);
-    }}
-  />
-)}
+                    
                     {/* Payment Method Selection (only for paid tickets) */}
                     {orderSummary.total > 0 && (
                       <div className="border-t border-orange-100 pt-4">
                         <h4 className="font-medium text-gray-900 mb-2">Payment Method</h4>
                         
                         <div className="space-y-3">
-                          <div className="flex items-center">
-                            <input
-                              id="payment-phonepe"
-                              name="paymentMethod"
-                              type="radio"
-                              checked={paymentMethod === 'phonepe'}
-                              onChange={() => handlePaymentMethodChange('phonepe')}
-                              className="h-4 w-4 text-orange-600 focus:ring-orange-500"
-                            />
-                            <label htmlFor="payment-phonepe" className="ml-3 block text-sm font-medium text-gray-700 flex items-center">
-                              <span className="mr-2">PhonePe</span>
-                              <img src="/path/to/phonepe-logo.png" alt="PhonePe" className="h-6" />
-                            </label>
-                          </div>
-                          
-                          {/* Add other payment methods like this: */}
-                          <div className="flex items-center opacity-50 cursor-not-allowed">
-                            <input
-                              id="payment-card"
-                              name="paymentMethod"
-                              type="radio"
-                              disabled
-                              className="h-4 w-4 text-gray-400 focus:ring-orange-500"
-                            />
-                            <label htmlFor="payment-card" className="ml-3 block text-sm font-medium text-gray-500">
-                              Credit/Debit Card (Coming Soon)
-                            </label>
-                          </div>
-                          
-                          <div className="flex items-center opacity-50 cursor-not-allowed">
-                            <input
-                              id="payment-upi"
-                              name="paymentMethod"
-                              type="radio"
-                              disabled
-                              className="h-4 w-4 text-gray-400 focus:ring-orange-500"
-                            />
-                            <label htmlFor="payment-upi" className="ml-3 block text-sm font-medium text-gray-500">
-                              UPI (Coming Soon)
-                            </label>
-                          </div>
+                          {paymentMethods.map((method) => (
+                            <div key={method.id} className="flex items-center">
+                              <input
+                                id={`payment-${method.id}`}
+                                name="paymentMethod"
+                                type="radio"
+                                checked={paymentMethod === method.id}
+                                onChange={() => handlePaymentMethodChange(method.id)}
+                                disabled={!method.enabled}
+                                className={`h-4 w-4 ${method.enabled ? 'text-orange-600 focus:ring-orange-500' : 'text-gray-400'}`}
+                              />
+                              <label 
+                                htmlFor={`payment-${method.id}`} 
+                                className={`ml-3 block text-sm font-medium ${method.enabled ? 'text-gray-700' : 'text-gray-500'} flex items-center`}
+                              >
+                                <span className="mr-2">{method.name}</span>
+                                {method.logo && (
+                                  <img src={method.logo} alt={method.name} className="h-6" />
+                                )}
+                                {!method.enabled && (
+                                  <span className="text-xs ml-2">(Coming Soon)</span>
+                                )}
+                              </label>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -953,6 +867,8 @@ if (response.payment && response.payment.redirectUrl) {
               </form>
             )}
           </div>
+          
+       
           
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
