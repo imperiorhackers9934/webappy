@@ -536,6 +536,107 @@ addToCalendar: async (eventId) => {
     // Default error
     throw new Error(`Calendar error: ${error.message || 'Unknown error'}`);
   }
+},
+  // Add these UPI payment methods to your ticketService.js file
+
+/**
+ * Initiate UPI payment via Cashfree
+ * @param {string} eventId - Event ID (for contextual info)
+ * @param {Object} paymentData - Payment data including booking details
+ * @returns {Promise<Object>} - UPI payment details
+ */
+initiateUpiPayment: async (eventId, paymentData) => {
+  try {
+    console.log(`Initiating UPI payment for booking: ${paymentData.bookingId}`);
+    
+    // Validate required data
+    if (!paymentData.bookingId || !paymentData.amount) {
+      throw new Error('Booking ID and amount are required for UPI payment');
+    }
+    
+    // Add event ID to payment data if needed for tracking
+    const enhancedPaymentData = {
+      ...paymentData,
+      eventId
+    };
+    
+    // Make request to UPI payment endpoint
+    const response = await api.post('/api/payments/upi/initiate', enhancedPaymentData);
+    
+    console.log('UPI payment initiation response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error initiating UPI payment:', error);
+    
+    // Enhanced error handling
+    if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'UPI payment initiation failed');
+    }
+    
+    throw error;
+  }
+},
+
+/**
+ * Verify UPI payment with Cashfree
+ * @param {Object} verificationData - Order and booking IDs
+ * @returns {Promise<Object>} - Verification result
+ */
+verifyUpiPayment: async (verificationData) => {
+  try {
+    console.log(`Verifying UPI payment:`, verificationData);
+    
+    // Validate required data
+    if (!verificationData.orderId) {
+      throw new Error('Order ID is required for UPI payment verification');
+    }
+    
+    // Make request to UPI verification endpoint
+    const response = await api.post('/api/payments/upi/verify', verificationData);
+    
+    console.log('UPI payment verification response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error verifying UPI payment:', error);
+    
+    if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'UPI payment verification failed');
+    }
+    
+    throw error;
+  }
+},
+
+/**
+ * Check UPI payment status
+ * @param {string} orderId - Order ID from Cashfree
+ * @returns {Promise<Object>} - Payment status
+ */
+checkUpiPaymentStatus: async (orderId) => {
+  try {
+    console.log(`Checking UPI payment status for order: ${orderId}`);
+    
+    if (!orderId) {
+      throw new Error('Order ID is required for payment status check');
+    }
+    
+    // Make request to UPI status endpoint
+    const response = await api.get(`/api/payments/upi/status/${orderId}`);
+    
+    console.log('UPI payment status response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`Error checking UPI payment status for order ${orderId}:`, error);
+    
+    if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'UPI payment status check failed');
+    }
+    
+    throw error;
+  }
 }
 };
 
