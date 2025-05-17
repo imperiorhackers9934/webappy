@@ -311,35 +311,41 @@ const TicketBookingPage = () => {
         } else {
           throw new Error('Payment initialization failed. Please try again or contact support.');
         }
-      } else if (totalAmount > 0 && paymentMethod === 'upi') {
-        const upiUserInfo = {
-          name: `${userInfo.firstName} ${userInfo.lastName}`,
-          email: userInfo.email,
-          phone: userInfo.phone || ''
-        };
-        
-        const upiResponse = await ticketService.initiateUpiPayment(eventId, {
-          bookingId: response.booking?.id,
-          amount: totalAmount,
-          eventName: event.name,
-          customerName: upiUserInfo.name,
-          customerEmail: upiUserInfo.email,
-          customerPhone: upiUserInfo.phone
-        });
-        
-        if (upiResponse.success) {
-          localStorage.setItem('pendingBookingId', response.booking?.id || '');
-          localStorage.setItem('pendingPaymentMethod', 'upi');
-          localStorage.setItem('pendingOrderId', upiResponse.orderId);
-          
-          setUpiPaymentData(upiResponse);
-          setPaymentStep(1);
-          setProcessingPayment(false);
-        } else {
-          throw new Error(upiResponse.message || 'UPI payment initialization failed');
-        }
-        return;
-      } else if (totalAmount === 0 || paymentMethod === 'free') {
+      } // In handleCompleteBooking function, change this part:
+else if (totalAmount > 0 && paymentMethod === 'upi') {
+  const upiUserInfo = {
+    name: `${userInfo.firstName} ${userInfo.lastName}`,
+    email: userInfo.email,
+    phone: userInfo.phone || ''
+  };
+  
+  const upiResponse = await ticketService.initiateUpiPayment(eventId, {
+    bookingId: response.booking?.id,
+    amount: totalAmount,
+    eventName: event.name,
+    customerName: upiUserInfo.name,
+    customerEmail: upiUserInfo.email,
+    customerPhone: upiUserInfo.phone
+  });
+  
+  if (upiResponse.success) {
+    // Store the necessary data in localStorage
+    localStorage.setItem('pendingBookingId', response.booking?.id || '');
+    localStorage.setItem('pendingPaymentMethod', 'upi');
+    localStorage.setItem('pendingOrderId', upiResponse.orderId);
+    
+    // Log the response for debugging
+    console.log('UPI Response:', upiResponse);
+    
+    // Pass the payment data to the UPI payment screen
+    setUpiPaymentData(upiResponse);
+    setPaymentStep(1);
+    setProcessingPayment(false);
+  } else {
+    throw new Error(upiResponse.message || 'UPI payment initialization failed');
+  }
+  return;
+}else if (totalAmount === 0 || paymentMethod === 'free') {
         const bookingId = response.id || response._id || (response.booking && response.booking.id);
         navigate(`/tickets/confirmation/${bookingId || 'success'}`);
         return;
