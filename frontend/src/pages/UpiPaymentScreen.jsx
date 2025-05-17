@@ -82,6 +82,15 @@ const UpiPaymentScreen = ({
     
     startPolling();
     
+    // Log payment data for debugging
+    console.log('UPI Payment Data received:', {
+      paymentLink: paymentData?.paymentLink,
+      upiDataLink: paymentData?.upiData?.paymentLink,
+      orderId: paymentData?.orderId,
+      cfOrderId: paymentData?.cfOrderId
+    });
+    
+    // Clean up on unmount
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
     };
@@ -125,9 +134,20 @@ const UpiPaymentScreen = ({
       setVerifying(true);
       setStatusMessage('Verifying payment...');
       
+      // Get order ID from paymentData or localStorage
+      const orderId = paymentData?.orderId || localStorage.getItem('pendingOrderId');
+      const currentBookingId = bookingId || localStorage.getItem('pendingBookingId');
+      
+      if (!orderId) {
+        throw new Error('Missing order ID for payment verification');
+      }
+      
+      // Set payment attempted flag to show different UI
+      setPaymentAttempted(true);
+      
       const result = await ticketService.verifyUpiPayment({
-        orderId: paymentData.orderId,
-        bookingId
+        orderId: orderId,
+        bookingId: currentBookingId
       });
       
       if (result.success && result.status === 'PAYMENT_SUCCESS') {
@@ -305,7 +325,7 @@ const UpiPaymentScreen = ({
       {/* Payment Verification */}
       <div className="border-t border-gray-200 pt-4">
         {statusMessage && (
-          <div className={`text-sm text-center mb-3 ${
+          <div className={`text-sm text-center mb-4 ${
             statusMessage.includes('successful') ? 'text-green-600' : 'text-orange-600'
           }`}>
             {statusMessage}
