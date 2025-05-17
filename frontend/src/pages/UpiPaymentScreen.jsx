@@ -1,4 +1,4 @@
-// Updated UpiPaymentScreen.jsx with improved payment URL handling
+// Final optimized UpiPaymentScreen.jsx
 import { useState, useEffect, useRef } from 'react';
 import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import ticketService from '../services/ticketService';
@@ -15,7 +15,6 @@ const UpiPaymentScreen = ({
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
   const [paymentAttempted, setPaymentAttempted] = useState(false);
   const [paymentPageError, setPaymentPageError] = useState(false);
-  const [testedUrls, setTestedUrls] = useState([]);
   const intervalRef = useRef(null);
   const pollingRef = useRef(null);
   
@@ -43,68 +42,12 @@ const UpiPaymentScreen = ({
       cfOrderId: paymentData?.cfOrderId
     });
     
-    // Generate and test potential payment URLs
-    findWorkingPaymentUrl();
-    
     // Clean up on unmount
     return () => {
       clearInterval(intervalRef.current);
       clearInterval(pollingRef.current);
     };
   }, []);
-  
-  // Find working payment URL by testing multiple formats
-  const findWorkingPaymentUrl = async () => {
-    const orderId = paymentData?.orderId || localStorage.getItem('pendingOrderId');
-    if (!orderId) return;
-    
-    // Generate all possible URL formats for Cashfree
-    const urlFormats = [
-      // Direct links from the API response (highest priority)
-      paymentData?.paymentLink,
-      paymentData?.upiData?.paymentLink,
-      
-      // Production URL formats
-      `https://payments.cashfree.com/order/#${orderId}`,
-      `https://payments.cashfree.com/pg/orders/${orderId}`,
-      `https://payments.cashfree.com/billpay/${orderId}`,
-      
-      // Sandbox URL formats (uncomment if testing in sandbox)
-      // `https://sandbox.cashfree.com/pg/orders/${orderId}`,
-      // `https://sandbox.cashfree.com/billpay/${orderId}`,
-    ].filter(Boolean); // Remove any undefined/null URLs
-    
-    // Keep track of URLs we've tested
-    setTestedUrls(urlFormats);
-    
-    // Try to find a working URL
-    for (const url of urlFormats) {
-      try {
-        console.log(`Testing payment URL: ${url}`);
-        
-        // Use no-cors mode to test if URL is accessible
-        const response = await fetch(url, { 
-          method: 'HEAD',
-          mode: 'no-cors'
-        });
-        
-        console.log(`URL ${url} appears accessible`);
-        
-        // If we get here, the URL might be valid
-        // Store this as the "best" URL to use
-        localStorage.setItem('cashfreePaymentUrl', url);
-        return url;
-      } catch (error) {
-        console.log(`URL ${url} test failed:`, error.message);
-        // Continue to next URL
-      }
-    }
-    
-    // If we get here, all URLs failed
-    console.error('All payment URLs failed accessibility tests');
-    setPaymentPageError(true);
-    return null;
-  };
   
   // Handle payment verification
   const startPolling = () => {
@@ -188,27 +131,50 @@ const UpiPaymentScreen = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
   
-  // Get best payment link from all sources
-  const getBestPaymentLink = () => {
-    // 1. Try direct payment link from stored "best URL"
-    const storedBestUrl = localStorage.getItem('cashfreePaymentUrl');
-    if (storedBestUrl) return storedBestUrl;
-    
-    // 2. Try direct link from API response
+  // Get the correct payment URL format
+  const getPaymentLink = () => {
+    // First check for direct links from API
     const directLink = paymentData?.paymentLink || paymentData?.upiData?.paymentLink;
     if (directLink) return directLink;
     
-    // 3. Fall back to preferred production URL format
-    const orderId = paymentData?.orderId || paymentData?.cfOrderId || localStorage.getItem('pendingOrderId');
+    // Then prioritize the correct # format for production
+    const orderId = paymentData?.orderId || 
+                   paymentData?.cfOrderId || 
+                   localStorage.getItem('pendingOrderId');
+    
     if (!orderId) return null;
     
-    // Production URL - use the format that usually works best
+    // Use the format that works in production - with the # anchor
     return `https://payments.cashfree.com/order/#${orderId}`;
+  };
+  
+  // Try opening each of the possible URL formats
+  const tryAllPaymentFormats = () => {
+    const orderId = paymentData?.orderId || localStorage.getItem('pendingOrderId');
+    if (!orderId) return;
+    
+    // Array of URL formats to try
+    const urlFormats = [
+      `https://payments.cashfree.com/order/#${orderId}`,  // Primary format
+      `https://payments.cashfree.com/billpay/order/pay/${orderId}`,
+      `https://payments.cashfree.com/pg/orders/${orderId}`,
+      `https://payments.cashfree.com/billpay/${orderId}`
+    ];
+    
+    // Open each URL in a new tab with slight delay
+    urlFormats.forEach((url, index) => {
+      setTimeout(() => {
+        console.log(`Opening URL format ${index+1}: ${url}`);
+        window.open(url, '_blank');
+      }, index * 800);
+    });
+    
+    setPaymentAttempted(true);
   };
   
   // Copy payment link to clipboard
   const copyPaymentLink = () => {
-    const link = getBestPaymentLink();
+    const link = getPaymentLink();
     if (link) {
       navigator.clipboard.writeText(link);
       setCopied(true);
@@ -216,9 +182,9 @@ const UpiPaymentScreen = ({
     }
   };
   
-  // Open direct payment
+  // Open direct payment with correct URL format
   const openDirectPayment = () => {
-    const link = getBestPaymentLink();
+    const link = getPaymentLink();
     
     if (!link) {
       setStatusMessage('Payment link not available. Please use another payment method.');
@@ -230,24 +196,6 @@ const UpiPaymentScreen = ({
     
     // Open link in new tab and mark payment as attempted
     window.open(link, '_blank');
-    setPaymentAttempted(true);
-  };
-  
-  // Try opening multiple payment URL formats
-  const tryAllPaymentLinks = () => {
-    if (testedUrls.length === 0) return;
-    
-    // Open each URL in a new tab with slight delay
-    testedUrls.forEach((url, index) => {
-      if (!url) return;
-      
-      setTimeout(() => {
-        console.log(`Opening URL format ${index+1}: ${url}`);
-        window.open(url, '_blank');
-      }, index * 800);
-    });
-    
-    // Mark payment as attempted
     setPaymentAttempted(true);
   };
   
@@ -340,12 +288,12 @@ const UpiPaymentScreen = ({
             <AlertCircle className="w-5 h-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-sm text-yellow-700">
-                We're experiencing issues with the payment page. Please try one of these options:
+                We're experiencing issues with the payment page. You can try:
               </p>
               <ul className="list-disc list-inside text-sm text-yellow-700 mt-1">
-                <li>Click the "Try All Payment Links" button below</li>
-                <li>Use another payment method</li>
-                <li>Contact our support team if the issue persists</li>
+                <li>Using the "Try All Payment Links" button below</li>
+                <li>Using another payment method</li>
+                <li>Contacting our support team if the issue persists</li>
               </ul>
             </div>
           </div>
@@ -382,7 +330,7 @@ const UpiPaymentScreen = ({
             </button>
           </div>
           <div className="text-xs text-gray-500 truncate">
-            {getBestPaymentLink() || 'No payment link available'}
+            {getPaymentLink() || 'No payment link available'}
           </div>
         </div>
         
@@ -395,16 +343,14 @@ const UpiPaymentScreen = ({
           Open Payment Page
         </button>
         
-        {paymentPageError && (
-          <button
-            type="button"
-            onClick={tryAllPaymentLinks}
-            className="w-full flex items-center justify-center bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700"
-          >
-            <LinkIcon className="w-5 h-5 mr-2" />
-            Try All Payment Links
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={tryAllPaymentFormats}
+          className="w-full flex items-center justify-center bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700"
+        >
+          <LinkIcon className="w-5 h-5 mr-2" />
+          Try All Payment Formats
+        </button>
         
         <button
           type="button"
