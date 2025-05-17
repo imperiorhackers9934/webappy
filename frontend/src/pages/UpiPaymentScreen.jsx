@@ -1,7 +1,6 @@
 // components/payment/UpiPaymentScreen.jsx
 import { useState, useEffect, useRef } from 'react';
-import QRCode from 'react-qr-code';
-import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import ticketService from '../services/ticketService';
 
 const UpiPaymentScreen = ({ 
@@ -10,7 +9,6 @@ const UpiPaymentScreen = ({
   onSuccess,
   onCancel
 }) => {
-  const [copied, setCopied] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
@@ -127,36 +125,9 @@ const UpiPaymentScreen = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
   
-  // Get payment link from different possible sources
-  const getPaymentLink = () => {
-    // Try all possible locations where the payment link might be
-    return paymentData?.paymentLink || 
-           paymentData?.upiData?.paymentLink || 
-           (paymentData?.cfOrderId && 
-            `https://${process.env.NODE_ENV === 'production' ? 'payments.cashfree.com' : 'sandbox.cashfree.com'}/pg/orders/${paymentData.cfOrderId || paymentData.orderId}`);
-  };
-  
-  // Copy payment link to clipboard
-  const copyPaymentLink = () => {
-    const link = getPaymentLink();
-    if (link) {
-      navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
-    }
-  };
-  
-  // Open direct payment
-  const openDirectPayment = () => {
-    // Try to open payment page
-    const link = getPaymentLink();
-    if (link) {
-      window.open(link, '_blank');
-      setPaymentAttempted(true);
-    } else {
-      // If no link is available, tell the user to proceed with verification
-      setStatusMessage('Payment link not available. Please use the "I\'ve Completed the Payment" button if you\'ve already paid using a UPI app.');
-    }
+  // Mark payment as attempted when the payment button is clicked
+  const handlePayButtonClick = () => {
+    setPaymentAttempted(true);
   };
   
   // Handle expired case
@@ -188,7 +159,7 @@ const UpiPaymentScreen = ({
         
         <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md mb-6">
           <p className="font-medium">Payment Initiated</p>
-          <p className="text-sm mt-1">If you have completed the payment through your UPI app, please click the button below to verify.</p>
+          <p className="text-sm mt-1">If you have completed the payment through Cashfree, please click the button below to verify.</p>
         </div>
         
         {statusMessage && (
@@ -235,57 +206,94 @@ const UpiPaymentScreen = ({
   
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 max-w-md mx-auto">
-      <h2 className="text-xl font-bold text-center mb-4">Complete Your UPI Payment</h2>
+      <h2 className="text-xl font-bold text-center mb-4">Complete Your Payment</h2>
       
       <div className="text-center mb-6">
         <div className="text-sm text-gray-500 mb-1">Payment expires in</div>
         <div className="text-xl font-medium text-orange-600">{formatTime(countdown)}</div>
       </div>
       
-      {/* Main payment methods */}
-      <div className="space-y-4 mb-6">
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md">
-          <p className="text-sm">
-            To pay for your order, follow one of these methods:
-          </p>
-          <ol className="list-decimal list-inside mt-2 text-sm space-y-1">
-            <li>Click the <b>Open Payment Page</b> button below to pay using any UPI app</li>
-            <li>Or use your UPI app to scan a QR code at the Cashfree payment page</li>
-            <li>After completing payment, click <b>I've Completed the Payment</b></li>
-          </ol>
-        </div>
-        
-        <button
-          type="button"
-          onClick={openDirectPayment}
-          className="w-full flex items-center justify-center bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700"
-        >
-          <Smartphone className="w-5 h-5 mr-2" />
-          Open Payment Page
-        </button>
-        
-        <button
-          type="button"
-          onClick={verifyPayment}
-          className="w-full flex items-center justify-center bg-orange-600 text-white py-3 px-4 rounded-md hover:bg-orange-700"
-        >
-          <RefreshCw className="w-5 h-5 mr-2" />
-          I've Completed the Payment
-        </button>
-        
-        <button
-          type="button"
-          onClick={onCancel}
-          className="w-full text-gray-500 py-2 px-4 text-sm hover:text-orange-600 border border-gray-200 rounded-md"
-        >
-          Cancel and Try Another Payment Method
-        </button>
+      {/* Instructions */}
+      <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md mb-6">
+        <p className="text-sm">
+          Click the payment button below to complete your payment. After payment, click the "I've Completed the Payment" button to verify.
+        </p>
       </div>
       
-      {/* Order ID info */}
-      <div className="border-t border-gray-200 pt-4 text-sm text-gray-600">
+      {/* Custom Cashfree Payment Button */}
+      <div className="mb-6 flex justify-center" onClick={handlePayButtonClick}>
+        <form>
+          <a href="https://payments.cashfree.com/forms/bytebattle-earlybird" target="_parent">
+            <div className="button-container" style={{ background: '#000' }}>
+              <div>
+                <img src="https://cashfree-checkoutcartimages-prod.cashfree.com/MeetKatsE8ikokg8hr90_prod.jpg" alt="logo" className="logo-container" />
+              </div>
+              <div className="text-container">
+                <div style={{ fontFamily: 'Arial', color: '#fff', marginBottom: '5px', fontSize: '14px' }}>
+                  Pay Now
+                </div>
+                <div style={{ fontFamily: 'Arial', color: '#fff', fontSize: '10px' }}>
+                  <span>Powered By Cashfree</span>
+                  <img src="https://cashfreelogo.cashfree.com/cashfreepayments/logosvgs/Group_4355.svg" alt="logo" className="seconday-logo-container" />
+                </div>
+              </div>
+            </div>
+          </a>
+          <style jsx="true">{`
+            .button-container {
+              border: 1px solid black;
+              border-radius: 15px;
+              display: flex;
+              padding: 10px;
+              width: fit-content;
+              cursor: pointer;
+            }
+            .text-container {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              margin-left: 10px;
+              justify-content: center;
+              margin-right: 10px;
+            }
+            .logo-container {
+              width: 40px;
+              height: 40px;
+            }
+            .seconday-logo-container {
+              width: 16px;
+              height: 16px;
+              vertical-align: middle;
+            }
+            a {
+              text-decoration: none;
+            }
+          `}</style>
+        </form>
+      </div>
+      
+      {/* Verification button */}
+      <button
+        type="button"
+        onClick={verifyPayment}
+        className="w-full flex items-center justify-center bg-orange-600 text-white py-3 px-4 rounded-md hover:bg-orange-700 mb-3"
+      >
+        <RefreshCw className="w-5 h-5 mr-2" />
+        I've Completed the Payment
+      </button>
+      
+      <button
+        type="button"
+        onClick={onCancel}
+        className="w-full text-gray-500 py-2 px-4 text-sm hover:text-orange-600 border border-gray-200 rounded-md"
+      >
+        Cancel and Try Another Payment Method
+      </button>
+      
+      {/* Order info */}
+      <div className="border-t border-gray-200 pt-4 mt-6 text-sm text-gray-600">
         <p>Order ID: {paymentData?.orderId || localStorage.getItem('pendingOrderId') || 'Not available'}</p>
-        <p className="mt-1">If you've already paid using your UPI app, click "I've Completed the Payment" above.</p>
+        <p className="mt-1">After completing payment, click "I've Completed the Payment" button above.</p>
       </div>
     </div>
   );
