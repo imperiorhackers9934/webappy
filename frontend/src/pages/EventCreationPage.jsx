@@ -156,7 +156,7 @@ const EventCreationPage = ({ user, onLogout }) => {
   
   // Categories based on your event model
   const categories = [
-    { value: 'SOCIAL', label: 'Social' },
+    { value: 'social', label: 'Social' },
     { value: 'BUSINESS', label: 'Business' },
     { value: 'EDUCATION', label: 'Education' },
     { value: 'ENTERTAINMENT', label: 'Arts & Culture' },

@@ -21,6 +21,7 @@ import ticketService from '../services/ticketService';
 import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
 import UpiPaymentScreen from './UpiPaymentScreen';
+import CashfreePayment from '../components/common/CashfreePayment';
 
 const TicketBookingPage = () => {
   const { eventId } = useParams();
@@ -50,10 +51,13 @@ const TicketBookingPage = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [upiPaymentData, setUpiPaymentData] = useState(null);
   const [paymentStep, setPaymentStep] = useState(0); // 0: not started, 1: UPI in progress
+  const [paymentData, setPaymentData] = useState(null);
+  const [bookingId, setBookingId] = useState(null);
 
   const paymentMethods = [
     { id: 'phonepe', name: 'PhonePe', logo: '/images/phonepe-logo.png', enabled: true },
     { id: 'upi', name: 'UPI / BHIM', logo: '/images/upi-logo.png', enabled: true },
+    { id: 'embedded', name: 'Embedded Payment Experience', logo: '/images/cashfree-logo.png', enabled: true },
     { id: 'card', name: 'Credit/Debit Card', logo: '/images/card-logo.png', enabled: false },
   ];
 
@@ -267,6 +271,11 @@ const TicketBookingPage = () => {
       window.scrollTo(0, 0);
     }
   };
+
+  const handlePaymentSuccess = (result) => {
+    toast.success({ description: 'Payment successful!' });
+    navigate(`/tickets/confirmation/${bookingId || localStorage.getItem('pendingBookingId')}`);
+  };
   
   const handleCompleteBooking = async (e) => {
     e.preventDefault();
@@ -302,49 +311,90 @@ const TicketBookingPage = () => {
       };
       
       const response = await ticketService.bookEventTickets(eventId, bookingData);
+      const currentBookingId = response.id || response._id || (response.booking && response.booking.id);
+      setBookingId(currentBookingId);
+      localStorage.setItem('pendingBookingId', currentBookingId);
       
-      if (totalAmount > 0 && paymentMethod === 'phonepe') {
-        if (response.payment && response.payment.redirectUrl) {
-          localStorage.setItem('pendingBookingId', response.id || response._id || (response.booking && response.booking.id));
-          window.location.href = response.payment.redirectUrl;
+      if (totalAmount > 0) {
+        if (paymentMethod === 'phonepe') {
+          if (response.payment && response.payment.redirectUrl) {
+            window.location.href = response.payment.redirectUrl;
+            return;
+          } else {
+            throw new Error('Payment initialization failed. Please try again or contact support.');
+          }
+        } else if (paymentMethod === 'upi') {
+          const upiUserInfo = {
+            name: `${userInfo.firstName} ${userInfo.lastName}`,
+            email: userInfo.email,
+            phone: userInfo.phone || ''
+          };
+          
+          try {
+            localStorage.setItem('pendingPaymentMethod', 'upi');
+            
+            const upiResponse = await ticketService.initiateUpiPayment(eventId, {
+              bookingId: currentBookingId,
+              amount: totalAmount,
+              eventName: event.name,
+              customerName: upiUserInfo.name,
+              customerEmail: upiUserInfo.email,
+              customerPhone: upiUserInfo.phone
+            });
+            
+            // Store the order ID
+            if (upiResponse.orderId) {
+              localStorage.setItem('pendingOrderId', upiResponse.orderId);
+            }
+            
+            console.log('UPI Payment initiated:', upiResponse);
+            
+            setUpiPaymentData(upiResponse);
+            setPaymentStep(1);
+            setProcessingPayment(false);
+          } catch (err) {
+            console.error('UPI payment initialization error:', err);
+            setBookingError(
+              err.message || 'UPI payment initialization failed. Please try another payment method.'
+            );
+            setProcessingPayment(false);
+          }
+          return;
+        } else if (paymentMethod === 'embedded') {
+          try {
+            localStorage.setItem('pendingPaymentMethod', 'embedded');
+            
+            // Initialize embedded payment
+            const embeddedPaymentResponse = await ticketService.initiateCashfreePayment(eventId, {
+              bookingId: currentBookingId,
+              amount: totalAmount,
+              eventName: event.name,
+              customerName: `${userInfo.firstName} ${userInfo.lastName}`,
+              customerEmail: userInfo.email,
+              customerPhone: userInfo.phone || ''
+            });
+            
+            if (embeddedPaymentResponse) {
+              setPaymentData(embeddedPaymentResponse);
+              setProcessingPayment(false);
+            } else {
+              throw new Error('Embedded payment initialization failed.');
+            }
+          } catch (err) {
+            console.error('Embedded payment initialization error:', err);
+            setBookingError(
+              err.message || 'Embedded payment initialization failed. Please try another payment method.'
+            );
+            setProcessingPayment(false);
+          }
           return;
         } else {
-          throw new Error('Payment initialization failed. Please try again or contact support.');
+          throw new Error('Selected payment method is not yet implemented');
         }
-      } else if (totalAmount > 0 && paymentMethod === 'upi') {
-        const upiUserInfo = {
-          name: `${userInfo.firstName} ${userInfo.lastName}`,
-          email: userInfo.email,
-          phone: userInfo.phone || ''
-        };
-        
-        const upiResponse = await ticketService.initiateUpiPayment(eventId, {
-          bookingId: response.booking?.id,
-          amount: totalAmount,
-          eventName: event.name,
-          customerName: upiUserInfo.name,
-          customerEmail: upiUserInfo.email,
-          customerPhone: upiUserInfo.phone
-        });
-        
-        if (upiResponse.success) {
-          localStorage.setItem('pendingBookingId', response.booking?.id || '');
-          localStorage.setItem('pendingPaymentMethod', 'upi');
-          localStorage.setItem('pendingOrderId', upiResponse.orderId);
-          
-          setUpiPaymentData(upiResponse);
-          setPaymentStep(1);
-          setProcessingPayment(false);
-        } else {
-          throw new Error(upiResponse.message || 'UPI payment initialization failed');
-        }
-        return;
-      } else if (totalAmount === 0 || paymentMethod === 'free') {
-        const bookingId = response.id || response._id || (response.booking && response.booking.id);
-        navigate(`/tickets/confirmation/${bookingId || 'success'}`);
-        return;
       } else {
-        throw new Error('Selected payment method is not yet implemented');
+        // Free tickets
+        navigate(`/tickets/confirmation/${currentBookingId || 'success'}`);
+        return;
       }
     } catch (err) {
       console.error('Error submitting booking:', err);
@@ -416,14 +466,29 @@ const TicketBookingPage = () => {
     );
   }
 
+  // Show embedded payment component when needed
+  if (step === 3 && paymentMethod === 'embedded' && paymentData) {
+    return (
+      <CashfreePayment
+        paymentData={paymentData}
+        bookingId={bookingId}
+        onSuccess={handlePaymentSuccess}
+        onCancel={() => {
+          setPaymentData(null);
+          setPaymentMethod('phonepe');
+        }}
+      />
+    );
+  }
+
   if (paymentStep === 1 && upiPaymentData) {
     return (
       <UpiPaymentScreen
         paymentData={upiPaymentData}
-        bookingId={localStorage.getItem('pendingBookingId')}
+        bookingId={bookingId || localStorage.getItem('pendingBookingId')}
         onSuccess={(result) => {
           toast.success({ description: 'Payment successful!' });
-          navigate(`/tickets/confirmation/${localStorage.getItem('pendingBookingId')}`);
+          navigate(`/tickets/confirmation/${bookingId || localStorage.getItem('pendingBookingId')}`);
         }}
         onCancel={() => {
           setPaymentStep(0);

@@ -562,9 +562,21 @@ initiateUpiPayment: async (eventId, paymentData) => {
     
     // Make request to UPI payment endpoint
     const response = await api.post('/api/payments/upi/initiate', enhancedPaymentData);
-    
     console.log('UPI payment initiation response:', response.data);
-    return response.data;
+    
+    // Create fallback payment URL in case response doesn't have one
+    const orderId = response.data.orderId || response.data.cfOrderId;
+    const fallbackUrl = `https://${process.env.NODE_ENV === 'production' ? 'payments.cashfree.com' : 'sandbox.cashfree.com'}/pg/orders/${orderId}`;
+    
+    // Create a standardized response
+    return {
+      success: true,
+      orderId: orderId,
+      paymentLink: response.data.paymentLink || fallbackUrl,
+      expiresAt: response.data.expiresAt,
+      // Ensure we have data for the UI
+      bookingId: paymentData.bookingId
+    };
   } catch (error) {
     console.error('Error initiating UPI payment:', error);
     
@@ -600,7 +612,12 @@ verifyUpiPayment: async (verificationData) => {
   } catch (error) {
     console.error('Error verifying UPI payment:', error);
     
-    if (error.response?.data) {
+    // More helpful error messages
+    if (error.response?.status === 404) {
+      throw new Error('Order not found or payment not initiated yet');
+    } else if (error.response?.status === 400) {
+      throw new Error('Payment verification failed. The payment may not be complete yet.');
+    } else if (error.response?.data) {
       const errorMsg = error.response.data.message || error.response.data.error;
       throw new Error(errorMsg || 'UPI payment verification failed');
     }
@@ -630,9 +647,182 @@ checkUpiPaymentStatus: async (orderId) => {
   } catch (error) {
     console.error(`Error checking UPI payment status for order ${orderId}:`, error);
     
-    if (error.response?.data) {
+    // More helpful error messages
+    if (error.response?.status === 404) {
+      throw new Error('Order not found');
+    } else if (error.response?.data) {
       const errorMsg = error.response.data.message || error.response.data.error;
       throw new Error(errorMsg || 'UPI payment status check failed');
+    }
+    
+    throw error;
+  }
+},   
+initiatePayment: async (eventId, paymentData) => {
+  try {
+    console.log(`Initiating payment for booking: ${paymentData.bookingId}`, paymentData);
+    
+    // Validate required data
+    if (!paymentData.bookingId || !paymentData.amount) {
+      throw new Error('Booking ID and amount are required for payment');
+    }
+    
+    // Check if payment method is cashfree_sdk
+    const isEmbedded = paymentData.paymentMethod === 'embedded' || paymentData.paymentMethod === 'cashfree_sdk';
+    
+    let endpoint;
+    
+    // Choose appropriate endpoint based on payment method
+    if (isEmbedded) {
+      endpoint = '/api/payments/cashfree/initiate';
+    } else if (paymentData.paymentMethod === 'upi') {
+      endpoint = '/api/payments/upi/initiate';
+    } else if (paymentData.paymentMethod === 'phonepe') {
+      endpoint = '/api/payments/phonepe/initiate';
+    } else {
+      endpoint = '/api/payments/initiate'; // Generic fallback
+    }
+    
+    // Add event ID to payment data
+    const enhancedPaymentData = {
+      ...paymentData,
+      eventId
+    };
+    
+    // Make request to payment initialization endpoint
+    const response = await api.post(endpoint, enhancedPaymentData);
+    console.log('Payment initiation response:', response.data);
+    
+    // Store important data in localStorage
+    if (response.data.orderId) {
+      localStorage.setItem('pendingOrderId', response.data.orderId);
+    }
+    
+    if (response.data.orderToken) {
+      localStorage.setItem('cashfreeOrderToken', response.data.orderToken);
+    }
+    
+    // Return standardized response
+    return {
+      success: true,
+      orderId: response.data.orderId,
+      cfOrderId: response.data.cfOrderId,
+      orderToken: response.data.orderToken,
+      paymentLink: response.data.paymentLink,
+      paymentMethod: isEmbedded ? 'embedded' : paymentData.paymentMethod,
+      expiresAt: response.data.expiresAt,
+      bookingId: paymentData.bookingId
+    };
+  } catch (error) {
+    console.error('Error initiating payment:', error);
+    
+    if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'Payment initiation failed');
+    }
+    
+    throw error;
+  }
+},
+
+/**
+ * Verify payment status
+ * @param {Object} verificationData - Order and booking IDs
+ * @returns {Promise<Object>} - Verification result
+ */
+verifyPayment: async (verificationData) => {
+  try {
+    console.log(`Verifying payment:`, verificationData);
+    
+    // Validate required data
+    if (!verificationData.orderId && !verificationData.transactionId) {
+      throw new Error('Order ID or transaction ID is required for payment verification');
+    }
+    
+    // Choose verification endpoint based on what IDs we have
+    let endpoint = '/api/payments/verify';
+    if (verificationData.paymentMethod === 'upi') {
+      endpoint = '/api/payments/upi/verify';
+    } else if (verificationData.paymentMethod === 'phonepe') {
+      endpoint = '/api/payments/phonepe/status/' + verificationData.transactionId;
+      
+      // PhonePe uses GET instead of POST
+      if (verificationData.transactionId) {
+        const response = await api.get(endpoint);
+        return response.data;
+      }
+    }
+    
+    // Make request to verification endpoint (POST for most methods)
+    const response = await api.post(endpoint, verificationData);
+    console.log('Payment verification response:', response.data);
+    
+    // Clear localStorage items on successful payment
+    if (response.data.success && (response.data.status === 'PAYMENT_SUCCESS' || response.data.status === 'completed')) {
+      localStorage.removeItem('pendingOrderId');
+      localStorage.removeItem('pendingBookingId');
+      localStorage.removeItem('cashfreeOrderToken');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error verifying payment:', error);
+    
+    if (error.response?.status === 404) {
+      throw new Error('Order not found or payment not initiated yet');
+    } else if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'Payment verification failed');
+    }
+    
+    throw error;
+  }
+},
+
+/**
+ * Check payment status (polling)
+ * @param {string} orderId - Order ID
+ * @param {string} paymentMethod - Payment method
+ * @returns {Promise<Object>} - Payment status
+ */
+checkPaymentStatus: async (orderId, paymentMethod = 'cashfree_sdk') => {
+  try {
+    console.log(`Checking payment status for order: ${orderId}, method: ${paymentMethod}`);
+    
+    if (!orderId) {
+      throw new Error('Order ID is required for payment status check');
+    }
+    
+    // Choose appropriate endpoint based on payment method
+    let endpoint;
+    if (paymentMethod === 'upi' || paymentMethod === 'cashfree_sdk' || paymentMethod === 'embedded') {
+      endpoint = `/api/payments/upi/status/${orderId}`;
+    } else if (paymentMethod === 'phonepe') {
+      endpoint = `/api/payments/phonepe/status/${orderId}`;
+    } else {
+      endpoint = `/api/payments/status/${orderId}`;
+    }
+    
+    // Make request to status endpoint
+    const response = await api.get(endpoint);
+    console.log('Payment status response:', response.data);
+    
+    // Clear localStorage items on successful payment
+    if (response.data.success && (response.data.status === 'PAYMENT_SUCCESS' || response.data.status === 'completed')) {
+      localStorage.removeItem('pendingOrderId');
+      localStorage.removeItem('pendingBookingId');
+      localStorage.removeItem('cashfreeOrderToken');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error checking payment status for order ${orderId}:`, error);
+    
+    if (error.response?.status === 404) {
+      throw new Error('Order not found');
+    } else if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'Payment status check failed');
     }
     
     throw error;

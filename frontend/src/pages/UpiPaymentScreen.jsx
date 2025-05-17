@@ -1,9 +1,18 @@
-// components/payment/UpiPaymentScreen.jsx
-import { useState, useEffect, useRef } from 'react';
-import QRCode from 'react-qr-code';
-import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { 
+  ArrowLeft, 
+  CheckCircle, 
+  Copy, 
+  Info, 
+  RefreshCw, 
+  Smartphone
+} from 'lucide-react';
+import { QRCode } from 'react-qrcode-logo';
 import ticketService from '../services/ticketService';
 
+/**
+ * Enhanced UPI Payment screen with better error handling and offline detection
+ */
 const UpiPaymentScreen = ({ 
   paymentData,
   bookingId,
@@ -13,53 +22,87 @@ const UpiPaymentScreen = ({
   const [copied, setCopied] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
-  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
-  const intervalRef = useRef(null);
-  const pollingRef = useRef(null);
+  const [countdown, setCountdown] = useState(300); // 5 minutes
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [retryCount, setRetryCount] = useState(0);
   
-  // Start countdown and payment status polling on mount
+  // Detect network status
   useEffect(() => {
-    // Start countdown timer
-    intervalRef.current = setInterval(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  
+  // Start countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          clearInterval(intervalRef.current);
+          clearInterval(timer);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     
-    // Start payment status polling
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Start payment status polling
+  useEffect(() => {
+    if (isOffline) return; // Don't poll if offline
+    
+    let pollingInterval;
+    
+    const startPolling = () => {
+      pollingInterval = setInterval(async () => {
+        try {
+          await checkPaymentStatus();
+        } catch (error) {
+          console.error('Payment status check error:', error);
+          // Increase retry count if there are errors
+          setRetryCount(prev => prev + 1);
+          
+          // If too many retries, stop polling to conserve resources
+          if (retryCount > 5) {
+            console.log('Too many failed retries, stopping automatic polling');
+            clearInterval(pollingInterval);
+            setStatusMessage('Payment verification is having trouble. Please click "I\'ve Completed the Payment" when done.');
+          }
+        }
+      }, 5000); // Check every 5 seconds
+    };
+    
     startPolling();
     
     return () => {
-      clearInterval(intervalRef.current);
-      clearInterval(pollingRef.current);
+      if (pollingInterval) clearInterval(pollingInterval);
     };
-  }, []);
+  }, [isOffline, paymentData?.orderId, bookingId]);
   
-  // Handle payment verification
-  const startPolling = () => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    
-    // Poll payment status every 5 seconds
-    pollingRef.current = setInterval(async () => {
-      try {
-        await checkPaymentStatus();
-      } catch (error) {
-        console.error('Payment status polling error:', error);
-      }
-    }, 5000);
+  // Format countdown time
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
   
   // Check payment status
   const checkPaymentStatus = async () => {
+    if (!paymentData?.orderId) return;
+    
     try {
+      console.log(`Checking payment status for order: ${paymentData.orderId}`);
       const result = await ticketService.checkUpiPaymentStatus(paymentData.orderId);
       
       if (result.success && result.status === 'PAYMENT_SUCCESS') {
-        clearInterval(pollingRef.current);
         setStatusMessage('Payment successful! Redirecting...');
         
         // Delay to show success message
@@ -67,11 +110,17 @@ const UpiPaymentScreen = ({
       }
     } catch (error) {
       console.error('Payment status check error:', error);
+      throw error; // Re-throw to be handled by the caller
     }
   };
   
   // Manually verify payment
   const verifyPayment = async () => {
+    if (isOffline) {
+      setStatusMessage('You are currently offline. Please check your internet connection and try again.');
+      return;
+    }
+    
     try {
       setVerifying(true);
       setStatusMessage('Verifying payment...');
@@ -95,25 +144,19 @@ const UpiPaymentScreen = ({
     }
   };
   
-  // Format countdown time
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-  
   // Copy UPI ID to clipboard
   const copyUpiLink = () => {
     if (paymentData.upiData?.upiUrl) {
-      navigator.clipboard.writeText(paymentData.upiData.upiUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+      navigator.clipboard.writeText(paymentData.upiData.upiUrl)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 3000);
+        })
+        .catch(err => {
+          console.error('Failed to copy:', err);
+          setStatusMessage('Failed to copy to clipboard');
+        });
     }
-  };
-  
-  // Open Cashfree payment link
-  const openPaymentLink = () => {
-    window.open(paymentData.paymentLink, '_blank');
   };
   
   // Open UPI app directly
@@ -122,11 +165,16 @@ const UpiPaymentScreen = ({
       window.location.href = paymentData.upiData.upiUrl;
     } else {
       // Use Cashfree payment link as fallback
-      window.location.href = paymentData.paymentLink;
+      window.open(paymentData.paymentLink, '_blank');
     }
   };
   
-  // Handle expired case
+  // Open Cashfree payment link
+  const openPaymentLink = () => {
+    window.open(paymentData.paymentLink, '_blank');
+  };
+  
+  // Handle session expired
   if (countdown <= 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm p-6 max-w-md mx-auto">
@@ -147,9 +195,39 @@ const UpiPaymentScreen = ({
     );
   }
   
+  // Handle network offline
+  if (isOffline) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6 max-w-md mx-auto">
+        <div className="text-center py-6">
+          <div className="text-orange-600 mb-4 font-bold">You're offline</div>
+          <p className="text-gray-600 mb-4">
+            Please check your internet connection to continue with the payment.
+          </p>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="bg-orange-600 text-white py-2 px-6 rounded-md hover:bg-orange-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 max-w-md mx-auto">
-      <h2 className="text-xl font-bold text-center mb-4">Complete Your UPI Payment</h2>
+      <div className="flex items-center mb-4">
+        <button 
+          onClick={onCancel} 
+          className="text-orange-600 hover:text-orange-900 flex items-center"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          <span>Back</span>
+        </button>
+        <h2 className="text-xl font-bold text-center flex-1 pr-7">Complete UPI Payment</h2>
+      </div>
       
       <div className="text-center mb-6">
         <div className="text-sm text-gray-500 mb-1">Payment expires in</div>
@@ -164,14 +242,10 @@ const UpiPaymentScreen = ({
               value={paymentData.upiData.upiUrl} 
               size={200} 
               level="H" 
-              renderAs="svg"
               includeMargin={true}
-              imageSettings={{
-                src: "/path-to-your-logo/logo.png",
-                height: 30,
-                width: 30,
-                excavate: true,
-              }}
+              logoImage="/images/logo-icon.png"
+              logoWidth={40}
+              logoHeight={40}
             />
           </div>
           <p className="text-sm text-gray-600 text-center">
@@ -196,8 +270,7 @@ const UpiPaymentScreen = ({
           onClick={openPaymentLink}
           className="w-full flex items-center justify-center bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700"
         >
-          <LinkIcon className="w-5 h-5 mr-2" />
-          Open Payment Page
+          Pay on Cashfree
         </button>
         
         {paymentData.upiData?.upiUrl && (
@@ -221,6 +294,12 @@ const UpiPaymentScreen = ({
             </button>
           </div>
         )}
+      </div>
+      
+      {/* Payment amount reminder */}
+      <div className="bg-orange-50 p-4 rounded-lg mb-6 text-center">
+        <p className="text-orange-800 font-medium">Amount: ₹{paymentData.amount}</p>
+        <p className="text-sm text-orange-600">Booking ID: {bookingId}</p>
       </div>
       
       {/* Payment Verification */}
@@ -263,6 +342,15 @@ const UpiPaymentScreen = ({
         >
           Cancel and Try Another Payment Method
         </button>
+      </div>
+      
+      {/* Help Info */}
+      <div className="mt-4 flex items-start text-xs text-gray-500">
+        <Info className="w-4 h-4 text-orange-400 mr-2 flex-shrink-0 mt-0.5" />
+        <p>
+          If you've already made the payment but it's not being detected, 
+          click "I've Completed the Payment" to manually verify.
+        </p>
       </div>
     </div>
   );
