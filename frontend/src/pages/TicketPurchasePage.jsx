@@ -312,6 +312,8 @@ const TicketBookingPage = () => {
           throw new Error('Payment initialization failed. Please try again or contact support.');
         }
       } // In handleCompleteBooking function, change this part:
+// In handleCompleteBooking function, modify this part:
+
 else if (totalAmount > 0 && paymentMethod === 'upi') {
   const upiUserInfo = {
     name: `${userInfo.firstName} ${userInfo.lastName}`,
@@ -319,30 +321,38 @@ else if (totalAmount > 0 && paymentMethod === 'upi') {
     phone: userInfo.phone || ''
   };
   
-  const upiResponse = await ticketService.initiateUpiPayment(eventId, {
-    bookingId: response.booking?.id,
-    amount: totalAmount,
-    eventName: event.name,
-    customerName: upiUserInfo.name,
-    customerEmail: upiUserInfo.email,
-    customerPhone: upiUserInfo.phone
-  });
-  
-  if (upiResponse.success) {
-    // Store the necessary data in localStorage
-    localStorage.setItem('pendingBookingId', response.booking?.id || '');
+  try {
+    // Store booking ID in localStorage first (in case we need it later)
+    const bookingId = response.id || response._id || (response.booking && response.booking.id);
+    localStorage.setItem('pendingBookingId', bookingId || '');
     localStorage.setItem('pendingPaymentMethod', 'upi');
-    localStorage.setItem('pendingOrderId', upiResponse.orderId);
     
-    // Log the response for debugging
-    console.log('UPI Response:', upiResponse);
+    const upiResponse = await ticketService.initiateUpiPayment(eventId, {
+      bookingId: bookingId,
+      amount: totalAmount,
+      eventName: event.name,
+      customerName: upiUserInfo.name,
+      customerEmail: upiUserInfo.email,
+      customerPhone: upiUserInfo.phone
+    });
     
-    // Pass the payment data to the UPI payment screen
+    // Store the order ID
+    if (upiResponse.orderId) {
+      localStorage.setItem('pendingOrderId', upiResponse.orderId);
+    }
+    
+    console.log('UPI Payment initiated:', upiResponse);
+    
+    // Even if there's no payment link, proceed with what we have
     setUpiPaymentData(upiResponse);
     setPaymentStep(1);
     setProcessingPayment(false);
-  } else {
-    throw new Error(upiResponse.message || 'UPI payment initialization failed');
+  } catch (err) {
+    console.error('UPI payment initialization error:', err);
+    setBookingError(
+      err.message || 'UPI payment initialization failed. Please try another payment method.'
+    );
+    setProcessingPayment(false);
   }
   return;
 }else if (totalAmount === 0 || paymentMethod === 'free') {
