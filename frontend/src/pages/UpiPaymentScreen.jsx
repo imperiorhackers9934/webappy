@@ -14,6 +14,7 @@ const UpiPaymentScreen = ({
   const [verifying, setVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+  const [paymentLinkOpened, setPaymentLinkOpened] = useState(false);
   const intervalRef = useRef(null);
   const pollingRef = useRef(null);
   
@@ -33,6 +34,10 @@ const UpiPaymentScreen = ({
     // Start payment status polling
     startPolling();
     
+    // Log payment data for debugging
+    console.log('Payment Data:', paymentData);
+    
+    // Clean up on unmount
     return () => {
       clearInterval(intervalRef.current);
       clearInterval(pollingRef.current);
@@ -56,6 +61,11 @@ const UpiPaymentScreen = ({
   // Check payment status
   const checkPaymentStatus = async () => {
     try {
+      if (!paymentData?.orderId) {
+        console.error('Missing order ID for payment status check');
+        return;
+      }
+      
       const result = await ticketService.checkUpiPaymentStatus(paymentData.orderId);
       
       if (result.success && result.status === 'PAYMENT_SUCCESS') {
@@ -75,6 +85,10 @@ const UpiPaymentScreen = ({
     try {
       setVerifying(true);
       setStatusMessage('Verifying payment...');
+      
+      if (!paymentData?.orderId) {
+        throw new Error('Missing order ID for payment verification');
+      }
       
       const result = await ticketService.verifyUpiPayment({
         orderId: paymentData.orderId,
@@ -102,27 +116,22 @@ const UpiPaymentScreen = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
   
-  // Copy UPI ID to clipboard
-  const copyUpiLink = () => {
-    if (paymentData.upiData?.upiUrl) {
-      navigator.clipboard.writeText(paymentData.upiData.upiUrl);
+  // Copy payment link to clipboard
+  const copyPaymentLink = () => {
+    if (paymentData?.paymentLink) {
+      navigator.clipboard.writeText(paymentData.paymentLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }
   };
   
-  // Open Cashfree payment link
-  const openPaymentLink = () => {
-    window.open(paymentData.paymentLink, '_blank');
-  };
-  
-  // Open UPI app directly
-  const openUpiApp = () => {
-    if (paymentData.upiData?.upiUrl) {
-      window.location.href = paymentData.upiData.upiUrl;
+  // Open Cashfree payment page
+  const openPaymentPage = () => {
+    if (paymentData?.paymentLink) {
+      setPaymentLinkOpened(true);
+      window.open(paymentData.paymentLink, '_blank');
     } else {
-      // Use Cashfree payment link as fallback
-      window.location.href = paymentData.paymentLink;
+      setStatusMessage('Payment link not available. Please try again later.');
     }
   };
   
@@ -157,21 +166,15 @@ const UpiPaymentScreen = ({
       </div>
       
       {/* QR Code Section */}
-      {paymentData.upiData?.upiUrl && (
+      {paymentData?.paymentLink && (
         <div className="flex flex-col items-center mb-6">
           <div className="bg-orange-50 p-3 rounded-lg mb-4">
             <QRCode 
-              value={paymentData.upiData.upiUrl} 
+              value={paymentData.paymentLink} 
               size={200} 
               level="H" 
               renderAs="svg"
               includeMargin={true}
-              imageSettings={{
-                src: "/path-to-your-logo/logo.png",
-                height: 30,
-                width: 30,
-                excavate: true,
-              }}
             />
           </div>
           <p className="text-sm text-gray-600 text-center">
@@ -180,39 +183,37 @@ const UpiPaymentScreen = ({
         </div>
       )}
       
+      {/* Information Message */}
+      <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md mb-6">
+        <p className="text-sm">
+          Click the button below to open Cashfree's payment page. You can complete your payment using any UPI app.
+        </p>
+      </div>
+      
       {/* Action Buttons */}
       <div className="space-y-4 mb-6">
         <button
           type="button"
-          onClick={openUpiApp}
-          className="w-full flex items-center justify-center bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700"
-        >
-          <Smartphone className="w-5 h-5 mr-2" />
-          Pay via UPI App
-        </button>
-        
-        <button
-          type="button"
-          onClick={openPaymentLink}
+          onClick={openPaymentPage}
           className="w-full flex items-center justify-center bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700"
         >
-          <LinkIcon className="w-5 h-5 mr-2" />
+          <Smartphone className="w-5 h-5 mr-2" />
           Open Payment Page
         </button>
         
-        {paymentData.upiData?.upiUrl && (
+        {paymentData?.paymentLink && (
           <div className="relative flex items-center mt-3">
             <input
               type="text"
-              value={paymentData.upiData.upiUrl}
+              value={paymentData.paymentLink}
               readOnly
               className="w-full bg-gray-100 border border-gray-300 rounded-md py-2 px-3 pr-10 text-sm"
             />
             <button
               type="button"
-              onClick={copyUpiLink}
+              onClick={copyPaymentLink}
               className="absolute right-2 text-gray-500 hover:text-gray-700"
-              title="Copy UPI link"
+              title="Copy payment link"
             >
               {copied ? 
                 <CheckCircle className="w-5 h-5 text-green-500" /> : 
@@ -230,6 +231,12 @@ const UpiPaymentScreen = ({
             statusMessage.includes('successful') ? 'text-green-600' : 'text-orange-600'
           }`}>
             {statusMessage}
+          </div>
+        )}
+        
+        {paymentLinkOpened && (
+          <div className="text-sm text-center mb-3 text-gray-600">
+            Once you've completed payment in the Cashfree page, click the button below to verify.
           </div>
         )}
         
