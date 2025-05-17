@@ -1,6 +1,5 @@
 // components/payment/UpiPaymentScreen.jsx
 import { useState, useEffect, useRef } from 'react';
-import QRCode from 'react-qr-code';
 import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import ticketService from '../services/ticketService';
 
@@ -15,6 +14,7 @@ const UpiPaymentScreen = ({
   const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
   const [paymentAttempted, setPaymentAttempted] = useState(false);
+  const [paymentPageError, setPaymentPageError] = useState(false);
   const intervalRef = useRef(null);
   const pollingRef = useRef(null);
   
@@ -34,9 +34,14 @@ const UpiPaymentScreen = ({
     // Start payment status polling
     startPolling();
     
-    // Log debug info
-    console.log('UPI Payment Data:', paymentData);
-    console.log('Booking ID:', bookingId);
+    // Log payment data for debugging
+    console.log('UPI Payment Data received:', {
+      paymentLink: paymentData?.paymentLink,
+      upiDataLink: paymentData?.upiData?.paymentLink,
+      orderId: paymentData?.orderId,
+      cfOrderId: paymentData?.cfOrderId,
+      calculatedLink: getPaymentLink()
+    });
     
     // Clean up on unmount
     return () => {
@@ -130,10 +135,24 @@ const UpiPaymentScreen = ({
   // Get payment link from different possible sources
   const getPaymentLink = () => {
     // Try all possible locations where the payment link might be
-    return paymentData?.paymentLink || 
-           paymentData?.upiData?.paymentLink || 
-           (paymentData?.cfOrderId && 
-            `https://${process.env.NODE_ENV === 'production' ? 'payments.cashfree.com' : 'sandbox.cashfree.com'}/pg/orders/${paymentData.cfOrderId || paymentData.orderId}`);
+    const directLink = paymentData?.paymentLink || paymentData?.upiData?.paymentLink;
+    
+    if (directLink) {
+      return directLink;
+    }
+    
+    // If no direct link, try to construct one
+    const orderId = paymentData?.orderId || paymentData?.cfOrderId;
+    if (!orderId) {
+      console.error('No order ID available to construct payment URL');
+      return null;
+    }
+    
+    // Use the environment to determine the correct domain
+    const isProd = process.env.NODE_ENV === 'production';
+    const domain = isProd ? 'payments.cashfree.com' : 'sandbox.cashfree.com';
+    
+    return `https://${domain}/pg/orders/${orderId}`;
   };
   
   // Copy payment link to clipboard
@@ -148,15 +167,29 @@ const UpiPaymentScreen = ({
   
   // Open direct payment
   const openDirectPayment = () => {
-    // Try to open payment page
+    // Get the payment link
     const link = getPaymentLink();
-    if (link) {
-      window.open(link, '_blank');
-      setPaymentAttempted(true);
-    } else {
-      // If no link is available, tell the user to proceed with verification
-      setStatusMessage('Payment link not available. Please use the "I\'ve Completed the Payment" button if you\'ve already paid using a UPI app.');
+    
+    if (!link) {
+      setStatusMessage('Payment link not available. Please use another payment method.');
+      setPaymentPageError(true);
+      return;
     }
+    
+    console.log(`Opening payment link: ${link}`);
+    
+    // Check if the link is accessible before opening
+    fetch(link, { method: 'HEAD', mode: 'no-cors' })
+      .then(() => {
+        // Link seems accessible, open it
+        window.open(link, '_blank');
+        setPaymentAttempted(true);
+      })
+      .catch(error => {
+        console.error('Error checking payment link:', error);
+        setPaymentPageError(true);
+        setStatusMessage('Payment page not available. Please try another payment method or contact support.');
+      });
   };
   
   // Handle expired case
@@ -242,6 +275,24 @@ const UpiPaymentScreen = ({
         <div className="text-xl font-medium text-orange-600">{formatTime(countdown)}</div>
       </div>
       
+      {paymentPageError && (
+        <div className="bg-yellow-50 border border-yellow-300 p-3 rounded-md mb-4">
+          <div className="flex items-start">
+            <AlertCircle className="w-5 h-5 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm text-yellow-700">
+                We're experiencing issues with the payment page. You can try:
+              </p>
+              <ul className="list-disc list-inside text-sm text-yellow-700 mt-1">
+                <li>Refreshing the page and trying again</li>
+                <li>Using another payment method</li>
+                <li>Contacting our support team if the issue persists</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Main payment methods */}
       <div className="space-y-4 mb-6">
         <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md">
@@ -253,6 +304,27 @@ const UpiPaymentScreen = ({
             <li>Or use your UPI app to scan a QR code at the Cashfree payment page</li>
             <li>After completing payment, click <b>I've Completed the Payment</b></li>
           </ol>
+        </div>
+        
+        {/* Payment link section */}
+        <div className="border border-gray-200 rounded-md p-3">
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-sm font-medium">Payment Link</div>
+            <button 
+              onClick={copyPaymentLink}
+              className="text-blue-600 hover:text-blue-800 p-1 rounded-md"
+              title="Copy to clipboard"
+            >
+              {copied ? (
+                <CheckCircle className="w-4 h-4 text-green-500" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+          <div className="text-xs text-gray-500 truncate">
+            {getPaymentLink() || 'No payment link available'}
+          </div>
         </div>
         
         <button
