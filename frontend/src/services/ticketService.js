@@ -539,13 +539,7 @@ addToCalendar: async (eventId) => {
 },
   // Add these UPI payment methods to your ticketService.js file
 
-/**
- * Initiate UPI payment via Cashfree
- * @param {string} eventId - Event ID (for contextual info)
- * @param {Object} paymentData - Payment data including booking details
- * @returns {Promise<Object>} - UPI payment details
- */
-initiateUpiPayment: async (eventId, paymentData) => {
+ initiateUpiPayment: async (eventId, paymentData) => {
     try {
       console.log(`Initiating UPI payment for booking: ${paymentData.bookingId}`);
       
@@ -564,25 +558,33 @@ initiateUpiPayment: async (eventId, paymentData) => {
       const response = await api.post('/api/payments/upi/initiate', enhancedPaymentData);
       console.log('UPI payment initiation response:', response.data);
       
-      // IMPORTANT: Check if you actually received a payment link
-      if (!response.data.paymentLink && !response.data.upiData?.paymentLink) {
-        throw new Error('No payment link received from Cashfree');
-      }
-      
-      // Store order ID in localStorage for later verification
+      // Store important data in localStorage for later verification
       if (response.data.orderId) {
         localStorage.setItem('pendingOrderId', response.data.orderId);
       }
       
-      // Create a standardized response
+      // Store all payment URLs as a JSON string
+      if (response.data.paymentUrls) {
+        localStorage.setItem('cashfreePaymentUrls', JSON.stringify(response.data.paymentUrls));
+      }
+      
+      // Check for alternate links in upiData
+      if (response.data.upiData?.alternateLinks) {
+        localStorage.setItem('cashfreeAlternateLinks', JSON.stringify(response.data.upiData.alternateLinks));
+      }
+      
+      // Create a standardized response with all payment URL options
       return {
         success: true,
-        orderId: response.data.orderId || response.data.cfOrderId,
-        paymentLink: response.data.paymentLink || response.data.upiData?.paymentLink,
+        orderId: response.data.orderId,
+        paymentLink: response.data.paymentLink,
         expiresAt: response.data.expiresAt,
         bookingId: paymentData.bookingId,
-        upiData: response.data.upiData || {
-          paymentLink: response.data.paymentLink
+        // Include all possible payment links
+        paymentUrls: response.data.paymentUrls || {},
+        upiData: {
+          paymentLink: response.data.upiData?.paymentLink || response.data.paymentLink,
+          alternateLinks: response.data.upiData?.alternateLinks || []
         }
       };
     } catch (error) {
@@ -616,6 +618,14 @@ initiateUpiPayment: async (eventId, paymentData) => {
       const response = await api.post('/api/payments/upi/verify', verificationData);
       
       console.log('UPI payment verification response:', response.data);
+      
+      // If payment is successful, clear stored payment URLs
+      if (response.data.success && response.data.status === 'PAYMENT_SUCCESS') {
+        localStorage.removeItem('cashfreePaymentUrls');
+        localStorage.removeItem('cashfreeAlternateLinks');
+        localStorage.removeItem('cashfreePaymentUrl');
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error verifying UPI payment:', error);
@@ -651,6 +661,14 @@ initiateUpiPayment: async (eventId, paymentData) => {
       const response = await api.get(`/api/payments/upi/status/${orderId}`);
       
       console.log('UPI payment status response:', response.data);
+      
+      // If payment is successful, clear stored payment URLs
+      if (response.data.success && response.data.status === 'PAYMENT_SUCCESS') {
+        localStorage.removeItem('cashfreePaymentUrls');
+        localStorage.removeItem('cashfreeAlternateLinks');
+        localStorage.removeItem('cashfreePaymentUrl');
+      }
+      
       return response.data;
     } catch (error) {
       console.error(`Error checking UPI payment status for order ${orderId}:`, error);
