@@ -657,6 +657,7 @@ checkUpiPaymentStatus: async (orderId) => {
     
     throw error;
   }
+}
 };
 
 export default ticketService;
