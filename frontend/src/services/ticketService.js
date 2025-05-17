@@ -546,118 +546,127 @@ addToCalendar: async (eventId) => {
  * @returns {Promise<Object>} - UPI payment details
  */
 initiateUpiPayment: async (eventId, paymentData) => {
-  try {
-    console.log(`Initiating UPI payment for booking: ${paymentData.bookingId}`);
-    
-    // Validate required data
-    if (!paymentData.bookingId || !paymentData.amount) {
-      throw new Error('Booking ID and amount are required for UPI payment');
+    try {
+      console.log(`Initiating UPI payment for booking: ${paymentData.bookingId}`);
+      
+      // Validate required data
+      if (!paymentData.bookingId || !paymentData.amount) {
+        throw new Error('Booking ID and amount are required for UPI payment');
+      }
+      
+      // Add event ID to payment data if needed for tracking
+      const enhancedPaymentData = {
+        ...paymentData,
+        eventId
+      };
+      
+      // Make request to UPI payment endpoint
+      const response = await api.post('/api/payments/upi/initiate', enhancedPaymentData);
+      console.log('UPI payment initiation response:', response.data);
+      
+      // IMPORTANT: Check if you actually received a payment link
+      if (!response.data.paymentLink && !response.data.upiData?.paymentLink) {
+        throw new Error('No payment link received from Cashfree');
+      }
+      
+      // Store order ID in localStorage for later verification
+      if (response.data.orderId) {
+        localStorage.setItem('pendingOrderId', response.data.orderId);
+      }
+      
+      // Create a standardized response
+      return {
+        success: true,
+        orderId: response.data.orderId || response.data.cfOrderId,
+        paymentLink: response.data.paymentLink || response.data.upiData?.paymentLink,
+        expiresAt: response.data.expiresAt,
+        bookingId: paymentData.bookingId,
+        upiData: response.data.upiData || {
+          paymentLink: response.data.paymentLink
+        }
+      };
+    } catch (error) {
+      console.error('Error initiating UPI payment:', error);
+      
+      // Enhanced error handling
+      if (error.response?.data) {
+        const errorMsg = error.response.data.message || error.response.data.error;
+        throw new Error(errorMsg || 'UPI payment initiation failed');
+      }
+      
+      throw error;
     }
-    
-    // Add event ID to payment data if needed for tracking
-    const enhancedPaymentData = {
-      ...paymentData,
-      eventId
-    };
-    
-    // Make request to UPI payment endpoint
-    const response = await api.post('/api/payments/upi/initiate', enhancedPaymentData);
-    console.log('UPI payment initiation response:', response.data);
-    
-    // Create fallback payment URL in case response doesn't have one
-    const orderId = response.data.orderId || response.data.cfOrderId;
-    const fallbackUrl = `https://${process.env.NODE_ENV === 'production' ? 'payments.cashfree.com' : 'sandbox.cashfree.com'}/pg/orders/${orderId}`;
-    
-    // Create a standardized response
-    return {
-      success: true,
-      orderId: orderId,
-      paymentLink: response.data.paymentLink || fallbackUrl,
-      expiresAt: response.data.expiresAt,
-      // Ensure we have data for the UI
-      bookingId: paymentData.bookingId
-    };
-  } catch (error) {
-    console.error('Error initiating UPI payment:', error);
-    
-    // Enhanced error handling
-    if (error.response?.data) {
-      const errorMsg = error.response.data.message || error.response.data.error;
-      throw new Error(errorMsg || 'UPI payment initiation failed');
-    }
-    
-    throw error;
-  }
-},
+  },
 
-/**
- * Verify UPI payment with Cashfree
- * @param {Object} verificationData - Order and booking IDs
- * @returns {Promise<Object>} - Verification result
- */
-verifyUpiPayment: async (verificationData) => {
-  try {
-    console.log(`Verifying UPI payment:`, verificationData);
-    
-    // Validate required data
-    if (!verificationData.orderId) {
-      throw new Error('Order ID is required for UPI payment verification');
+  /**
+   * Verify UPI payment with Cashfree with optimized error handling
+   * @param {Object} verificationData - Order and booking IDs
+   * @returns {Promise<Object>} - Verification result
+   */
+  verifyUpiPayment: async (verificationData) => {
+    try {
+      console.log(`Verifying UPI payment:`, verificationData);
+      
+      // Validate required data
+      if (!verificationData.orderId) {
+        throw new Error('Order ID is required for UPI payment verification');
+      }
+      
+      // Make request to UPI verification endpoint
+      const response = await api.post('/api/payments/upi/verify', verificationData);
+      
+      console.log('UPI payment verification response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error verifying UPI payment:', error);
+      
+      // More helpful error messages
+      if (error.response?.status === 404) {
+        throw new Error('Order not found or payment not initiated yet');
+      } else if (error.response?.status === 400) {
+        throw new Error('Payment verification failed. The payment may not be complete yet.');
+      } else if (error.response?.data) {
+        const errorMsg = error.response.data.message || error.response.data.error;
+        throw new Error(errorMsg || 'UPI payment verification failed');
+      }
+      
+      throw error;
     }
-    
-    // Make request to UPI verification endpoint
-    const response = await api.post('/api/payments/upi/verify', verificationData);
-    
-    console.log('UPI payment verification response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Error verifying UPI payment:', error);
-    
-    // More helpful error messages
-    if (error.response?.status === 404) {
-      throw new Error('Order not found or payment not initiated yet');
-    } else if (error.response?.status === 400) {
-      throw new Error('Payment verification failed. The payment may not be complete yet.');
-    } else if (error.response?.data) {
-      const errorMsg = error.response.data.message || error.response.data.error;
-      throw new Error(errorMsg || 'UPI payment verification failed');
-    }
-    
-    throw error;
-  }
-},
+  },
 
-/**
- * Check UPI payment status
- * @param {string} orderId - Order ID from Cashfree
- * @returns {Promise<Object>} - Payment status
- */
-checkUpiPaymentStatus: async (orderId) => {
-  try {
-    console.log(`Checking UPI payment status for order: ${orderId}`);
-    
-    if (!orderId) {
-      throw new Error('Order ID is required for payment status check');
+  /**
+   * Check UPI payment status with improved reliability
+   * @param {string} orderId - Order ID from Cashfree
+   * @returns {Promise<Object>} - Payment status
+   */
+  checkUpiPaymentStatus: async (orderId) => {
+    try {
+      console.log(`Checking UPI payment status for order: ${orderId}`);
+      
+      if (!orderId) {
+        throw new Error('Order ID is required for payment status check');
+      }
+      
+      // Make request to UPI status endpoint
+      const response = await api.get(`/api/payments/upi/status/${orderId}`);
+      
+      console.log('UPI payment status response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error checking UPI payment status for order ${orderId}:`, error);
+      
+      // More helpful error messages
+      if (error.response?.status === 404) {
+        throw new Error('Order not found');
+      } else if (error.response?.data) {
+        const errorMsg = error.response.data.message || error.response.data.error;
+        throw new Error(errorMsg || 'UPI payment status check failed');
+      }
+      
+      throw error;
     }
-    
-    // Make request to UPI status endpoint
-    const response = await api.get(`/api/payments/upi/status/${orderId}`);
-    
-    console.log('UPI payment status response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error(`Error checking UPI payment status for order ${orderId}:`, error);
-    
-    // More helpful error messages
-    if (error.response?.status === 404) {
-      throw new Error('Order not found');
-    } else if (error.response?.data) {
-      const errorMsg = error.response.data.message || error.response.data.error;
-      throw new Error(errorMsg || 'UPI payment status check failed');
-    }
-    
-    throw error;
   }
-}
+  
 };
 
 export default ticketService;
