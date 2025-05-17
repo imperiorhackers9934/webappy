@@ -1,7 +1,7 @@
 // components/payment/UpiPaymentScreen.jsx
 import { useState, useEffect, useRef } from 'react';
 import QRCode from 'react-qr-code';
-import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { Copy, CheckCircle, Smartphone, RefreshCw, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import ticketService from '../services/ticketService';
 
 const UpiPaymentScreen = ({ 
@@ -15,6 +15,7 @@ const UpiPaymentScreen = ({
   const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
   const [paymentLinkOpened, setPaymentLinkOpened] = useState(false);
+  const [qrError, setQrError] = useState(false);
   const intervalRef = useRef(null);
   const pollingRef = useRef(null);
   
@@ -35,7 +36,7 @@ const UpiPaymentScreen = ({
     startPolling();
     
     // Log payment data for debugging
-    console.log('Payment Data:', paymentData);
+    console.log('UPI Payment Data:', paymentData);
     
     // Clean up on unmount
     return () => {
@@ -118,20 +119,30 @@ const UpiPaymentScreen = ({
   
   // Copy payment link to clipboard
   const copyPaymentLink = () => {
-    if (paymentData?.paymentLink) {
-      navigator.clipboard.writeText(paymentData.paymentLink);
+    if (getPaymentLink()) {
+      navigator.clipboard.writeText(getPaymentLink());
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }
   };
   
-  // Open Cashfree payment page
+  // Helper to get the best available payment link
+  const getPaymentLink = () => {
+    // Try different possible places where the payment link might be stored
+    return paymentData?.paymentLink || 
+           paymentData?.upiData?.paymentLink ||
+           (paymentData?.upiData?.upiUrl && !paymentData?.upiData?.upiUrl.startsWith('upi://') ? paymentData.upiData.upiUrl : null);
+  };
+  
+  // Open payment page
   const openPaymentPage = () => {
-    if (paymentData?.paymentLink) {
+    const paymentLink = getPaymentLink();
+    
+    if (paymentLink) {
       setPaymentLinkOpened(true);
-      window.open(paymentData.paymentLink, '_blank');
+      window.open(paymentLink, '_blank');
     } else {
-      setStatusMessage('Payment link not available. Please try again later.');
+      setStatusMessage('Payment link not available. Please try the "I\'ve Completed the Payment" button below or try another payment method.');
     }
   };
   
@@ -166,19 +177,27 @@ const UpiPaymentScreen = ({
       </div>
       
       {/* QR Code Section */}
-      {paymentData?.paymentLink && (
+      {getPaymentLink() ? (
         <div className="flex flex-col items-center mb-6">
           <div className="bg-orange-50 p-3 rounded-lg mb-4">
             <QRCode 
-              value={paymentData.paymentLink} 
+              value={getPaymentLink()}
               size={200} 
               level="H" 
               renderAs="svg"
               includeMargin={true}
+              onError={() => setQrError(true)}
             />
           </div>
           <p className="text-sm text-gray-600 text-center">
             Scan this QR code with any UPI app to pay
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center mb-6 bg-orange-50 p-4 rounded-lg">
+          <AlertCircle className="w-10 h-10 text-orange-500 mb-2" />
+          <p className="text-sm text-orange-700 text-center">
+            QR code not available. Please use the payment button below.
           </p>
         </div>
       )}
@@ -186,7 +205,7 @@ const UpiPaymentScreen = ({
       {/* Information Message */}
       <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md mb-6">
         <p className="text-sm">
-          Click the button below to open Cashfree's payment page. You can complete your payment using any UPI app.
+          Click the button below to open the payment page. You can complete your payment using any UPI app.
         </p>
       </div>
       
@@ -201,11 +220,11 @@ const UpiPaymentScreen = ({
           Open Payment Page
         </button>
         
-        {paymentData?.paymentLink && (
+        {getPaymentLink() && (
           <div className="relative flex items-center mt-3">
             <input
               type="text"
-              value={paymentData.paymentLink}
+              value={getPaymentLink()}
               readOnly
               className="w-full bg-gray-100 border border-gray-300 rounded-md py-2 px-3 pr-10 text-sm"
             />
@@ -236,7 +255,7 @@ const UpiPaymentScreen = ({
         
         {paymentLinkOpened && (
           <div className="text-sm text-center mb-3 text-gray-600">
-            Once you've completed payment in the Cashfree page, click the button below to verify.
+            Once you've completed payment, click the button below to verify.
           </div>
         )}
         
@@ -271,6 +290,24 @@ const UpiPaymentScreen = ({
           Cancel and Try Another Payment Method
         </button>
       </div>
+      
+      {/* Debug Information Section (if in development) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-6 border-t border-gray-200 pt-4">
+          <details className="text-xs">
+            <summary className="cursor-pointer text-gray-500">Debug Info</summary>
+            <div className="mt-2 bg-gray-100 p-2 rounded">
+              <div>Order ID: {paymentData?.orderId || 'Not available'}</div>
+              <div>Booking ID: {bookingId || 'Not available'}</div>
+              <div>Has payment link: {getPaymentLink() ? 'Yes' : 'No'}</div>
+              <div>PaymentData keys: {paymentData ? Object.keys(paymentData).join(', ') : 'None'}</div>
+              {paymentData?.upiData && (
+                <div>UpiData keys: {Object.keys(paymentData.upiData).join(', ')}</div>
+              )}
+            </div>
+          </details>
+        </div>
+      )}
     </div>
   );
 };
