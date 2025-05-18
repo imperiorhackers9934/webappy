@@ -4,7 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import customEventService from '../services/customeventService';
 import Navbar from '../components/common/Navbar';
-import Footer from '../components/common/Footer'; // Changed from footer/Footer
+import Footer from '../components/common/Footer';
+import eventService from '../services/eventService';
 
 const CustomFormSubmissionPage = () => {
   const { eventId } = useParams();
@@ -23,24 +24,36 @@ const CustomFormSubmissionPage = () => {
   const [responses, setResponses] = useState([]);
   const fileInputRefs = useRef({});
   
-  useEffect(() => {
+// The specific section to fix in CustomFormSubmissionPage.jsx
+
+useEffect(() => {
     const fetchEventAndForm = async () => {
       try {
+        // Check if user is authenticated
+        if (!user) {
+          setError("You must be logged in to access this form.");
+          setLoading(false);
+          return;
+        }
+        
         setLoading(true);
         setError(null);
         
         // First fetch event details
-        const eventResponse = await fetch(`/api/events/${eventId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const eventResponse = await eventService.getEvent(eventId);
         
-        if (!eventResponse.ok) {
+        // Check if we got an error response
+        if (eventResponse.error) {
+          throw new Error(eventResponse.error);
+        }
+        
+        // Get the event data (normalized by the service)
+        const eventData = eventResponse.data;
+        
+        if (!eventData) {
           throw new Error('Failed to fetch event details');
         }
         
-        const eventData = await eventResponse.json();
         setEvent(eventData);
         
         // Check if the event has already started and passed the registration deadline
@@ -82,54 +95,45 @@ const CustomFormSubmissionPage = () => {
             setResponses(initialResponses);
           }
         } catch (formError) {
-          setError('No registration form found for this event.');
+          console.error('Form fetch error:', formError);
+          setError(formError.response?.data?.error || 'No registration form found for this event.');
           setLoading(false);
           return;
         }
         
         // Check if user has already submitted a response
         try {
-          const submissionResponse = await customEventService.getMySubmission(eventId);
-          setExistingSubmission(submissionResponse);
-          
-          // Pre-populate form with existing response data
-          if (submissionResponse && submissionResponse.responses && formResponse) {
-            const prefilledResponses = formResponse.fields.map(field => {
-              const existingResponse = submissionResponse.responses.find(r => r.fieldId === field.fieldId);
-              return {
-                fieldId: field.fieldId,
-                value: existingResponse ? existingResponse.value : (field.type === 'checkbox' ? [] : ''),
-                files: existingResponse && existingResponse.files ? existingResponse.files : []
-              };
-            });
-            setResponses(prefilledResponses);
+          if (user?.id) {
+            const submissionResponse = await customEventService.getMySubmission(eventId);
+            setExistingSubmission(submissionResponse);
+            
+            if (submissionResponse && submissionResponse.responses && form) {
+              const prefilledResponses = form.fields.map(field => {
+                const existingResponse = submissionResponse.responses.find(r => r.fieldId === field.fieldId);
+                return {
+                  fieldId: field.fieldId,
+                  value: existingResponse ? existingResponse.value : (field.type === 'checkbox' ? [] : ''),
+                  files: existingResponse?.files || []
+                };
+              });
+              setResponses(prefilledResponses);
+            }
           }
         } catch (submissionError) {
-          // It's okay if no submission exists yet
-          console.log('No existing submission found');
+          console.log('No existing submission found:', submissionError);
         }
         
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching event or form:', error);
-        setError('Failed to load event data. Please try again.');
+        console.error('Error in fetchEventAndForm:', error);
+        setError(error.message || 'Failed to load event data. Please try again.');
         setLoading(false);
       }
     };
     
     fetchEventAndForm();
-  }, [eventId, token, user.id]);
+  }, [eventId, token, user]);
   
-  const handleResponseChange = (fieldId, value) => {
-    setResponses(prevResponses => {
-      return prevResponses.map(response => {
-        if (response.fieldId === fieldId) {
-          return { ...response, value };
-        }
-        return response;
-      });
-    });
-  };
   
   const handleCheckboxChange = (fieldId, optionValue, checked) => {
     setResponses(prevResponses => {
@@ -151,7 +155,16 @@ const CustomFormSubmissionPage = () => {
       });
     });
   };
-  
+  const handleResponseChange = (fieldId, value) => {
+    setResponses(prevResponses => {
+      return prevResponses.map(response => {
+        if (response.fieldId === fieldId) {
+          return { ...response, value };
+        }
+        return response;
+      });
+    });
+  }; 
   const handleFileUpload = async (fieldId, files) => {
     if (!files || files.length === 0) return;
     
