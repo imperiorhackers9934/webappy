@@ -21,7 +21,7 @@ import ticketService from '../services/ticketService';
 import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
 import UpiPaymentScreen from './UpiPaymentScreen';
-import CashfreePayment from '../components/CashfreePayment';
+import CashfreePayment from '../components/common/CashfreePayment';
 
 const TicketBookingPage = () => {
   const { eventId } = useParams();
