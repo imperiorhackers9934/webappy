@@ -53,6 +53,8 @@ import CustomFormSubmissionsPage from './pages/CustomFormSubmissionsPage';
 import TermsAndConditions from './pages/TermsAndConditions';
 import Refundpolicy from './pages/RefundPolicy';
 import PaymentResponsePage from './pages/PaymentResponsePage';
+import EditEventForm from './pages/EditEventPage';
+import EditFormPage from './pages/EditFormPage';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -136,16 +138,26 @@ const App = () => {
               <CustomFormCreatorPage />
             </ProtectedRoute>
           } />
-          
-          <Route path="/events/:eventId/form/edit" element={
+           <Route path="/events/:eventId/form/create" element={
             <ProtectedRoute>
               <CustomFormCreatorPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/events/:eventId/edit" element={
+            <ProtectedRoute>
+              <EditEventForm />
             </ProtectedRoute>
           } />
           
           <Route path="/events/:eventId/form" element={
             <ProtectedRoute>
               <CustomFormSubmissionPage />
+            </ProtectedRoute>
+          } />
+           <Route path="/events/:eventId/form/edit" element={
+            <ProtectedRoute>
+             <EditFormPage/>
             </ProtectedRoute>
           } />
           

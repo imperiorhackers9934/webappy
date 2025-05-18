@@ -56,7 +56,9 @@ const CustomFormCreatorPage = () => {
         
         setEvent(eventData);
         // Check if the user is the creator or a host
-        const isCreator = eventData.createdBy && eventData.createdBy === user.id;
+        const isCreator = eventData.createdBy && eventData.createdBy._id === user.id;
+        console.log("creator", eventData.createdBy._id)
+        console.log(user.id)
         const isHost = eventData.attendees && eventData.attendees.some(
           a => a.user === user.id && a.role === 'host'
         );
@@ -336,8 +338,8 @@ const CustomFormCreatorPage = () => {
   
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <Navbar />
-      <div className="flex-grow container mx-auto px-4 py-8">
+      {/* <Navbar /> */}
+      <div className="flex-grow container mx-auto px-24 py-4">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-orange-600">Custom Registration Form</h1>

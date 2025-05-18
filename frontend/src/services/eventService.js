@@ -84,7 +84,23 @@ const eventService = {
       };
     }
   },
-
+  getMyEvents: async () => {
+    try {
+      const response = await api.get('/api/events/my');
+      
+      return {
+        data: response.data || [],
+        success: true
+      };
+    } catch (error) {
+      console.error('Error fetching my events:', error);
+      return {
+        data: [],
+        error: error.message || 'Failed to fetch your events',
+        success: false
+      };
+    }
+  },
   // Create a new event
   createEvent: async (eventData) => {
     try {
@@ -369,7 +385,7 @@ const eventService = {
         throw new Error('Invalid event ID');
       }
       
-      const response = await api.get(`/api/customevent/${eventId}/form`);
+      const response = await api.get(`/api/customevent/${eventId}/custom-form`);
       
       return {
         data: response.data,

@@ -161,6 +161,27 @@ bookEventTickets: async (eventId, bookingData) => {
       console.log(`Added default paymentMethod: ${processedBookingData.paymentMethod}`);
     }
     
+    // CRITICAL FIX: Make sure paymentMethod matches the enum in the Booking model
+    // Normalize the paymentMethod to match expected values
+    const validPaymentMethods = ['credit_card', 'debit_card', 'paypal', 'apple_pay', 'google_pay', 'bank_transfer', 'cash', 'free', 'phonepe', 'pending', 'upi'];
+    
+    if (!validPaymentMethods.includes(processedBookingData.paymentMethod)) {
+      // Try to normalize common variations
+      const normalizedMethod = processedBookingData.paymentMethod.toLowerCase().trim();
+      
+      if (normalizedMethod === 'upi' || normalizedMethod === 'bhim') {
+        processedBookingData.paymentMethod = 'upi';
+      } else if (normalizedMethod.includes('phone') || normalizedMethod.includes('pe')) {
+        processedBookingData.paymentMethod = 'phonepe';
+      } else {
+        // Default to 'pending' if we can't normalize
+        console.warn(`Unknown payment method: ${processedBookingData.paymentMethod}, defaulting to 'pending'`);
+        processedBookingData.paymentMethod = 'pending';
+      }
+    }
+    
+    console.log(`Using payment method: ${processedBookingData.paymentMethod}`);
+    
     // CRITICAL FIX: The server's controller requires contactInformation instead of customerInfo
     if (processedBookingData.customerInfo && !processedBookingData.contactInformation) {
       processedBookingData.contactInformation = {
@@ -169,8 +190,6 @@ bookEventTickets: async (eventId, bookingData) => {
       };
       console.log('Transformed customerInfo to contactInformation as required by server');
     }
-    
-    // Keep the original customerInfo in case it's needed elsewhere
     
     // Add returnUrl for payment processing if needed
     if (!processedBookingData.returnUrl) {
@@ -234,6 +253,7 @@ bookEventTickets: async (eventId, bookingData) => {
     throw error.message ? new Error(error.message) : new Error('Failed to book tickets. Please try again.');
   }
 },
+
   /**
    * Get user bookings
    * @param {Object} filters - Optional filters

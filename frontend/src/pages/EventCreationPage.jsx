@@ -157,14 +157,14 @@ const EventCreationPage = ({ user, onLogout }) => {
   // Categories based on your event model
   const categories = [
     { value: 'social', label: 'Social' },
-    { value: 'BUSINESS', label: 'Business' },
-    { value: 'EDUCATION', label: 'Education' },
-    { value: 'ENTERTAINMENT', label: 'Arts & Culture' },
-    { value: 'FAMILY', label: 'Family' },
-    { value: 'HEALTH_WELLNESS', label: 'Health & Wellness' },
-    { value: 'TECHNOLOGY', label: 'Technology' },
-    { value: 'CAREER', label: 'Career' },
-    { value: 'OTHER', label: 'Other' }
+    { value: 'buisness', label: 'Business' },
+    { value: 'education', label: 'Education' },
+    { value: 'entertainment', label: 'Arts & Culture' },
+    { value: 'family', label: 'Family' },
+    { value: 'health', label: 'Health & Wellness' },
+    { value: 'technology', label: 'Technology' },
+    { value: 'career', label: 'Career' },
+    { value: 'other', label: 'Other' }
   ];
   
   // Combine date and time input values
@@ -284,7 +284,7 @@ const EventCreationPage = ({ user, onLogout }) => {
       
       // Navigate to the new event page
       setTimeout(() => {
-        navigate(`/events/${response.data._id || response.data.id}/tickets/create`);
+        navigate(`/events/${response.data._id || response.data.id}/form/create`);
       }, 2000);
       
     } catch (err) {

@@ -279,7 +279,7 @@ const EventDetailPage = ({ user, onLogout }) => {
   const handleFormNavigation = () => {
     if (isHost) {
       // If user is host/organizer, navigate to form edit/create page
-      navigate(`/events/${eventId}/form/edit`);
+      navigate(`/events/${eventId}/form/create`);
     } else {
       // If user is attendee, navigate to form submission page
       navigate(`/events/${eventId}/form`);

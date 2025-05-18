@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
-import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss, Sidebar, Home, Bell, MessageCircle, Briefcase, Settings, LogOut } from 'lucide-react';
+import { MapPin, Users, ChevronRight, Search, Filter, UserPlus, Rss,  Home, Bell, MessageCircle, Briefcase, Settings, LogOut } from 'lucide-react';
 import Loader from '../components/common/Loader';
 import UserCard from '../components/common/UserCard';
 import networkService from '../services/networkService';
-
+import Sidebar from '../components/common/Navbar';
 const NetworkExplorePage = () => {
   const [loading, setLoading] = useState({
     nearby: true,
@@ -15,7 +15,7 @@ const NetworkExplorePage = () => {
   const [suggestedUsers, setSuggestedUsers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [activeSection, setActiveSection] = useState('all');
-  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -171,9 +171,9 @@ const NetworkExplorePage = () => {
     }
   };
 
-  const toggleSidebar = () => {
-    setSidebarCollapsed(!isSidebarCollapsed);
-  };
+  // const toggleSidebar = () => {
+  //   setSidebarCollapsed(!isSidebarCollapsed);
+  // };
 
   const handleLogout = async () => {
     try {
@@ -186,78 +186,11 @@ const NetworkExplorePage = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className={`fixed h-full bg-white shadow-md transition-all duration-300 z-10 ${isSidebarCollapsed ? 'w-16' : 'w-60'}`}>
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex justify-between items-center py-4 px-4 border-b">
-            {!isSidebarCollapsed && <div className="text-xl font-bold text-orange-600">MeetKats</div>}
-            <button onClick={toggleSidebar} className="p-1 rounded-full hover:bg-gray-100">
-              <Sidebar className="h-5 w-5 text-gray-600" />
-            </button>
-          </div>
-          
-          {/* Menu Items */}
-          <nav className="flex-1 overflow-y-auto py-4">
-            <ul className="space-y-2">
-              <li>
-                <Link to="/dashboard" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
-                  <Home className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Home</span>}
-                </Link>
-              </li>
-              <li>
-                <Link to="/network" className="flex items-center px-4 py-3 bg-orange-50 text-orange-600 rounded-lg">
-                  <Users className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Network</span>}
-                </Link>
-              </li>
-              <li>
-                <Link to="/notifications" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
-                  <Bell className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Notifications</span>}
-                </Link>
-              </li>
-              <li>
-                <Link to="/messages" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
-                  <MessageCircle className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Messages</span>}
-                </Link>
-              </li>
-              <li>
-                <Link to="/jobs" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
-                  <Briefcase className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Jobs</span>}
-                </Link>
-              </li>
-            </ul>
-          </nav>
-          
-          {/* Bottom Menu */}
-          <div className="border-t py-4">
-            <ul className="space-y-2">
-              <li>
-                <Link to="/settings" className="flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors">
-                  <Settings className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Settings</span>}
-                </Link>
-              </li>
-              <li>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors"
-                >
-                  <LogOut className="h-5 w-5" />
-                  {!isSidebarCollapsed && <span className="ml-3">Logout</span>}
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+
+<Sidebar/>
       
       {/* Main Content */}
-      <div className={`flex-1 overflow-auto transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-60'}`}>
+      <div className={`flex-1 overflow-auto transition-all duration-300 ${'ml-60'}`}>
         <main className="max-w-7xl mx-auto p-4 md:p-6">
           {/* Dashboard Header */}
           <div className="bg-white rounded-xl shadow-md mb-6 p-4 md:p-6 border-l-4 border-orange-500">

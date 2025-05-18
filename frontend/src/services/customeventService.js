@@ -11,38 +11,41 @@ const customEventService = {
    * @param {Object} formData - The form data with title, description, sections, fields, and settings
    * @returns {Promise} - Promise resolving to the created form
    */
-  createCustomForm: async (eventId, formData) => {
-    try {
-      const response = await api.post(`/api/customevent/${eventId}/custom-form`, formData);
-      return response.data;
-    } catch (error) {
-      console.error('Error creating custom form:', error.response?.data || error.message);
-      throw error;
-    }
-  },
+// Modify the createCustomForm function in customEventService.js
+// src/services/customEventService.js
+createCustomForm: async (eventId, formData) => {
+  try {
+    const response = await api.post(`/api/customevent/${eventId}/custom-form`, formData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating custom form:', error.response?.data || error.message);
+    throw error;
+  }
+},
 
-  /**
-   * Update an existing custom event form
-   * @param {string} eventId - The ID of the event
-   * @param {string} formId - The ID of the form to update
-   * @param {Object} formData - The updated form data
-   * @returns {Promise} - Promise resolving to the updated form
-   */
-  updateCustomForm: async (eventId, formId, formData) => {
-    try {
-      const response = await api.put(`/api/customevent/${eventId}/custom-form/${formId}`, formData);
-      return response.data;
-    } catch (error) {
-      console.error('Error updating custom form:', error.response?.data || error.message);
-      throw error;
-    }
-  },
+/**
+ * Update an existing custom event form
+ * @param {string} eventId - The ID of the event
+ * @param {string} formId - The ID of the form to update
+ * @param {Object} formData - The updated form data
+ * @returns {Promise} - Promise resolving to the updated form
+ */
+updateCustomForm: async (eventId, formId, formData) => {
+  try {
+    const response = await api.put(`/api/customevent/${eventId}/custom-form/${formId}`, formData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating custom form:', error.response?.data || error.message);
+    throw error;
+  }
+},
 
   /**
    * Get a custom event form for an event
    * @param {string} eventId - The ID of the event
    * @returns {Promise} - Promise resolving to the form
    */
+  
   getCustomForm: async (eventId) => {
     try {
       const response = await api.get(`/api/customevent/${eventId}/custom-form`);
@@ -58,7 +61,6 @@ const customEventService = {
       throw new Error(error.response?.data?.error || 'Failed to load form data');
     }
   },
-
   /**
    * Delete a custom event form
    * @param {string} eventId - The ID of the event
