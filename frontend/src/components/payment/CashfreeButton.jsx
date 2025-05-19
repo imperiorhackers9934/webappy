@@ -6,7 +6,10 @@ import {
   Smartphone, 
   ArrowLeft
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+
 const API_BASE_URL = 'https://new-backend-w86d.onrender.com';
+
 const CashfreePayment = ({ 
   amount, 
   bookingId, 
@@ -20,6 +23,9 @@ const CashfreePayment = ({
   const [orderId, setOrderId] = useState(null);
   const [cashfree, setCashfree] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
+  
+  // Get auth context to access the token
+  const { token } = useAuth();
 
   // Initialize Cashfree SDK on component mount
   useEffect(() => {
@@ -41,26 +47,114 @@ const CashfreePayment = ({
     initializeCashfree();
   }, []);
 
-  // Function to create a payment order
-  const createPaymentOrder = async () => {
+  // Function to refresh the auth token
+  const refreshAuthToken = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      const refreshToken = localStorage.getItem('@refresh_token');
+      if (!refreshToken) throw new Error('No refresh token available');
 
-      // Make API call to your backend to create a payment order
-      const response =  await fetch(`${API_BASE_URL}/api/payments/cashfree/initiate`,  {
+      console.log('Attempting to refresh the auth token');
+      
+      const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      const data = await response.json();
+      
+      if (data && data.token) {
+        console.log('Token refreshed successfully');
+        localStorage.setItem('@auth_token', data.token);
+        
+        if (data.refreshToken) {
+          localStorage.setItem('@refresh_token', data.refreshToken);
+        }
+        
+        return data.token;
+      } else {
+        throw new Error('Failed to refresh token');
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      throw error;
+    }
+  };
+
+  // Function to create a payment order - FIXED VERSION
+// Function to create a payment order
+const createPaymentOrder = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+  
+      // Get the auth token
+      let authToken = localStorage.getItem('@auth_token') || token;
+      console.log('Current auth token:', authToken ? 'Present' : 'Missing');
+  
+      // Validate bookingId
+      if (!bookingId || bookingId === 'pending') {
+        throw new Error('Invalid booking ID. Please complete the booking first.');
+      }
+      
+      // Get user data for customer details
+      const userData = JSON.parse(localStorage.getItem('@user_data') || '{}');
+  
+      // Make API call with complete customer details
+      let response = await fetch(`${API_BASE_URL}/api/payments/cashfree/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authToken ? `Bearer ${authToken}` : '',
         },
         body: JSON.stringify({
           amount,
           bookingId,
           eventName,
+          // CRITICAL: Add these explicitly
+          customerPhone: userData.phone || '9999999999', // Default phone is required by Cashfree
+          customerEmail: userData.email || '',
+          customerName: userData.firstName ? `${userData.firstName} ${userData.lastName || ''}` : 'Customer'
         }),
       });
+  
+      // Rest of the function remains the same...
 
+      // If unauthorized, try to refresh the token and retry
+      if (response.status === 401) {
+        console.log('Token expired, attempting to refresh...');
+        try {
+          // Refresh token
+          const newToken = await refreshAuthToken();
+          
+          // Retry the request with the new token
+          response = await fetch(`${API_BASE_URL}/api/payments/cashfree/initiate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${newToken}`,
+            },
+            body: JSON.stringify({
+              amount,
+              bookingId,
+              eventName: eventName || 'Event Tickets',
+            }),
+          });
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          throw new Error('Your session has expired. Please log in again.');
+        }
+      }
+
+      // Parse the response
       const data = await response.json();
+
+      // Check if the response contains an error message
+      if (data.error) {
+        throw new Error(data.error || data.message || 'Failed to create payment order');
+      }
 
       // Check if the order was created successfully
       if (data && data.success && data.orderToken) {
@@ -71,7 +165,7 @@ const CashfreePayment = ({
       }
     } catch (error) {
       console.error('Error creating payment order:', error);
-      setError('Failed to initialize payment. Please try again.');
+      setError(error.message || 'Failed to initialize payment. Please try again.');
       throw error;
     } finally {
       setLoading(false);
@@ -81,10 +175,14 @@ const CashfreePayment = ({
   // Function to verify payment status
   const verifyPayment = async (orderId) => {
     try {
+      // Get the auth token
+      const authToken = localStorage.getItem('@auth_token') || token;
+      
       const response = await fetch(`${API_BASE_URL}/api/payments/cashfree/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': authToken ? `Bearer ${authToken}` : '',
         },
         body: JSON.stringify({
           orderId
@@ -235,18 +333,19 @@ const CashfreePayment = ({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-600">Booking ID:</span>
-          <span className="text-gray-800">{bookingId.substring(0, 8)}...</span>
+          <span className="text-gray-800">{bookingId && bookingId !== 'pending' ? 
+            bookingId.substring(0, 8) + '...' : 'Pending'}</span>
         </div>
       </div>
       
       <div className="space-y-4">
         <button
           onClick={handlePayment}
-          disabled={loading || !cashfree || processingPayment}
+          disabled={loading || !cashfree || processingPayment || bookingId === 'pending'}
           className={`w-full flex items-center justify-center py-3 rounded-md text-white ${
-            loading || !cashfree || processingPayment 
+            loading || !cashfree || processingPayment || bookingId === 'pending'
               ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700'
+              : 'bg-orange-600 hover:bg-orange-700'
           }`}
         >
           {loading ? (

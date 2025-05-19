@@ -99,22 +99,56 @@ const TicketPurchasePage = () => {
   };
   
   // Proceed to payment step
-  const proceedToPayment = () => {
-    // Validate ticket selection
-    const hasSelectedTickets = selectedTickets.some(ticket => ticket.quantity > 0);
-    
-    if (!hasSelectedTickets) {
-      setError('Please select at least one ticket');
-      return;
-    }
-    
-    // Clear any previous errors
-    setError(null);
-    
-    // Move to payment step
-    setCheckoutStep('payment');
-  };
+// Modified proceedToPayment function
+// Update proceedToPayment in TicketPurchasePage.jsx
+const proceedToPayment = async () => {
+  // Validate ticket selection
+  const hasSelectedTickets = selectedTickets.some(ticket => ticket.quantity > 0);
   
+  if (!hasSelectedTickets) {
+    setError('Please select at least one ticket');
+    return;
+  }
+  
+  if (!customerInfo.email || !customerInfo.phone) {
+    setError('Please provide your contact information');
+    return;
+  }
+  
+  // Clear any previous errors
+  setError(null);
+  
+  try {
+    setPaymentProcessing(true);
+    
+    // Create booking with the EXACT payment method as expected by the backend
+    const booking = await ticketService.bookEventTickets(eventId, {
+      ticketSelections: selectedTickets
+        .filter(ticket => ticket.quantity > 0)
+        .map(ticket => ({
+          ticketTypeId: ticket.ticketTypeId,
+          quantity: ticket.quantity
+        })),
+      paymentMethod: 'cashfree_sdk', // Use this exact string which should be in validPaymentMethods
+      contactInformation: customerInfo
+    });
+    
+    if (booking && booking.booking && booking.booking.id) {
+      // Store booking ID
+      setBookingId(booking.booking.id);
+      
+      // Move to payment step
+      setCheckoutStep('payment');
+    } else {
+      throw new Error('Failed to create booking');
+    }
+  } catch (err) {
+    console.error('Error creating booking:', err);
+    setError(err.message || 'Failed to create booking. Please try again.');
+  } finally {
+    setPaymentProcessing(false);
+  }
+};
   // Go back to previous step
   const goBack = () => {
     if (checkoutStep === 'payment') {
