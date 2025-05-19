@@ -8,7 +8,22 @@ import {
   XCircle,
   Ticket,
   Calendar,
-  ShoppingBag
+  ShoppingBag,
+  Tag,
+  Info,
+  AlertCircle,
+  ChevronsUp,
+  ChevronsDown,
+  Gift,
+  Share2,
+  Download,
+  Percent,
+  RefreshCcw,
+  Clock,
+  Users,
+  MapPin,
+  Copy,
+  TrendingUp
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
@@ -24,13 +39,29 @@ const TicketPurchasePage = () => {
   const [ticketTypes, setTicketTypes] = useState([]);
   const [selectedTickets, setSelectedTickets] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
+  const [originalAmount, setOriginalAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState('select'); // select, payment, confirmation
-  const [customerInfo, setCustomerInfo] = useState({ email: '', phone: '' });
-  const [paymentMethod, setPaymentMethod] = useState('cashfree');
+  const [customerInfo, setCustomerInfo] = useState({ email: '', phone: '', name: '' });
+  const [paymentMethod, setPaymentMethod] = useState('cashfree_sdk');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [bookingId, setBookingId] = useState(null);
+  
+  // State variables for coupon functionality
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [discount, setDiscount] = useState(0);
+  
+  // State for additional user preferences
+  const [specialRequests, setSpecialRequests] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTicketDetails, setShowTicketDetails] = useState(true);
+  const [transactionId, setTransactionId] = useState(null);
+  const [paymentPolling, setPaymentPolling] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(null);
   
   // Fetch event and ticket types on component mount
   useEffect(() => {
@@ -59,7 +90,8 @@ const TicketPurchasePage = () => {
             quantity: 0,
             name: ticket.name,
             price: ticket.price,
-            maxQuantity: ticket.maxPerUser || 10
+            maxQuantity: ticket.maxPerUser || 10,
+            description: ticket.description || ''
           }))
         );
         
@@ -74,17 +106,35 @@ const TicketPurchasePage = () => {
     fetchEventData();
   }, [eventId]);
   
-  // Calculate total amount whenever selected tickets change
+  // Calculate total amount whenever selected tickets or applied coupon change
   useEffect(() => {
-    let total = 0;
+    let subtotal = 0;
     
     selectedTickets.forEach(ticket => {
-      total += ticket.price * ticket.quantity;
+      subtotal += ticket.price * ticket.quantity;
     });
     
-    setTotalAmount(total);
-  }, [selectedTickets]);
-  
+    setOriginalAmount(subtotal);
+    
+    // Apply discount if coupon is active
+    if (appliedCoupon) {
+      if (appliedCoupon.discountType === 'percentage') {
+        const discountValue = subtotal * (appliedCoupon.discountValue / 100);
+        setDiscount(discountValue);
+        setTotalAmount(subtotal - discountValue);
+      } else if (appliedCoupon.discountType === 'fixed') {
+        setDiscount(appliedCoupon.discountValue);
+        setTotalAmount(Math.max(0, subtotal - appliedCoupon.discountValue));
+      } else {
+        setTotalAmount(subtotal);
+        setDiscount(0);
+      }
+    } else {
+      setTotalAmount(subtotal);
+      setDiscount(0);
+    }
+  }, [selectedTickets, appliedCoupon]);
+
   // Update ticket quantity
   const handleQuantityChange = (index, quantity) => {
     const updatedTickets = [...selectedTickets];
@@ -98,57 +148,109 @@ const TicketPurchasePage = () => {
     setCustomerInfo(prev => ({ ...prev, [name]: value }));
   };
   
-  // Proceed to payment step
-// Modified proceedToPayment function
-// Update proceedToPayment in TicketPurchasePage.jsx
-const proceedToPayment = async () => {
-  // Validate ticket selection
-  const hasSelectedTickets = selectedTickets.some(ticket => ticket.quantity > 0);
-  
-  if (!hasSelectedTickets) {
-    setError('Please select at least one ticket');
-    return;
-  }
-  
-  if (!customerInfo.email || !customerInfo.phone) {
-    setError('Please provide your contact information');
-    return;
-  }
-  
-  // Clear any previous errors
-  setError(null);
-  
-  try {
-    setPaymentProcessing(true);
-    
-    // Create booking with the EXACT payment method as expected by the backend
-    const booking = await ticketService.bookEventTickets(eventId, {
-      ticketSelections: selectedTickets
-        .filter(ticket => ticket.quantity > 0)
-        .map(ticket => ({
-          ticketTypeId: ticket.ticketTypeId,
-          quantity: ticket.quantity
-        })),
-      paymentMethod: 'cashfree_sdk', // Use this exact string which should be in validPaymentMethods
-      contactInformation: customerInfo
-    });
-    
-    if (booking && booking.booking && booking.booking.id) {
-      // Store booking ID
-      setBookingId(booking.booking.id);
-      
-      // Move to payment step
-      setCheckoutStep('payment');
-    } else {
-      throw new Error('Failed to create booking');
+  // Apply coupon code
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      setCouponError('Please enter a coupon code');
+      return;
     }
-  } catch (err) {
-    console.error('Error creating booking:', err);
-    setError(err.message || 'Failed to create booking. Please try again.');
-  } finally {
-    setPaymentProcessing(false);
-  }
-};
+    
+    try {
+      setCouponLoading(true);
+      setCouponError(null);
+      
+      // Call the API to validate the coupon
+      const couponResult = await ticketService.validateCoupon(eventId, couponCode);
+      
+      if (couponResult.valid) {
+        setAppliedCoupon({
+          code: couponCode,
+          discountType: couponResult.discountType,
+          discountValue: couponResult.discountValue,
+          name: couponResult.name || couponCode
+        });
+        setCouponCode('');
+      } else {
+        setCouponError(couponResult.message || 'Invalid coupon code');
+      }
+    } catch (err) {
+      console.error('Error validating coupon:', err);
+      setCouponError(err.message || 'Failed to validate coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+  
+  // Remove applied coupon
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+  };
+  
+  // Proceed to payment step
+  const proceedToPayment = async () => {
+    // Validate ticket selection
+    const hasSelectedTickets = selectedTickets.some(ticket => ticket.quantity > 0);
+    
+    if (!hasSelectedTickets) {
+      setError('Please select at least one ticket');
+      return;
+    }
+    
+    if (!customerInfo.email || !customerInfo.phone) {
+      setError('Please provide your contact information');
+      return;
+    }
+    
+    if (!acceptedTerms) {
+      setError('Please accept the terms and conditions');
+      return;
+    }
+    
+    // Clear any previous errors
+    setError(null);
+    
+    try {
+      setPaymentProcessing(true);
+      
+      // Create booking object to send
+      const bookingData = {
+        ticketSelections: selectedTickets
+          .filter(ticket => ticket.quantity > 0)
+          .map(ticket => ({
+            ticketTypeId: ticket.ticketTypeId,
+            quantity: ticket.quantity
+          })),
+        paymentMethod: 'cashfree_sdk',
+        contactInformation: customerInfo,
+        specialRequests: specialRequests || ''
+      };
+      
+      // Add coupon if applied
+      if (appliedCoupon) {
+        bookingData.couponCode = appliedCoupon.code;
+      }
+      
+      // Create booking with the API
+      const booking = await ticketService.bookEventTickets(eventId, bookingData);
+      
+      if (booking && booking.booking && booking.booking.id) {
+        // Store booking ID
+        setBookingId(booking.booking.id);
+        
+        // Move to payment step
+        setCheckoutStep('payment');
+      } else {
+        throw new Error('Failed to create booking');
+      }
+    } catch (err) {
+      console.error('Error creating booking:', err);
+      setError(err.message || 'Failed to create booking. Please try again.');
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+  
   // Go back to previous step
   const goBack = () => {
     if (checkoutStep === 'payment') {
@@ -160,51 +262,20 @@ const proceedToPayment = async () => {
     }
   };
   
-  // Create booking and proceed to payment
-  const createBooking = async () => {
-    try {
-      setPaymentProcessing(true);
-      setError(null);
-      
-      // Filter only selected tickets
-      const ticketSelections = selectedTickets
-        .filter(ticket => ticket.quantity > 0)
-        .map(ticket => ({
-          ticketTypeId: ticket.ticketTypeId,
-          quantity: ticket.quantity
-        }));
-      
-      // Create booking through ticket service
-      const bookingResponse = await ticketService.bookEventTickets(eventId, {
-        ticketSelections,
-        paymentMethod,
-        contactInformation: customerInfo
-      });
-      
-      if (bookingResponse && bookingResponse.booking) {
-        // Store booking ID for reference
-        setBookingId(bookingResponse.booking.id);
-        return bookingResponse.booking;
-      } else {
-        throw new Error('Booking creation failed');
-      }
-    } catch (err) {
-      console.error('Error creating booking:', err);
-      setError(err.message || 'Failed to create booking. Please try again.');
-      setPaymentProcessing(false);
-      return null;
-    }
-  };
-  
   // Handle successful payment
   const handlePaymentSuccess = (paymentResult) => {
     console.log('Payment successful:', paymentResult);
     setPaymentProcessing(false);
-    setCheckoutStep('confirmation');
     
     // Redirect to confirmation page
     if (bookingId) {
-      navigate(`/tickets/confirmation/${bookingId}`);
+      // First update the payment status in our state
+      setPaymentStatus('success');
+      
+      // Then redirect after a short delay to ensure state is updated
+      setTimeout(() => {
+        navigate(`/tickets/confirmation/${bookingId}`);
+      }, 1000);
     }
   };
   
@@ -213,12 +284,51 @@ const proceedToPayment = async () => {
     console.error('Payment failed:', error);
     setError('Payment could not be completed. Please try again.');
     setPaymentProcessing(false);
+    setPaymentStatus('failed');
   };
   
   // Handle payment cancellation
   const handlePaymentCancel = () => {
     setPaymentProcessing(false);
+    setPaymentStatus('cancelled');
   };
+  
+  // Continuous payment status check
+  useEffect(() => {
+    let intervalId;
+    
+    if (paymentPolling && transactionId) {
+      intervalId = setInterval(async () => {
+        try {
+          const status = await ticketService.checkPaymentStatus(transactionId);
+          
+          if (status && (status.status === 'PAYMENT_SUCCESS' || status.status === 'completed')) {
+            clearInterval(intervalId);
+            setPaymentPolling(false);
+            setPaymentStatus('success');
+            
+            // Redirect to confirmation page
+            if (bookingId) {
+              navigate(`/tickets/confirmation/${bookingId}`);
+            }
+          } else if (status && (status.status === 'PAYMENT_FAILED' || status.status === 'failed')) {
+            clearInterval(intervalId);
+            setPaymentPolling(false);
+            setPaymentStatus('failed');
+            setError('Payment failed. Please try again.');
+          }
+        } catch (err) {
+          console.error('Error checking payment status:', err);
+        }
+      }, 3000); // Check every 3 seconds
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [paymentPolling, transactionId, bookingId, navigate]);
   
   // Format currency for display
   const formatCurrency = (amount) => {
@@ -236,6 +346,22 @@ const proceedToPayment = async () => {
     return new Date(dateString).toLocaleDateString('en-US', options);
   };
   
+  // Format time for display
+  const formatTime = (dateString) => {
+    if (!dateString) return '';
+    
+    const options = { hour: '2-digit', minute: '2-digit', hour12: true };
+    return new Date(dateString).toLocaleTimeString('en-US', options);
+  };
+  
+  // Copy booking ID to clipboard
+  const copyBookingId = () => {
+    if (bookingId) {
+      navigator.clipboard.writeText(bookingId);
+      // You could show a toast message here
+    }
+  };
+  
   // Loading state
   if (loading) {
     return (
@@ -247,7 +373,7 @@ const proceedToPayment = async () => {
     );
   }
   
-  // Error state
+  // Error state - when the event cannot be loaded
   if (error && !event) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -287,6 +413,44 @@ const proceedToPayment = async () => {
         </h1>
       </div>
       
+      {/* Checkout Progress Indicator */}
+      <div className="mb-8 hidden md:block">
+        <div className="flex justify-between">
+          <div className="relative w-full">
+            <div className="h-1 bg-gray-200 absolute w-full top-3"></div>
+            <div className="flex justify-between relative">
+              <div className="flex flex-col items-center">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center z-10 ${
+                  checkoutStep === 'select' ? 'bg-orange-600 text-white' : 'bg-green-500 text-white'
+                }`}>
+                  {checkoutStep === 'select' ? '1' : <CheckCircle className="w-4 h-4" />}
+                </div>
+                <span className="text-sm mt-1 font-medium">Select</span>
+              </div>
+              
+              <div className="flex flex-col items-center">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center z-10 ${
+                  checkoutStep === 'select' ? 'bg-gray-300' : 
+                  checkoutStep === 'payment' ? 'bg-orange-600 text-white' : 'bg-green-500 text-white'
+                }`}>
+                  {checkoutStep === 'confirmation' ? <CheckCircle className="w-4 h-4" /> : '2'}
+                </div>
+                <span className="text-sm mt-1 font-medium">Payment</span>
+              </div>
+              
+              <div className="flex flex-col items-center">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center z-10 ${
+                  checkoutStep === 'confirmation' ? 'bg-orange-600 text-white' : 'bg-gray-300'
+                }`}>
+                  3
+                </div>
+                <span className="text-sm mt-1 font-medium">Confirmation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       {/* Error display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
@@ -312,21 +476,33 @@ const proceedToPayment = async () => {
           
           <div className="md:w-2/3">
             <h2 className="text-xl font-semibold">{event?.name}</h2>
-            <div className="flex items-center text-gray-600 mt-2">
-              <Calendar className="w-4 h-4 mr-2" />
-              <span>{formatDate(event?.startDateTime)}</span>
-            </div>
-            <div className="flex items-start mt-2">
-              <div className="flex-shrink-0 mt-1">
-                <Ticket className="w-4 h-4 text-gray-600 mr-2" />
+            
+            <div className="flex flex-col space-y-2 mt-3">
+              <div className="flex items-center text-gray-600">
+                <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                <span>{formatDate(event?.startDateTime)}</span>
               </div>
-              <div>
-                <p className="text-gray-600">
+              
+              <div className="flex items-center text-gray-600">
+                <Clock className="w-4 h-4 mr-2 text-orange-500" />
+                <span>{formatTime(event?.startDateTime)} - {event?.endDateTime ? formatTime(event?.endDateTime) : 'Until Conclusion'}</span>
+              </div>
+              
+              {event?.venue && (
+                <div className="flex items-center text-gray-600">
+                  <MapPin className="w-4 h-4 mr-2 text-orange-500" />
+                  <span>{event.venue}</span>
+                </div>
+              )}
+              
+              <div className="flex items-center text-gray-600">
+                <Ticket className="w-4 h-4 mr-2 text-orange-500" />
+                <span>
                   {ticketTypes.length === 0 
                     ? 'No tickets available' 
                     : `${ticketTypes.length} ticket type${ticketTypes.length !== 1 ? 's' : ''} available`
                   }
-                </p>
+                </span>
               </div>
             </div>
           </div>
@@ -336,164 +512,513 @@ const proceedToPayment = async () => {
       {/* Ticket Selection Step */}
       {checkoutStep === 'select' && (
         <>
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h3 className="text-lg font-semibold mb-4">Select Tickets</h3>
-            
-            {ticketTypes.length === 0 ? (
-              <p className="text-gray-600">No tickets available for this event.</p>
-            ) : (
-              <div className="space-y-4">
-                {ticketTypes.map((ticket, index) => (
-                  <div key={ticket.id} className="border-b border-gray-200 pb-4 last:border-0">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-medium">{ticket.name}</div>
-                        <div className="text-sm text-gray-600">{ticket.description}</div>
-                        <div className="mt-1 font-semibold">{formatCurrency(ticket.price)}</div>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => handleQuantityChange(index, Math.max(0, selectedTickets[index].quantity - 1))}
-                          className="bg-gray-200 text-gray-700 px-3 py-1 rounded-l-md"
-                          disabled={selectedTickets[index].quantity === 0}
-                        >
-                          -
-                        </button>
-                        <span className="bg-gray-100 px-4 py-1">{selectedTickets[index].quantity}</span>
-                        <button
-                          onClick={() => handleQuantityChange(index, Math.min(selectedTickets[index].maxQuantity, selectedTickets[index].quantity + 1))}
-                          className="bg-gray-200 text-gray-700 px-3 py-1 rounded-r-md"
-                          disabled={selectedTickets[index].quantity >= selectedTickets[index].maxQuantity}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {selectedTickets[index].quantity > 0 && (
-                      <div className="mt-2 text-sm text-right">
-                        Subtotal: {formatCurrency(selectedTickets[index].price * selectedTickets[index].quantity)}
-                      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              {/* Ticket Selection */}
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Select Tickets</h3>
+                  <button 
+                    onClick={() => setShowTicketDetails(!showTicketDetails)}
+                    className="text-orange-600 flex items-center text-sm"
+                  >
+                    {showTicketDetails ? (
+                      <>
+                        <ChevronsUp className="w-4 h-4 mr-1" />
+                        Hide Details
+                      </>
+                    ) : (
+                      <>
+                        <ChevronsDown className="w-4 h-4 mr-1" />
+                        Show Details
+                      </>
                     )}
+                  </button>
+                </div>
+                
+                {ticketTypes.length === 0 ? (
+                  <p className="text-gray-600">No tickets available for this event.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {ticketTypes.map((ticket, index) => (
+                      <div 
+                        key={ticket.id} 
+                        className="border border-gray-200 rounded-lg p-4 hover:border-orange-300 transition-colors"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="font-medium text-lg">{ticket.name}</div>
+                            
+                            {/* Only show description if showTicketDetails is true */}
+                            {showTicketDetails && ticket.description && (
+                              <div className="text-sm text-gray-600 mt-1">{ticket.description}</div>
+                            )}
+                            
+                            <div className="mt-2 font-semibold text-orange-600">{formatCurrency(ticket.price)}</div>
+                            
+                            {/* Show remaining tickets if limited */}
+                            {ticket.quantity !== -1 && ticket.quantity - ticket.quantitySold < 20 && (
+                              <div className="mt-1 text-xs text-red-600 flex items-center">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                Only {ticket.quantity - ticket.quantitySold} left
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => handleQuantityChange(index, Math.max(0, selectedTickets[index].quantity - 1))}
+                              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-l-md transition-colors"
+                              disabled={selectedTickets[index].quantity === 0}
+                            >
+                              -
+                            </button>
+                            <span className="bg-white border-t border-b border-gray-200 px-4 py-1">{selectedTickets[index].quantity}</span>
+                            <button
+                              onClick={() => handleQuantityChange(index, Math.min(selectedTickets[index].maxQuantity, selectedTickets[index].quantity + 1))}
+                              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-r-md transition-colors"
+                              disabled={selectedTickets[index].quantity >= selectedTickets[index].maxQuantity}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {selectedTickets[index].quantity > 0 && (
+                          <div className="mt-2 text-sm text-right">
+                            Subtotal: {formatCurrency(selectedTickets[index].price * selectedTickets[index].quantity)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Customer Info */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h3 className="text-lg font-semibold mb-4">Your Contact Information</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="email" className="block text-gray-700 mb-1">Email</label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={customerInfo.email}
-                  onChange={handleInfoChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  required
-                />
+                )}
               </div>
               
-              <div>
-                <label htmlFor="phone" className="block text-gray-700 mb-1">Phone Number</label>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={customerInfo.phone}
-                  onChange={handleInfoChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  required
-                />
+              {/* Customer Info */}
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h3 className="text-lg font-semibold mb-4">Your Contact Information</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="name" className="block text-gray-700 mb-1">Full Name</label>
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      value={customerInfo.name}
+                      onChange={handleInfoChange}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="Your full name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="email" className="block text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={customerInfo.email}
+                      onChange={handleInfoChange}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      required
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="phone" className="block text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={customerInfo.phone}
+                      onChange={handleInfoChange}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      required
+                      placeholder="10-digit mobile number"
+                    />
+                  </div>
+                </div>
+                
+                {/* Special Requests */}
+                <div className="mt-4">
+                  <label htmlFor="specialRequests" className="block text-gray-700 mb-1">Special Requests (optional)</label>
+                  <textarea
+                    id="specialRequests"
+                    name="specialRequests"
+                    value={specialRequests}
+                    onChange={(e) => setSpecialRequests(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    rows="3"
+                    placeholder="Any special accommodations or requests"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* Order Summary */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
             
-            <div className="space-y-2 mb-4">
-              {selectedTickets
-                .filter(ticket => ticket.quantity > 0)
-                .map((ticket, index) => (
-                  <div key={index} className="flex justify-between">
-                    <div>
-                      {ticket.name} x {ticket.quantity}
-                    </div>
-                    <div>{formatCurrency(ticket.price * ticket.quantity)}</div>
+            {/* Order Summary */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
+                <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
+                
+                <div className="space-y-2 mb-4">
+                  {selectedTickets
+                    .filter(ticket => ticket.quantity > 0)
+                    .map((ticket, index) => (
+                      <div key={index} className="flex justify-between">
+                        <div>
+                          {ticket.name} x {ticket.quantity}
+                        </div>
+                        <div>{formatCurrency(ticket.price * ticket.quantity)}</div>
+                      </div>
+                    ))
+                  }
+                </div>
+                
+                {/* Coupon Code Input */}
+                <div className="border-t border-gray-200 pt-4 mb-4">
+                  <div className="flex mb-2">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
+                      placeholder="Enter coupon code"
+                      className="flex-1 border border-gray-300 rounded-l-md px-3 py-2"
+                      disabled={couponLoading || appliedCoupon}
+                    />
+                    
+                    {appliedCoupon ? (
+                      <button
+                        onClick={handleRemoveCoupon}
+                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-r-md px-3"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleApplyCoupon}
+                        disabled={!couponCode.trim() || couponLoading}
+                        className={`rounded-r-md px-3 ${
+                          !couponCode.trim() || couponLoading
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-orange-600 hover:bg-orange-700 text-white'
+                        }`}
+                      >
+                        {couponLoading ? (
+                          <div className="w-4 h-4 border-t-2 border-white rounded-full animate-spin"></div>
+                        ) : 'Apply'}
+                      </button>
+                    )}
                   </div>
-                ))
-              }
+                  
+                  {couponError && (
+                    <p className="text-red-600 text-sm">{couponError}</p>
+                  )}
+                  
+                  {appliedCoupon && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-2 flex items-center">
+                      <Tag className="w-4 h-4 text-green-600 mr-2" />
+                      <div className="flex-1">
+                        <p className="text-sm text-green-800">
+                          {appliedCoupon.name} applied
+                          {appliedCoupon.discountType === 'percentage' && ` (${appliedCoupon.discountValue}% off)`}
+                          {appliedCoupon.discountType === 'fixed' && ` (${formatCurrency(appliedCoupon.discountValue)} off)`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Price Details */}
+                <div className="space-y-2 border-t border-gray-200 pt-4">
+                  <div className="flex justify-between">
+                    <div className="text-gray-600">Subtotal</div>
+                    <div>{formatCurrency(originalAmount)}</div>
+                  </div>
+                  
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <div>Discount</div>
+                      <div>-{formatCurrency(discount)}</div>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-lg">
+                    <div>Total</div>
+                    <div>{formatCurrency(totalAmount)}</div>
+                  </div>
+                </div>
+                
+                {/* Terms and Conditions */}
+                <div className="mt-4 mb-4">
+                  <label className="flex items-start">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(e) => setAcceptedTerms(e.target.checked)}
+                      className="mt-1 mr-2"
+                    />
+                    <span className="text-sm text-gray-600">
+                      I agreeto the <a href="/termsandconditons" target="_blank" className="text-orange-600 hover:underline">Terms and Conditions</a>, <a href="/privacypolicy" target="_blank" className="text-orange-600 hover:underline">Privacy Policy</a>, and <a href="/refundpolicy" target="_blank" className="text-orange-600 hover:underline">Refund Policy</a>.
+                    </span>
+                  </label>
+                </div>
+                
+                {/* Actions */}
+                <button
+                  onClick={proceedToPayment}
+                  disabled={
+                    !selectedTickets.some(ticket => ticket.quantity > 0) || 
+                    !customerInfo.email || 
+                    !customerInfo.phone || 
+                    !acceptedTerms ||
+                    paymentProcessing
+                  }
+                  className={`w-full inline-flex items-center justify-center px-6 py-3 rounded-md text-white ${
+                    !selectedTickets.some(ticket => ticket.quantity > 0) || 
+                    !customerInfo.email || 
+                    !customerInfo.phone ||
+                    !acceptedTerms ||
+                    paymentProcessing
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-orange-600 hover:bg-orange-700'
+                  }`}
+                >
+                  {paymentProcessing ? (
+                    <>
+                      <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-5 h-5 mr-2" />
+                      Proceed to Payment
+                    </>
+                  )}
+                </button>
+                
+                {/* Secure Transaction Notice */}
+                <div className="mt-4 flex items-center justify-center text-sm text-gray-500">
+                  <Info className="w-4 h-4 mr-1" />
+                  Secure transaction via Cashfree
+                </div>
+              </div>
             </div>
-            
-            <div className="border-t border-gray-200 pt-4 flex justify-between font-bold">
-              <div>Total</div>
-              <div>{formatCurrency(totalAmount)}</div>
-            </div>
-          </div>
-          
-          {/* Actions */}
-          <div className="flex justify-end">
-            <button
-              onClick={proceedToPayment}
-              disabled={!selectedTickets.some(ticket => ticket.quantity > 0) || !customerInfo.email || !customerInfo.phone}
-              className={`inline-flex items-center px-6 py-3 rounded-md text-white ${
-                !selectedTickets.some(ticket => ticket.quantity > 0) || !customerInfo.email || !customerInfo.phone
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-orange-600 hover:bg-orange-700'
-              }`}
-            >
-              <ShoppingBag className="w-5 h-5 mr-2" />
-              Proceed to Payment
-            </button>
           </div>
         </>
       )}
       
       {/* Payment Step */}
       {checkoutStep === 'payment' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Select Payment Method</h3>
-          
-          <div className="space-y-4 mb-6">
-            <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="cashfree"
-                checked={paymentMethod === 'cashfree'}
-                onChange={() => setPaymentMethod('cashfree')}
-                className="mr-2"
-              />
-              <CreditCard className="w-5 h-5 text-orange-500 mr-2" />
-              <span>Cashfree (Credit/Debit Cards, UPI, Netbanking)</span>
-            </label>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4">Select Payment Method</h3>
+              
+              <div className="space-y-4 mb-6">
+                <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cashfree_sdk"
+                    checked={paymentMethod === 'cashfree_sdk'}
+                    onChange={() => setPaymentMethod('cashfree_sdk')}
+                    className="mr-2"
+                  />
+                  <CreditCard className="w-5 h-5 text-orange-500 mr-2" />
+                  <span>Cashfree (Credit/Debit Cards, UPI, Netbanking)</span>
+                </label>
+                
+                {/* <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="upi"
+                    checked={paymentMethod === 'upi'}
+                    onChange={() => setPaymentMethod('upi')}
+                    className="mr-2"
+                  />
+                  <Smartphone className="w-5 h-5 text-orange-500 mr-2" />
+                  <span>UPI Payment (PhonePe, Google Pay, Paytm)</span>
+                </label> */}
+              </div>
+              
+              {/* Pricing Information in Payment Step */}
+              <div className="bg-gray-50 rounded-md p-4 mb-6">
+                <div className="flex justify-between mb-2">
+                  <div className="text-gray-600">Subtotal:</div>
+                  <div>{formatCurrency(originalAmount)}</div>
+                </div>
+                
+                {discount > 0 && (
+                  <div className="flex justify-between mb-2 text-green-600">
+                    <div>Discount:</div>
+                    <div>-{formatCurrency(discount)}</div>
+                  </div>
+                )}
+                
+                <div className="flex justify-between font-semibold pt-2 border-t border-gray-200">
+                  <div>Total:</div>
+                  <div>{formatCurrency(totalAmount)}</div>
+                </div>
+              </div>
+              
+              {paymentMethod === 'cashfree_sdk' && (
+                <Suspense fallback={<div className="flex justify-center my-8"><div className="w-10 h-10 border-t-4 border-b-4 border-orange-500 rounded-full animate-spin"></div></div>}>
+                  <CashfreePayment
+                    amount={totalAmount}
+                    bookingId={bookingId || 'pending'}
+                    eventName={event?.name || 'Event Tickets'}
+                    onSuccess={handlePaymentSuccess}
+                    onFailure={handlePaymentFailure}
+                    onCancel={handlePaymentCancel}
+                  />
+                </Suspense>
+              )}
+              
+              {paymentMethod === 'upi' && (
+                <div className="bg-white border border-gray-200 rounded-md p-6">
+                  <h4 className="font-medium mb-4">UPI Payment</h4>
+                  
+                  <div className="bg-gray-50 rounded-md p-4 mb-4 text-center">
+                    <p className="text-gray-700 mb-2">Scan the QR code using any UPI app</p>
+                    <div className="flex justify-center mb-2">
+                      {/* Placeholder for QR code */}
+                      <div className="w-48 h-48 bg-gray-200 rounded-md flex items-center justify-center">
+                        <span className="text-gray-500">QR Code</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600">or pay using UPI ID</p>
+                    <div className="flex items-center justify-center mt-2">
+                      <span className="bg-gray-200 text-gray-800 px-3 py-1 rounded font-mono">example@ybl</span>
+                      <button className="ml-2 text-orange-600 hover:text-orange-700">
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <button 
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-md flex items-center justify-center"
+                    // This is where we would initiate UPI payment via ticketService.initiateUpiPayment
+                  >
+                    <Smartphone className="w-5 h-5 mr-2" />
+                    Pay ₹{totalAmount.toFixed(2)} with UPI
+                  </button>
+                </div>
+              )}
+              
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-600">
+                  By proceeding with payment, you agree to our <a href="/termsandconditons" className="text-orange-600 hover:underline">Terms and Conditions</a> and <a href="/refundpolicy" className="text-orange-600 hover:underline">Refund Policy</a>.
+                </p>
+              </div>
+            </div>
           </div>
           
-          {paymentMethod === 'cashfree' && (
-            <Suspense fallback={<div>Loading payment gateway...</div>}>
-              <CashfreePayment
-                amount={totalAmount}
-                bookingId={bookingId || 'pending'}
-                eventName={event?.name || 'Event Tickets'}
-                onSuccess={handlePaymentSuccess}
-                onFailure={handlePaymentFailure}
-                onCancel={handlePaymentCancel}
-              />
-            </Suspense>
-          )}
-          
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              By proceeding with payment, you agree to our <a href="/terms" className="text-orange-600 hover:underline">Terms and Conditions</a>.
-            </p>
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
+              <h3 className="text-lg font-semibold mb-4">Booking Details</h3>
+              
+              {/* Event Summary */}
+              <div className="mb-4 pb-4 border-b border-gray-200">
+                <h4 className="font-medium text-gray-800">{event?.name}</h4>
+                <div className="flex items-center text-gray-600 mt-2">
+                  <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                  <span>{formatDate(event?.startDateTime)}</span>
+                </div>
+                <div className="flex items-center text-gray-600 mt-1">
+                  <Clock className="w-4 h-4 mr-2 text-orange-500" />
+                  <span>{formatTime(event?.startDateTime)}</span>
+                </div>
+                {event?.venue && (
+                  <div className="flex items-center text-gray-600 mt-1">
+                    <MapPin className="w-4 h-4 mr-2 text-orange-500" />
+                    <span>{event.venue}</span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Ticket Summary */}
+              <div className="mb-4">
+                <h4 className="font-medium text-gray-800 mb-2">Your Tickets</h4>
+                
+                <div className="space-y-2">
+                  {selectedTickets
+                    .filter(ticket => ticket.quantity > 0)
+                    .map((ticket, index) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <div className="flex items-center">
+                          <Ticket className="w-4 h-4 mr-1 text-orange-500" />
+                          {ticket.name} x {ticket.quantity}
+                        </div>
+                        <div>{formatCurrency(ticket.price * ticket.quantity)}</div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+              
+              {/* Display Applied Coupon */}
+              {appliedCoupon && (
+                <div className="mb-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center">
+                    <Tag className="w-4 h-4 mr-1 text-orange-500" />
+                    <h4 className="font-medium text-gray-800">Applied Coupon</h4>
+                  </div>
+                  <div className="mt-2 bg-orange-50 border border-orange-200 rounded-md p-2">
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm font-medium">{appliedCoupon.name}</div>
+                      <div className="text-sm text-orange-600">
+                        {appliedCoupon.discountType === 'percentage' ? 
+                          `${appliedCoupon.discountValue}% off` : 
+                          formatCurrency(appliedCoupon.discountValue)
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Payment Details */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <div className="text-gray-600">Subtotal</div>
+                  <div>{formatCurrency(originalAmount)}</div>
+                </div>
+                
+                {discount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <div>Discount</div>
+                    <div>-{formatCurrency(discount)}</div>
+                  </div>
+                )}
+                
+                <div className="flex justify-between border-t border-gray-200 pt-2 font-bold">
+                  <div>Total</div>
+                  <div>{formatCurrency(totalAmount)}</div>
+                </div>
+              </div>
+              
+              {/* Booking ID (if available) */}
+              {bookingId && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">Booking ID:</div>
+                    <div className="flex items-center">
+                      <span className="text-sm font-mono">{bookingId.substring(0, 8)}...</span>
+                      <button 
+                        onClick={copyBookingId} 
+                        className="ml-1 text-orange-600 hover:text-orange-700"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
