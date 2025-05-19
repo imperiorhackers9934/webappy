@@ -55,6 +55,7 @@ import Refundpolicy from './pages/RefundPolicy';
 import PaymentResponsePage from './pages/PaymentResponsePage';
 import EditEventForm from './pages/EditEventPage';
 import EditFormPage from './pages/EditFormPage';
+import CouponManagementPage from './pages/CouponManagementPage';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -149,7 +150,7 @@ const App = () => {
               <EditEventForm />
             </ProtectedRoute>
           } />
-          
+            <Route path="/events/:eventId/coupons" element={<CouponManagementPage />} />
           <Route path="/events/:eventId/form" element={
             <ProtectedRoute>
               <CustomFormSubmissionPage />

@@ -33,7 +33,106 @@ const ticketService = {
       throw error;
     }
   },
-
+  createCoupon: async (eventId, couponData) => {
+    try {
+      const response = await api.post(`/api/bookings/events/${eventId}/coupons`, couponData);
+      return normalizeData(response.data);
+    } catch (error) {
+      console.error(`Error creating coupon for event ${eventId}:`, error);
+      
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
+      throw error;
+    }
+  },
+  
+  /**
+   * Update an existing coupon
+   * @param {string} couponId - Coupon ID
+   * @param {Object} couponData - Updated coupon data
+   * @returns {Promise<Object>} - Updated coupon
+   */
+  updateCoupon: async (couponId, couponData) => {
+    try {
+      const response = await api.put(`/api/bookings/coupons/${couponId}`, couponData);
+      return normalizeData(response.data);
+    } catch (error) {
+      console.error(`Error updating coupon ${couponId}:`, error);
+      
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
+      throw error;
+    }
+  },
+  
+  /**
+   * Get all coupons for an event
+   * @param {string} eventId - Event ID
+   * @returns {Promise<Array>} - List of coupons
+   */
+  getEventCoupons: async (eventId) => {
+    try {
+      const response = await api.get(`/api/bookings/events/${eventId}/coupons`);
+      return normalizeData(response.data);
+    } catch (error) {
+      console.error(`Error fetching coupons for event ${eventId}:`, error);
+      
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
+      throw error;
+    }
+  },
+  
+  /**
+   * Get statistics for a specific coupon
+   * @param {string} couponId - Coupon ID
+   * @returns {Promise<Object>} - Coupon statistics
+   */
+  getCouponStats: async (couponId) => {
+    try {
+      const response = await api.get(`/api/bookings/coupons/${couponId}/stats`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching stats for coupon ${couponId}:`, error);
+      
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
+      throw error;
+    }
+  },
+  
+  /**
+   * Validate a coupon code for an event
+   * @param {string} eventId - Event ID
+   * @param {string} couponCode - Coupon code to validate
+   * @returns {Promise<Object>} - Validation result with discount info
+   */
+  validateCoupon: async (eventId, couponCode) => {
+    try {
+      const response = await api.post(`/api/bookings/events/${eventId}/validate-coupon`, {
+        couponCode
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error validating coupon for event ${eventId}:`, error);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Invalid coupon code');
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
+      throw error;
+    }
+  },
   /**
    * Get ticket types for an event (public access)
    * @param {string} eventId - Event ID
@@ -438,7 +537,15 @@ verifyTicketByCode: async (eventId, code) => {
       return { tickets: [], stats: {}, pagination: {} }; // Return empty data on error
     }
   },
-
+  updateTicketType: async (eventId, ticketTypeId, ticketData) => {
+    try {
+      const response = await api.put(`/api/bookings/events/${eventId}/ticket-types/${ticketTypeId}`, ticketData);
+      return normalizeData(response.data);
+    } catch (error) {
+      console.error(`Error updating ticket type ${ticketTypeId} for event ${eventId}:`, error);
+      throw error;
+    }
+  },
   /**
    * Get booking statistics for an event
    * @param {string} eventId - Event ID
@@ -843,6 +950,125 @@ checkPaymentStatus: async (orderId, paymentMethod = 'cashfree_sdk') => {
     } else if (error.response?.data) {
       const errorMsg = error.response.data.message || error.response.data.error;
       throw new Error(errorMsg || 'Payment status check failed');
+    }
+    
+    throw error;
+  }
+},
+initiateCashfreeFormPayment: async (eventId, bookingData) => {
+  try {
+    console.log(`Initiating Cashfree form payment for event ${eventId}`);
+    
+    // Clone the booking data to avoid mutating the original
+    const processedBookingData = { ...bookingData };
+    
+    // Validate the tickets data structure
+    if (!processedBookingData.ticketSelections || !Array.isArray(processedBookingData.ticketSelections) || processedBookingData.ticketSelections.length === 0) {
+      // If using legacy format, transform it to the expected format
+      if (processedBookingData.tickets && Array.isArray(processedBookingData.tickets) && processedBookingData.tickets.length > 0) {
+        console.log('Converting legacy tickets format to ticketSelections');
+        processedBookingData.ticketSelections = processedBookingData.tickets.map(ticket => ({
+          ticketTypeId: ticket.ticketType || ticket.ticketTypeId,
+          quantity: parseInt(ticket.quantity, 10)
+        }));
+        delete processedBookingData.tickets;
+      } else {
+        throw new Error('At least one ticket must be selected');
+      }
+    }
+    
+    // Ensure all ticketSelections use ticketTypeId and have numeric quantities
+    processedBookingData.ticketSelections = processedBookingData.ticketSelections.map(selection => {
+      // If using legacy "ticketType" field, convert to "ticketTypeId"
+      if (selection.ticketType && !selection.ticketTypeId) {
+        return {
+          ticketTypeId: selection.ticketType,
+          quantity: parseInt(selection.quantity, 10)
+        };
+      }
+      
+      // Otherwise ensure quantity is a number
+      return {
+        ticketTypeId: selection.ticketTypeId,
+        quantity: parseInt(selection.quantity, 10)
+      };
+    });
+    
+    // CRITICAL FIX: The server's controller requires contactInformation instead of customerInfo
+    if (processedBookingData.customerInfo && !processedBookingData.contactInformation) {
+      processedBookingData.contactInformation = {
+        email: processedBookingData.customerInfo.email,
+        phone: processedBookingData.customerInfo.phone || ''
+      };
+      console.log('Transformed customerInfo to contactInformation as required by server');
+    }
+    
+    // Set form type if specified
+    if (bookingData.formType) {
+      processedBookingData.formType = bookingData.formType;
+    }
+    
+    console.log('Prepared booking data for Cashfree form:', JSON.stringify(processedBookingData, null, 2));
+    
+    // Make the API request
+    const response = await api.post(`/api/bookings/events/${eventId}/cashfree-payment`, processedBookingData);
+    
+    // Log the response
+    console.log('Cashfree form payment response:', response.data);
+    
+    // Store booking ID for later reference
+    if (response.data.booking && response.data.booking.id) {
+      localStorage.setItem('pendingBookingId', response.data.booking.id);
+      localStorage.setItem('pendingPaymentMethod', 'cashfree_form');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error initiating Cashfree form payment for event ${eventId}:`, error);
+    
+    // Enhanced error logging
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+    }
+    
+    // If we get here, rethrow the original error or a generic message
+    throw error.message ? new Error(error.message) : new Error('Failed to initialize Cashfree form payment. Please try again.');
+  }
+},
+
+/**
+ * Check Cashfree form payment status
+ * @param {string} bookingId - Booking ID
+ * @returns {Promise<Object>} - Payment status
+ */
+checkCashfreeFormPaymentStatus: async (bookingId) => {
+  try {
+    console.log(`Checking Cashfree form payment status for booking ${bookingId}`);
+    
+    if (!bookingId) {
+      throw new Error('Booking ID is required');
+    }
+    
+    const response = await api.get(`/api/payments/cashfree-form/status/${bookingId}`);
+    
+    console.log('Cashfree form payment status response:', response.data);
+    
+    // If payment is confirmed, clear local storage
+    if (response.data.status === 'confirmed' || response.data.paymentStatus === 'completed') {
+      localStorage.removeItem('pendingBookingId');
+      localStorage.removeItem('pendingPaymentMethod');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error checking Cashfree form payment status for booking ${bookingId}:`, error);
+    
+    if (error.response?.status === 404) {
+      throw new Error('Booking not found');
+    } else if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'Failed to check payment status');
     }
     
     throw error;

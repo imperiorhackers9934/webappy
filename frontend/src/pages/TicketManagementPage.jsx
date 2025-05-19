@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ticketService from '../services/ticketService';
 
@@ -11,6 +11,8 @@ const TicketManagementPage = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentTicket, setCurrentTicket] = useState(null);
+  // Add a ref to track if the component is mounted
+  const isMounted = useRef(true);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -22,20 +24,41 @@ const TicketManagementPage = () => {
     maxPerOrder: 10
   });
 
+  // Clean up on unmount
   useEffect(() => {
-    fetchTicketTypes();
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Only fetch if the component is mounted and we have an eventId
+    if (isMounted.current && eventId) {
+      fetchTicketTypes();
+    }
   }, [eventId]);
 
   const fetchTicketTypes = async () => {
+    // Don't try to fetch if we're already loading or there's no eventId
+    if (!eventId) return;
+    
     try {
       setLoading(true);
       const result = await ticketService.getManageableTicketTypes(eventId);
-      setTicketTypes(result || []);
-      setLoading(false);
+      // Only update state if the component is still mounted
+      if (isMounted.current) {
+        setTicketTypes(result || []);
+        setLoading(false);
+        // Clear any existing error when fetch succeeds
+        setError(null);
+      }
     } catch (err) {
       console.error('Failed to fetch ticket types:', err);
-      setError('Failed to load ticket types. Please try again.');
-      setLoading(false);
+      // Only update state if the component is still mounted
+      if (isMounted.current) {
+        setError('Failed to load ticket types. Please try again.');
+        setLoading(false);
+      }
     }
   };
 
@@ -69,11 +92,12 @@ const TicketManagementPage = () => {
       setShowAddModal(false);
       resetForm();
       await fetchTicketTypes();
-      setLoading(false);
     } catch (err) {
       console.error('Failed to create ticket type:', err);
-      setError('Failed to create ticket type. Please try again.');
-      setLoading(false);
+      if (isMounted.current) {
+        setError('Failed to create ticket type. Please try again.');
+        setLoading(false);
+      }
     }
   };
 
@@ -98,32 +122,32 @@ const TicketManagementPage = () => {
 
     try {
       setLoading(true);
-      // This API would need to be added to ticketService.js
       await ticketService.updateTicketType(eventId, currentTicket.id, formData);
       setShowEditModal(false);
       resetForm();
       await fetchTicketTypes();
-      setLoading(false);
     } catch (err) {
       console.error('Failed to update ticket type:', err);
-      setError('Failed to update ticket type. Please try again.');
-      setLoading(false);
+      if (isMounted.current) {
+        setError('Failed to update ticket type. Please try again.');
+        setLoading(false);
+      }
     }
   };
 
   const handleToggleActive = async (ticketId, isCurrentlyActive) => {
     try {
       setLoading(true);
-      // This API would need to be added to ticketService.js
       await ticketService.updateTicketType(eventId, ticketId, {
         isActive: !isCurrentlyActive
       });
       await fetchTicketTypes();
-      setLoading(false);
     } catch (err) {
       console.error('Failed to toggle ticket status:', err);
-      setError('Failed to update ticket status. Please try again.');
-      setLoading(false);
+      if (isMounted.current) {
+        setError('Failed to update ticket status. Please try again.');
+        setLoading(false);
+      }
     }
   };
 
@@ -139,20 +163,7 @@ const TicketManagementPage = () => {
     }).format(price);
   };
 
-  // For adding this API method to ticketService.js
-  // Add to ticketService.js:
-  /*
-  updateTicketType: async (eventId, ticketTypeId, ticketData) => {
-    try {
-      const response = await api.put(`/api/bookings/events/${eventId}/ticket-types/${ticketTypeId}`, ticketData);
-      return normalizeData(response.data);
-    } catch (error) {
-      console.error(`Error updating ticket type ${ticketTypeId} for event ${eventId}:`, error);
-      throw error;
-    }
-  },
-  */
-
+  // If there's an error, show it in a dismissible alert
   if (error) {
     return (
       <div className="container mx-auto p-4">
@@ -165,6 +176,12 @@ const TicketManagementPage = () => {
             Dismiss
           </button>
         </div>
+        <button 
+          onClick={fetchTicketTypes}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Retry Loading Tickets
+        </button>
       </div>
     );
   }
@@ -198,6 +215,7 @@ const TicketManagementPage = () => {
               setShowAddModal(true);
             }}
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            disabled={loading}
           >
             Add New Ticket
           </button>
@@ -264,6 +282,7 @@ const TicketManagementPage = () => {
                       <button 
                         onClick={() => handleEditClick(ticket)}
                         className="text-indigo-600 hover:text-indigo-900 mr-4"
+                        disabled={loading}
                       >
                         Edit
                       </button>
@@ -274,6 +293,7 @@ const TicketManagementPage = () => {
                             ? 'text-red-600 hover:text-red-900' 
                             : 'text-green-600 hover:text-green-900'
                         }`}
+                        disabled={loading}
                       >
                         {ticket.isActive ? 'Deactivate' : 'Activate'}
                       </button>
@@ -298,6 +318,7 @@ const TicketManagementPage = () => {
                   resetForm();
                 }}
                 className="text-gray-500 hover:text-gray-700"
+                disabled={loading}
               >
                 &times;
               </button>
@@ -349,6 +370,21 @@ const TicketManagementPage = () => {
                     required
                   />
                 </div>
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="quantity">
+                    Quantity (Use -1 for unlimited)
+                  </label>
+                  <input
+                    type="number"
+                    id="quantity"
+                    name="quantity"
+                    value={formData.quantity}
+                    onChange={handleInputChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    min="-1"
+                    required
+                  />
+                </div>
               </div>
               <div className="flex justify-end mt-6">
                 <button
@@ -358,6 +394,7 @@ const TicketManagementPage = () => {
                     resetForm();
                   }}
                   className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2"
+                  disabled={loading}
                 >
                   Cancel
                 </button>
@@ -386,6 +423,7 @@ const TicketManagementPage = () => {
                   resetForm();
                 }}
                 className="text-gray-500 hover:text-gray-700"
+                disabled={loading}
               >
                 &times;
               </button>
@@ -519,6 +557,7 @@ const TicketManagementPage = () => {
                     resetForm();
                   }}
                   className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2"
+                  disabled={loading}
                 >
                   Cancel
                 </button>

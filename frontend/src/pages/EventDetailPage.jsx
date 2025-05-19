@@ -584,7 +584,7 @@ const EventDetailPage = ({ user, onLogout }) => {
                               <span className="text-gray-700">{ticket.name}</span>
                               <span className="font-semibold">
                                 {ticket.price > 0 ? (
-                                  <span>${ticket.price}</span>
+                                  <span>₹ {ticket.price}</span>
                                 ) : (
                                   <span className="text-green-600">Free</span>
                                 )}
