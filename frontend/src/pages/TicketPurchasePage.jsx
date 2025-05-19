@@ -8,6 +8,7 @@ import {
   XCircle,
   Ticket,
   Calendar,
+  Clock,
   ShoppingBag,
   Tag,
   Info,
@@ -19,11 +20,8 @@ import {
   Download,
   Percent,
   RefreshCcw,
-  Clock,
-  Users,
   MapPin,
-  Copy,
-  TrendingUp
+  Copy
 } from 'lucide-react';
 import eventService from '../services/eventService';
 import ticketService from '../services/ticketService';
@@ -62,6 +60,47 @@ const TicketPurchasePage = () => {
   const [transactionId, setTransactionId] = useState(null);
   const [paymentPolling, setPaymentPolling] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  // Check for successful payment on initial load or when returning from payment gateway
+  useEffect(() => {
+    const checkPaymentStatus = async () => {
+      // Get stored order ID and booking ID from localStorage
+      const storedOrderId = localStorage.getItem('pendingOrderId');
+      const storedBookingId = localStorage.getItem('pendingBookingId');
+      
+      if (storedOrderId && storedBookingId) {
+        try {
+          setPaymentPolling(true);
+          console.log('Checking payment status for order:', storedOrderId);
+          
+          // Check payment status with the API
+          const status = await ticketService.checkPaymentStatus(storedOrderId, 'cashfree_sdk');
+          
+          if (status && (status.status === 'PAYMENT_SUCCESS' || status.status === 'completed')) {
+            console.log('Payment successful for order:', storedOrderId);
+            setPaymentStatus('success');
+            setSuccessMessage('Payment successful! Redirecting to confirmation page...');
+            
+            // Clear localStorage
+            localStorage.removeItem('pendingOrderId');
+            localStorage.removeItem('pendingBookingId');
+            localStorage.removeItem('cashfreeOrderToken');
+            
+            // Redirect to confirmation page
+            setTimeout(() => {
+              navigate(`/tickets/confirmation/${storedBookingId}`);
+            }, 1500);
+          }
+        } catch (err) {
+          console.error('Error checking payment status:', err);
+        } finally {
+          setPaymentPolling(false);
+        }
+      }
+    };
+    
+    checkPaymentStatus();
+  }, [navigate]);
   
   // Fetch event and ticket types on component mount
   useEffect(() => {
@@ -105,7 +144,6 @@ const TicketPurchasePage = () => {
     
     fetchEventData();
   }, [eventId]);
-  
   // Calculate total amount whenever selected tickets or applied coupon change
   useEffect(() => {
     let subtotal = 0;
@@ -135,6 +173,52 @@ const TicketPurchasePage = () => {
     }
   }, [selectedTickets, appliedCoupon]);
 
+  // Continuous payment status check
+  useEffect(() => {
+    let intervalId;
+    
+    if (paymentPolling && transactionId) {
+      intervalId = setInterval(async () => {
+        try {
+          console.log('Polling payment status for transaction:', transactionId);
+          
+          const status = await ticketService.checkPaymentStatus(transactionId, paymentMethod);
+          
+          if (status && (status.status === 'PAYMENT_SUCCESS' || status.status === 'completed')) {
+            clearInterval(intervalId);
+            setPaymentPolling(false);
+            setPaymentStatus('success');
+            setSuccessMessage('Payment successful! Redirecting to confirmation page...');
+            
+            // Redirect to confirmation page
+            if (bookingId) {
+              // Clear localStorage first
+              localStorage.removeItem('pendingOrderId');
+              localStorage.removeItem('pendingBookingId');
+              localStorage.removeItem('cashfreeOrderToken');
+              
+              setTimeout(() => {
+                navigate(`/tickets/confirmation/${bookingId}`);
+              }, 1500);
+            }
+          } else if (status && (status.status === 'PAYMENT_FAILED' || status.status === 'failed')) {
+            clearInterval(intervalId);
+            setPaymentPolling(false);
+            setPaymentStatus('failed');
+            setError('Payment failed. Please try again.');
+          }
+        } catch (err) {
+          console.error('Error checking payment status:', err);
+        }
+      }, 3000); // Check every 3 seconds
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [paymentPolling, transactionId, bookingId, navigate, paymentMethod]);
   // Update ticket quantity
   const handleQuantityChange = (index, quantity) => {
     const updatedTickets = [...selectedTickets];
@@ -162,16 +246,16 @@ const TicketPurchasePage = () => {
       // Call the API to validate the coupon
       const couponResult = await ticketService.validateCoupon(eventId, couponCode);
       
-      if (couponResult.valid) {
+      if (couponResult && couponResult.valid) {
         setAppliedCoupon({
           code: couponCode,
-          discountType: couponResult.discountType,
-          discountValue: couponResult.discountValue,
-          name: couponResult.name || couponCode
+          discountType: couponResult.coupon?.discountPercentage ? 'percentage' : 'fixed',
+          discountValue: couponResult.coupon?.discountPercentage || 0,
+          name: couponResult.coupon?.name || couponCode
         });
         setCouponCode('');
       } else {
-        setCouponError(couponResult.message || 'Invalid coupon code');
+        setCouponError(couponResult.error || 'Invalid coupon code');
       }
     } catch (err) {
       console.error('Error validating coupon:', err);
@@ -186,7 +270,6 @@ const TicketPurchasePage = () => {
     setAppliedCoupon(null);
     setCouponError(null);
   };
-  
   // Proceed to payment step
   const proceedToPayment = async () => {
     // Validate ticket selection
@@ -228,7 +311,7 @@ const TicketPurchasePage = () => {
       
       // Add coupon if applied
       if (appliedCoupon) {
-        bookingData.couponCode = appliedCoupon.code;
+        bookingData.promoCode = appliedCoupon.code;
       }
       
       // Create booking with the API
@@ -261,21 +344,23 @@ const TicketPurchasePage = () => {
       navigate(`/events/${eventId}`);
     }
   };
-  
   // Handle successful payment
   const handlePaymentSuccess = (paymentResult) => {
     console.log('Payment successful:', paymentResult);
     setPaymentProcessing(false);
+    setPaymentStatus('success');
+    setSuccessMessage('Payment successful! Redirecting to confirmation page...');
     
     // Redirect to confirmation page
     if (bookingId) {
-      // First update the payment status in our state
-      setPaymentStatus('success');
+      // Clear localStorage first
+      localStorage.removeItem('pendingOrderId');
+      localStorage.removeItem('pendingBookingId');
+      localStorage.removeItem('cashfreeOrderToken');
       
-      // Then redirect after a short delay to ensure state is updated
       setTimeout(() => {
         navigate(`/tickets/confirmation/${bookingId}`);
-      }, 1000);
+      }, 1500);
     }
   };
   
@@ -293,43 +378,46 @@ const TicketPurchasePage = () => {
     setPaymentStatus('cancelled');
   };
   
-  // Continuous payment status check
-  useEffect(() => {
-    let intervalId;
-    
-    if (paymentPolling && transactionId) {
-      intervalId = setInterval(async () => {
-        try {
-          const status = await ticketService.checkPaymentStatus(transactionId);
-          
-          if (status && (status.status === 'PAYMENT_SUCCESS' || status.status === 'completed')) {
-            clearInterval(intervalId);
-            setPaymentPolling(false);
-            setPaymentStatus('success');
-            
-            // Redirect to confirmation page
-            if (bookingId) {
-              navigate(`/tickets/confirmation/${bookingId}`);
-            }
-          } else if (status && (status.status === 'PAYMENT_FAILED' || status.status === 'failed')) {
-            clearInterval(intervalId);
-            setPaymentPolling(false);
-            setPaymentStatus('failed');
-            setError('Payment failed. Please try again.');
-          }
-        } catch (err) {
-          console.error('Error checking payment status:', err);
+  // Initiate UPI payment
+  const handleUpiPayment = async () => {
+    try {
+      setPaymentProcessing(true);
+      setError(null);
+      
+      // Create UPI payment request
+      const paymentData = {
+        bookingId,
+        amount: totalAmount,
+        eventName: event?.name || 'Event Tickets',
+        customerName: customerInfo.name,
+        customerPhone: customerInfo.phone,
+        customerEmail: customerInfo.email
+      };
+      
+      const result = await ticketService.initiateUpiPayment(eventId, paymentData);
+      
+      if (result && result.success) {
+        // Set transaction ID for polling
+        setTransactionId(result.orderId);
+        setPaymentPolling(true);
+        
+        // Store in localStorage for recovery if page is closed/refreshed
+        localStorage.setItem('pendingOrderId', result.orderId);
+        localStorage.setItem('pendingBookingId', bookingId);
+        
+        // Open payment link in new tab if available
+        if (result.paymentLink) {
+          window.open(result.paymentLink, '_blank');
         }
-      }, 3000); // Check every 3 seconds
-    }
-    
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      } else {
+        throw new Error('Failed to initiate UPI payment');
       }
-    };
-  }, [paymentPolling, transactionId, bookingId, navigate]);
-  
+    } catch (err) {
+      console.error('Error initiating UPI payment:', err);
+      setError(err.message || 'Failed to initiate UPI payment. Please try again.');
+      setPaymentProcessing(false);
+    }
+  };
   // Format currency for display
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -358,7 +446,8 @@ const TicketPurchasePage = () => {
   const copyBookingId = () => {
     if (bookingId) {
       navigator.clipboard.writeText(bookingId);
-      // You could show a toast message here
+      setSuccessMessage('Booking ID copied to clipboard!');
+      setTimeout(() => setSuccessMessage(''), 2000);
     }
   };
   
@@ -394,6 +483,19 @@ const TicketPurchasePage = () => {
     );
   }
   
+  // If payment was successful, show success message and redirection
+  if (paymentStatus === 'success' && successMessage) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="bg-green-50 border border-green-200 rounded-md p-8 text-center">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-green-800 mb-2">Payment Successful!</h2>
+          <p className="text-green-700 mb-4">{successMessage}</p>
+          <div className="w-8 h-8 border-t-4 border-b-4 border-green-500 rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
@@ -450,6 +552,15 @@ const TicketPurchasePage = () => {
           </div>
         </div>
       </div>
+      {/* Success message */}
+      {successMessage && paymentStatus !== 'success' && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
+          <div className="flex">
+            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+            <p className="text-green-600">{successMessage}</p>
+          </div>
+        </div>
+      )}
       
       {/* Error display */}
       {error && (
@@ -461,6 +572,34 @@ const TicketPurchasePage = () => {
         </div>
       )}
       
+      {/* Payment status display */}
+      {paymentStatus === 'failed' && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+          <div className="flex">
+            <XCircle className="w-5 h-5 text-red-500 mr-2" />
+            <p className="text-red-600">Payment failed. Please try again or choose a different payment method.</p>
+          </div>
+        </div>
+      )}
+      
+      {paymentStatus === 'cancelled' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
+          <div className="flex">
+            <AlertCircle className="w-5 h-5 text-yellow-500 mr-2" />
+            <p className="text-yellow-600">Payment was cancelled. Please try again when you're ready.</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Payment polling indicator */}
+      {paymentPolling && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
+          <div className="flex items-center">
+            <div className="w-5 h-5 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mr-2"></div>
+            <p className="text-blue-600">Checking payment status... Please keep this page open.</p>
+          </div>
+        </div>
+      )}
       {/* Event Details */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <div className="flex flex-col md:flex-row">
@@ -508,7 +647,6 @@ const TicketPurchasePage = () => {
           </div>
         </div>
       </div>
-      
       {/* Ticket Selection Step */}
       {checkoutStep === 'select' && (
         <>
@@ -594,7 +732,6 @@ const TicketPurchasePage = () => {
                   </div>
                 )}
               </div>
-              
               {/* Customer Info */}
               <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <h3 className="text-lg font-semibold mb-4">Your Contact Information</h3>
@@ -657,7 +794,6 @@ const TicketPurchasePage = () => {
                 </div>
               </div>
             </div>
-            
             {/* Order Summary */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
@@ -730,7 +866,6 @@ const TicketPurchasePage = () => {
                     </div>
                   )}
                 </div>
-                
                 {/* Price Details */}
                 <div className="space-y-2 border-t border-gray-200 pt-4">
                   <div className="flex justify-between">
@@ -761,7 +896,7 @@ const TicketPurchasePage = () => {
                       className="mt-1 mr-2"
                     />
                     <span className="text-sm text-gray-600">
-                      I agreeto the <a href="/termsandconditons" target="_blank" className="text-orange-600 hover:underline">Terms and Conditions</a>, <a href="/privacypolicy" target="_blank" className="text-orange-600 hover:underline">Privacy Policy</a>, and <a href="/refundpolicy" target="_blank" className="text-orange-600 hover:underline">Refund Policy</a>.
+                      I agree to the <a href="/termsandconditons" target="_blank" className="text-orange-600 hover:underline">Terms and Conditions</a>, <a href="/privacypolicy" target="_blank" className="text-orange-600 hover:underline">Privacy Policy</a>, and <a href="/refundpolicy" target="_blank" className="text-orange-600 hover:underline">Refund Policy</a>.
                     </span>
                   </label>
                 </div>
@@ -809,7 +944,6 @@ const TicketPurchasePage = () => {
           </div>
         </>
       )}
-      
       {/* Payment Step */}
       {checkoutStep === 'payment' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -831,7 +965,7 @@ const TicketPurchasePage = () => {
                   <span>Cashfree (Credit/Debit Cards, UPI, Netbanking)</span>
                 </label>
                 
-                {/* <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
+                <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
                   <input
                     type="radio"
                     name="paymentMethod"
@@ -842,7 +976,7 @@ const TicketPurchasePage = () => {
                   />
                   <Smartphone className="w-5 h-5 text-orange-500 mr-2" />
                   <span>UPI Payment (PhonePe, Google Pay, Paytm)</span>
-                </label> */}
+                </label>
               </div>
               
               {/* Pricing Information in Payment Step */}
@@ -864,7 +998,6 @@ const TicketPurchasePage = () => {
                   <div>{formatCurrency(totalAmount)}</div>
                 </div>
               </div>
-              
               {paymentMethod === 'cashfree_sdk' && (
                 <Suspense fallback={<div className="flex justify-center my-8"><div className="w-10 h-10 border-t-4 border-b-4 border-orange-500 rounded-full animate-spin"></div></div>}>
                   <CashfreePayment
@@ -901,10 +1034,20 @@ const TicketPurchasePage = () => {
                   
                   <button 
                     className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-md flex items-center justify-center"
-                    // This is where we would initiate UPI payment via ticketService.initiateUpiPayment
+                    onClick={handleUpiPayment}
+                    disabled={paymentProcessing}
                   >
-                    <Smartphone className="w-5 h-5 mr-2" />
-                    Pay ₹{totalAmount.toFixed(2)} with UPI
+                    {paymentProcessing ? (
+                      <>
+                        <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin mr-2"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Smartphone className="w-5 h-5 mr-2" />
+                        Pay ₹{totalAmount.toFixed(2)} with UPI
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -916,7 +1059,6 @@ const TicketPurchasePage = () => {
               </div>
             </div>
           </div>
-          
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
               <h3 className="text-lg font-semibold mb-4">Booking Details</h3>
@@ -980,7 +1122,6 @@ const TicketPurchasePage = () => {
                   </div>
                 </div>
               )}
-              
               {/* Payment Details */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">

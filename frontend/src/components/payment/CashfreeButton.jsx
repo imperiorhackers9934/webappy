@@ -23,6 +23,7 @@ const CashfreePayment = ({
   const [orderId, setOrderId] = useState(null);
   const [cashfree, setCashfree] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   
   // Get auth context to access the token
   const { token } = useAuth();
@@ -83,9 +84,8 @@ const CashfreePayment = ({
     }
   };
 
-  // Function to create a payment order - FIXED VERSION
-// Function to create a payment order
-const createPaymentOrder = async () => {
+  // Function to create a payment order
+  const createPaymentOrder = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -116,11 +116,9 @@ const createPaymentOrder = async () => {
           // CRITICAL: Add these explicitly
           customerPhone: userData.phone || '9999999999', // Default phone is required by Cashfree
           customerEmail: userData.email || '',
-          customerName: userData.firstName ? `${userData.firstName} ${userData.lastName || ''}` : 'Customer'
+          customerName: userData.firstName ? `${userData.firstName} ${userData.lastName || ''}`.trim() : 'Customer'
         }),
       });
-  
-      // Rest of the function remains the same...
 
       // If unauthorized, try to refresh the token and retry
       if (response.status === 401) {
@@ -175,6 +173,9 @@ const createPaymentOrder = async () => {
   // Function to verify payment status
   const verifyPayment = async (orderId) => {
     try {
+      setIsVerifying(true);
+      console.log(`Verifying payment for order ${orderId}`);
+      
       // Get the auth token
       const authToken = localStorage.getItem('@auth_token') || token;
       
@@ -190,6 +191,7 @@ const createPaymentOrder = async () => {
       });
 
       const data = await response.json();
+      console.log('Verification response:', data);
 
       if (data && data.success) {
         return data;
@@ -199,6 +201,8 @@ const createPaymentOrder = async () => {
     } catch (error) {
       console.error('Error verifying payment:', error);
       throw error;
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -227,7 +231,7 @@ const createPaymentOrder = async () => {
       // Step 2: Initialize Cashfree checkout
       const checkoutOptions = {
         paymentSessionId: orderData.orderToken,
-        redirectTarget: "_modal", // Use modal for inline experience
+        redirectTarget: "_self", // Change this to _self to avoid modal issues
         onSuccess: async (data) => {
           console.log('Payment success callback', data);
           
@@ -341,14 +345,14 @@ const createPaymentOrder = async () => {
       <div className="space-y-4">
         <button
           onClick={handlePayment}
-          disabled={loading || !cashfree || processingPayment || bookingId === 'pending'}
+          disabled={loading || !cashfree || processingPayment || bookingId === 'pending' || isVerifying}
           className={`w-full flex items-center justify-center py-3 rounded-md text-white ${
-            loading || !cashfree || processingPayment || bookingId === 'pending'
+            loading || !cashfree || processingPayment || bookingId === 'pending' || isVerifying
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-orange-600 hover:bg-orange-700'
           }`}
         >
-          {loading ? (
+          {loading || processingPayment || isVerifying ? (
             <>
               <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin mr-2"></div>
               Processing...
@@ -363,7 +367,7 @@ const createPaymentOrder = async () => {
         
         <button
           onClick={onCancel}
-          disabled={loading || processingPayment}
+          disabled={loading || processingPayment || isVerifying}
           className="w-full text-center py-2 text-gray-600 hover:text-gray-800"
         >
           Cancel Payment
