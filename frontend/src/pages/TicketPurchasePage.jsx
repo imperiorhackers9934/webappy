@@ -38,6 +38,7 @@ const TicketPurchasePage = () => {
   const [selectedTickets, setSelectedTickets] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [originalAmount, setOriginalAmount] = useState(0);
+  const [serviceFee, setServiceFee] = useState(0); // Added service fee state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState('select'); // select, payment, confirmation
@@ -154,21 +155,28 @@ const TicketPurchasePage = () => {
     
     setOriginalAmount(subtotal);
     
+    // Calculate service fee (20% of subtotal)
+    const calculatedServiceFee = subtotal * 0.2;
+    setServiceFee(calculatedServiceFee);
+    
     // Apply discount if coupon is active
     if (appliedCoupon) {
       if (appliedCoupon.discountType === 'percentage') {
         const discountValue = subtotal * (appliedCoupon.discountValue / 100);
         setDiscount(discountValue);
-        setTotalAmount(subtotal - discountValue);
+        // Total = subtotal - discount + service fee
+        setTotalAmount(subtotal - discountValue + calculatedServiceFee);
       } else if (appliedCoupon.discountType === 'fixed') {
         setDiscount(appliedCoupon.discountValue);
-        setTotalAmount(Math.max(0, subtotal - appliedCoupon.discountValue));
+        // Total = subtotal - discount + service fee (ensure total doesn't go negative)
+        setTotalAmount(Math.max(0, subtotal - appliedCoupon.discountValue) + calculatedServiceFee);
       } else {
-        setTotalAmount(subtotal);
+        setTotalAmount(subtotal + calculatedServiceFee);
         setDiscount(0);
       }
     } else {
-      setTotalAmount(subtotal);
+      // No coupon, just add service fee to subtotal
+      setTotalAmount(subtotal + calculatedServiceFee);
       setDiscount(0);
     }
   }, [selectedTickets, appliedCoupon]);
@@ -306,7 +314,8 @@ const TicketPurchasePage = () => {
           })),
         paymentMethod: 'cashfree_sdk',
         contactInformation: customerInfo,
-        specialRequests: specialRequests || ''
+        specialRequests: specialRequests || '',
+        serviceFee: serviceFee // Include service fee in booking data
       };
       
       // Add coupon if applied
@@ -450,7 +459,6 @@ const TicketPurchasePage = () => {
       setTimeout(() => setSuccessMessage(''), 2000);
     }
   };
-  
   // Loading state
   if (loading) {
     return (
@@ -552,6 +560,7 @@ const TicketPurchasePage = () => {
           </div>
         </div>
       </div>
+      
       {/* Success message */}
       {successMessage && paymentStatus !== 'success' && (
         <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
@@ -729,72 +738,74 @@ const TicketPurchasePage = () => {
                         )}
                       </div>
                     ))}
-                  </div>
-                )}
-              </div>
-              {/* Customer Info */}
-              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h3 className="text-lg font-semibold mb-4">Your Contact Information</h3>
+                    </div>
+                  )}
+                </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="name" className="block text-gray-700 mb-1">Full Name</label>
-                    <input
-                      id="name"
-                      name="name"
-                      type="text"
-                      value={customerInfo.name}
-                      onChange={handleInfoChange}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2"
-                      placeholder="Your full name"
-                    />
+                {/* Customer Info */}
+                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4">Your Contact Information</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="name" className="block text-gray-700 mb-1">Full Name</label>
+                      <input
+                        id="name"
+                        name="name"
+                        type="text"
+                        value={customerInfo.name}
+                        onChange={handleInfoChange}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                        placeholder="Your full name"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="email" className="block text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={customerInfo.email}
+                        onChange={handleInfoChange}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                        required
+                        placeholder="you@example.com"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="phone" className="block text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        value={customerInfo.phone}
+                        onChange={handleInfoChange}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                        required
+                        placeholder="10-digit mobile number"
+                      />
+                    </div>
                   </div>
                   
-                  <div>
-                    <label htmlFor="email" className="block text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={customerInfo.email}
-                      onChange={handleInfoChange}
+                  {/* Special Requests */}
+                  <div className="mt-4">
+                    <label htmlFor="specialRequests" className="block text-gray-700 mb-1">Special Requests (optional)</label>
+                    <textarea
+                      id="specialRequests"
+                      name="specialRequests"
+                      value={specialRequests}
+                      onChange={(e) => setSpecialRequests(e.target.value)}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
-                      required
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="phone" className="block text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
-                    <input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      value={customerInfo.phone}
-                      onChange={handleInfoChange}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2"
-                      required
-                      placeholder="10-digit mobile number"
+                      rows="3"
+                      placeholder="Any special accommodations or requests"
                     />
                   </div>
                 </div>
-                
-                {/* Special Requests */}
-                <div className="mt-4">
-                  <label htmlFor="specialRequests" className="block text-gray-700 mb-1">Special Requests (optional)</label>
-                  <textarea
-                    id="specialRequests"
-                    name="specialRequests"
-                    value={specialRequests}
-                    onChange={(e) => setSpecialRequests(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    rows="3"
-                    placeholder="Any special accommodations or requests"
-                  />
-                </div>
               </div>
-            </div>
-            {/* Order Summary */}
+              
+{/* Order Summary */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
                 <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
@@ -866,11 +877,18 @@ const TicketPurchasePage = () => {
                     </div>
                   )}
                 </div>
-                {/* Price Details */}
+                
+                {/* Price Details with Service Fee */}
                 <div className="space-y-2 border-t border-gray-200 pt-4">
                   <div className="flex justify-between">
                     <div className="text-gray-600">Subtotal</div>
                     <div>{formatCurrency(originalAmount)}</div>
+                  </div>
+                  
+                  {/* Service Fee (20%) */}
+                  <div className="flex justify-between">
+                    <div className="text-gray-600">Service Fee (20%)</div>
+                    <div>{formatCurrency(serviceFee)}</div>
                   </div>
                   
                   {discount > 0 && (
@@ -979,11 +997,16 @@ const TicketPurchasePage = () => {
                 </label>
               </div>
               
-              {/* Pricing Information in Payment Step */}
+              {/* Pricing Information in Payment Step with Service Fee */}
               <div className="bg-gray-50 rounded-md p-4 mb-6">
                 <div className="flex justify-between mb-2">
                   <div className="text-gray-600">Subtotal:</div>
                   <div>{formatCurrency(originalAmount)}</div>
+                </div>
+                
+                <div className="flex justify-between mb-2">
+                  <div className="text-gray-600">Service Fee (20%):</div>
+                  <div>{formatCurrency(serviceFee)}</div>
                 </div>
                 
                 {discount > 0 && (
@@ -1122,11 +1145,17 @@ const TicketPurchasePage = () => {
                   </div>
                 </div>
               )}
-              {/* Payment Details */}
+              
+              {/* Payment Details with Service Fee */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <div className="text-gray-600">Subtotal</div>
                   <div>{formatCurrency(originalAmount)}</div>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <div className="text-gray-600">Service Fee (20%)</div>
+                  <div>{formatCurrency(serviceFee)}</div>
                 </div>
                 
                 {discount > 0 && (
