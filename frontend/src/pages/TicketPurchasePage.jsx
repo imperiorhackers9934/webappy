@@ -159,24 +159,27 @@ const TicketPurchasePage = () => {
     const calculatedServiceFee = subtotal * 0.2;
     setServiceFee(calculatedServiceFee);
     
+    // Calculate the total before discount (subtotal + service fee)
+    const totalBeforeDiscount = subtotal + calculatedServiceFee;
+    
     // Apply discount if coupon is active
     if (appliedCoupon) {
       if (appliedCoupon.discountType === 'percentage') {
-        const discountValue = subtotal * (appliedCoupon.discountValue / 100);
+        // Apply percentage discount to the total (subtotal + service fee)
+        const discountValue = totalBeforeDiscount * (appliedCoupon.discountValue / 100);
         setDiscount(discountValue);
-        // Total = subtotal - discount + service fee
-        setTotalAmount(subtotal - discountValue + calculatedServiceFee);
+        setTotalAmount(totalBeforeDiscount - discountValue);
       } else if (appliedCoupon.discountType === 'fixed') {
         setDiscount(appliedCoupon.discountValue);
-        // Total = subtotal - discount + service fee (ensure total doesn't go negative)
-        setTotalAmount(Math.max(0, subtotal - appliedCoupon.discountValue) + calculatedServiceFee);
+        // Apply fixed discount to the total (ensure total doesn't go negative)
+        setTotalAmount(Math.max(0, totalBeforeDiscount - appliedCoupon.discountValue));
       } else {
-        setTotalAmount(subtotal + calculatedServiceFee);
+        setTotalAmount(totalBeforeDiscount);
         setDiscount(0);
       }
     } else {
-      // No coupon, just add service fee to subtotal
-      setTotalAmount(subtotal + calculatedServiceFee);
+      // No coupon
+      setTotalAmount(totalBeforeDiscount);
       setDiscount(0);
     }
   }, [selectedTickets, appliedCoupon]);
