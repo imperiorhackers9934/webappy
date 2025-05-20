@@ -322,6 +322,12 @@ const App = () => {
               <CreateTicketsPage/>
             </ProtectedRoute>
           } />
+            
+            <Route path="/events/:eventId/tickets/manage" element={
+            <ProtectedRoute>
+              <TicketManagementPage/>
+            </ProtectedRoute>
+          } />
           
           <Route path="/events/:eventId/checkin" element={
             <ProtectedRoute>

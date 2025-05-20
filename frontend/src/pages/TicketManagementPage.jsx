@@ -44,7 +44,7 @@ const TicketManagementPage = () => {
     
     try {
       setLoading(true);
-      const result = await ticketService.getManageableTicketTypes(eventId);
+      const result = await ticketService.getEventTicketTypes(eventId);
       // Only update state if the component is still mounted
       if (isMounted.current) {
         setTicketTypes(result || []);

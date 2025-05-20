@@ -721,7 +721,7 @@ const EventDetailPage = ({ user, onLogout }) => {
                   <iframe 
                     title="Event Location"
                     className="absolute inset-0 w-full h-full border-0"
-                    src={`https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=${encodeURIComponent(
+                    src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyCZIBrnTH_SdjsqTRt4KNCfFIamMP8Tckk&q=${encodeURIComponent(
                       `${event.location.name}, ${event.location.address || ''}, ${event.location.city || ''}`
                     )}`}
                     allowFullScreen
@@ -902,7 +902,7 @@ const EventDetailPage = ({ user, onLogout }) => {
                   
                   {/* Manage tickets */}
                   <div 
-                    onClick={() => navigate(`/events/${eventId}/tickets/create`)}
+                    onClick={() => navigate(`/events/${eventId}/tickets/manage`)}
                     className="bg-gray-50 hover:bg-gray-100 p-4 rounded-lg cursor-pointer transition border border-gray-200"
                   >
                     <div className="flex items-center justify-between mb-2">

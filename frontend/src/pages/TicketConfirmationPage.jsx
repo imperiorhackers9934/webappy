@@ -392,49 +392,59 @@ const TicketConfirmationPage = () => {
             </div>
           </div>
           
-          <div className="border-t border-gray-200 pt-4 mb-4">
-            <h3 className="font-bold text-gray-900 mb-3">Tickets</h3>
-            
-            <div className="space-y-3">
-              {(displayBooking.tickets || []).map((ticket, index) => {
-                const ticketName = ticket.ticketType?.name || 'Standard Ticket';
-                const ticketPrice = ticket.ticketType?.price || 0;
-                const quantity = ticket.quantity || 1;
-                const total = ticketPrice * quantity;
-                
-                return (
-                  <div key={ticket.id || ticket._id || index} className="flex justify-between items-center">
-                    <div>
-                      <div className="font-medium">{ticketName}</div>
-                      <div className="text-sm text-gray-600">
-                        {quantity} × {formatCurrency(ticketPrice, displayBooking.currency)}
-                      </div>
-                    </div>
-                    <div className="font-medium">
-                      {formatCurrency(total, displayBooking.currency)}
-                    </div>
-                  </div>
-                );
-              })}
+          // The issue is in the Order Details section of the TicketConfirmationPage.jsx file
+// Here's the corrected code for the ticket pricing section:
+
+{/* Tickets section in Order Details */}
+<div className="border-t border-gray-200 pt-4 mb-4">
+  <h3 className="font-bold text-gray-900 mb-3">Tickets</h3>
+  
+  <div className="space-y-3">
+    {(displayBooking.tickets || []).map((ticket, index) => {
+      // Problem was here - we need to properly extract the price from the ticket object
+      // The ticket object structure might have the price directly or nested in ticketType
+      const ticketName = ticket.ticketType?.name || ticket.name || 'Standard Ticket';
+      
+      // Fix: Extract the price correctly from either location
+      const ticketPrice = ticket.price || ticket.ticketType?.price || 0;
+      const quantity = ticket.quantity || 1;
+      const total = ticketPrice * quantity;
+      
+      return (
+        <div key={ticket.id || ticket._id || index} className="flex justify-between items-center">
+          <div>
+            <div className="font-medium">{ticketName}</div>
+            <div className="text-sm text-gray-600">
+              {quantity} × {formatCurrency(ticketPrice, displayBooking.currency)}
             </div>
           </div>
-          
-          <div className="border-t border-gray-200 pt-4">
-            <div className="flex justify-between items-center font-bold text-lg">
-              <span>Total</span>
-              <span>
-                {formatCurrency(
-                  displayBooking.total || 
-                  (displayBooking.tickets || []).reduce((sum, ticket) => {
-                    const price = ticket.ticketType?.price || 0;
-                    const quantity = ticket.quantity || 1;
-                    return sum + (price * quantity);
-                  }, 0),
-                  displayBooking.currency
-                )}
-              </span>
-            </div>
+          <div className="font-medium">
+            {formatCurrency(total, displayBooking.currency)}
           </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
+
+{/* Total calculation in Order Details - also fixed */}
+<div className="border-t border-gray-200 pt-4">
+  <div className="flex justify-between items-center font-bold text-lg">
+    <span>Total</span>
+    <span>
+      {formatCurrency(
+        displayBooking.total || 
+        (displayBooking.tickets || []).reduce((sum, ticket) => {
+          // Fix: Extract price correctly here too
+          const price = ticket.price || ticket.ticketType?.price || 0;
+          const quantity = ticket.quantity || 1;
+          return sum + (price * quantity);
+        }, 0),
+        displayBooking.currency
+      )}
+    </span>
+  </div>
+</div>
         </div>
         
         {/* Next Steps */}
