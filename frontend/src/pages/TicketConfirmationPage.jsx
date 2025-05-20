@@ -391,9 +391,7 @@ const TicketConfirmationPage = () => {
               </div>
             </div>
           </div>
-          
-          // The issue is in the Order Details section of the TicketConfirmationPage.jsx file
-// Here's the corrected code for the ticket pricing section:
+     
 
 {/* Tickets section in Order Details */}
 <div className="border-t border-gray-200 pt-4 mb-4">
