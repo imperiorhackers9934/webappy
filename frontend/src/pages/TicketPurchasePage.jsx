@@ -988,7 +988,7 @@ const TicketPurchasePage = () => {
                   <span>Cashfree (Credit/Debit Cards, UPI, Netbanking)</span>
                 </label>
                 
-                <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
+{/*                 <label className="flex items-center p-4 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
                   <input
                     type="radio"
                     name="paymentMethod"
@@ -999,7 +999,7 @@ const TicketPurchasePage = () => {
                   />
                   <Smartphone className="w-5 h-5 text-orange-500 mr-2" />
                   <span>UPI Payment (PhonePe, Google Pay, Paytm)</span>
-                </label>
+                </label> */}
               </div>
               
               {/* Pricing Information in Payment Step with Service Fee */}
