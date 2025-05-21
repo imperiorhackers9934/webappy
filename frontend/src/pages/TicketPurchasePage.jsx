@@ -241,6 +241,8 @@ const TicketPurchasePage = () => {
   const handleInfoChange = (e) => {
     const { name, value } = e.target;
     setCustomerInfo(prev => ({ ...prev, [name]: value }));
+    const { phone, values } = e.target;
+    setCustomerInfo(prev => ({ ...prev, [phone]: values }));
   };
   
   // Apply coupon code
