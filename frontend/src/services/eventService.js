@@ -1,6 +1,6 @@
 // src/services/eventService.js
 import api from './api';
-
+import ticketService from "./ticketService"
 /**
  * Event Service - Handles all API requests related to events
  */
@@ -38,7 +38,7 @@ getUserBookings: async (filters = {}) => {
     console.log('EventService: Getting user bookings with filters:', filters);
     
     // Import ticketService to use its getUserBookings method
-    const ticketService = require('./ticketService');
+  
     
     // Call the ticketService method
     const response = await ticketService.getUserBookings(filters);
