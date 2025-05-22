@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import Discover from './pages/DiscoverPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 import Dashboard from './pages/Dashboard';
+import Robots from "./robots.txt"
 import ChatPage from './pages/ChatPage';
 import NearbyProfessionals from './pages/NetworkPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -121,7 +122,7 @@ const App = () => {
               <ProfilePage />
             </ProtectedRoute>
           } />
-          
+          <Route path = "/robots.txt" element ={<Robots/>} />
           <Route path="/profile/:userId" element={
             <ProtectedRoute>
               <ProfilePage />
