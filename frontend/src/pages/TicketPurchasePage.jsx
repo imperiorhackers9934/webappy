@@ -75,7 +75,7 @@ const TicketPurchasePage = () => {
           console.log('Checking payment status for order:', storedOrderId);
           
           // Check payment status with the API
-          const status = await ticketService.checkPaymentStatus(storedOrderId, 'cashfree_sdk');
+          const status = await ticketService.checkCashfreeFormPaymentStatus(storedOrderId, 'cashfree_sdk');
           
           if (status && (status.status === 'PAYMENT_SUCCESS' || status.status === 'completed')) {
             console.log('Payment successful for order:', storedOrderId);
