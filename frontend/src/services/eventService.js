@@ -128,6 +128,20 @@ getUserBookings: async (filters = {}) => {
       };
     }
   },
+  downloadTicketPdf: async (ticketId) => {
+  try {
+    console.log('EventService: Downloading ticket PDF:', ticketId);
+   
+    // Call the ticketService method
+    const response = await ticketService.downloadTicketPdf(ticketId);
+    
+    console.log('EventService: Download ticket PDF response received');
+    return response;
+  } catch (error) {
+    console.error('EventService: Error downloading ticket PDF:', error);
+    throw error;
+  }
+},
   // Create a new event
   createEvent: async (eventData) => {
     try {
