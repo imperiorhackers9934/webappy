@@ -600,12 +600,57 @@ verifyTicketByCode: async (eventId, code) => {
  * @param {string} transactionId - Transaction ID
  * @returns {Promise<Object>} - Payment status
  */
-checkPaymentStatus: async (transactionId) => {
+// In frontend/src/services/ticketService.js
+checkPaymentStatus: async (orderId, paymentMethod = 'cashfree_sdk') => {
   try {
-    const response = await api.get(`/api/payments/phonepe/status/${transactionId}`);
+    console.log(`Checking payment status for order: ${orderId}, method: ${paymentMethod}`);
+    
+    if (!orderId) {
+      throw new Error('Order ID is required for payment status check');
+    }
+    
+    // Choose appropriate endpoint based on payment method
+    let endpoint;
+    if (paymentMethod === 'upi') {
+      endpoint = `/api/payments/upi/status/${orderId}`;
+    } else if (paymentMethod === 'cashfree_sdk' || paymentMethod === 'cashfree' || paymentMethod === 'embedded') {
+      endpoint = `/api/payments/cashfree/verify`; // Use POST with orderId in body
+    } else if (paymentMethod === 'phonepe') {
+      endpoint = `/api/payments/phonepe/status/${orderId}`;
+    } else {
+      endpoint = `/api/payments/status/${orderId}`;
+    }
+    
+    // Make request to status endpoint
+    let response;
+    if (paymentMethod === 'cashfree_sdk' || paymentMethod === 'cashfree' || paymentMethod === 'embedded') {
+      // Cashfree uses POST with orderId in body
+      response = await api.post(endpoint, { orderId });
+    } else {
+      // Other methods use GET
+      response = await api.get(endpoint);
+    }
+    
+    console.log('Payment status response:', response.data);
+    
+    // Clear localStorage items on successful payment
+    if (response.data.success && (response.data.status === 'PAYMENT_SUCCESS' || response.data.status === 'completed')) {
+      localStorage.removeItem('pendingOrderId');
+      localStorage.removeItem('pendingBookingId');
+      localStorage.removeItem('cashfreeOrderToken');
+    }
+    
     return response.data;
   } catch (error) {
-    console.error(`Error checking payment status for transaction ${transactionId}:`, error);
+    console.error(`Error checking payment status for order ${orderId}:`, error);
+    
+    if (error.response?.status === 404) {
+      throw new Error('Order not found');
+    } else if (error.response?.data) {
+      const errorMsg = error.response.data.message || error.response.data.error;
+      throw new Error(errorMsg || 'Payment status check failed');
+    }
+    
     throw error;
   }
 },
