@@ -3,20 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     
-    <!-- ✅ Removed the noindex tag -->
+    <!-- Allow search engines to index the site -->
     <meta name="robots" content="index, follow" />
 
-    <!-- ✅ SEO Meta Description -->
+    <!-- Meta description for search engines -->
     <meta name="description" content="MeetKats is a modern social platform where you can connect with like-minded people, share stories, and discover new experiences." />
 
-    <!-- ✅ Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/MeetKats.jpg" />
+    <!-- Favicon (browser tab icon) -->
+    <link rel="icon" type="image/png" href="/MeetKats.jpg" />
 
-    <!-- ✅ Responsive Layout -->
+    <!-- Responsive layout -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- ✅ Title for Search Engines -->
+    <!-- Page title -->
     <title>MeetKats - Connect, Share, Explore</title>
+
+    <!-- ✅ Structured Data for logo rich result -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "MeetKats",
+      "url": "https://meetkats.com",
+      "logo": "https://res.cloudinary.com/dnnl72vrp/image/upload/v1740333339/MeetKats_trv9cv.jpg"
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
