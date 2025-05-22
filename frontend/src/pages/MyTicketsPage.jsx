@@ -70,11 +70,29 @@ const MyTicketsPage = () => {
     const fetchBookings = async () => {
       try {
         setLoading(true);
+        setError(null);
         
+        console.log('Fetching user bookings...');
+        
+        // Use the correct service method - note the difference from eventService
         const response = await eventService.getUserBookings();
         console.log('User bookings response:', response);
         
-        setBookings(response.data || []);
+        // Handle different response structures
+        let bookingsData = [];
+        if (response && Array.isArray(response)) {
+          bookingsData = response;
+        } else if (response && response.data && Array.isArray(response.data)) {
+          bookingsData = response.data;
+        } else if (response && Array.isArray(response.bookings)) {
+          bookingsData = response.bookings;
+        } else {
+          console.warn('Unexpected response structure:', response);
+          bookingsData = [];
+        }
+        
+        console.log('Processed bookings data:', bookingsData);
+        setBookings(bookingsData);
         setLoading(false);
       } catch (err) {
         console.error('Error fetching bookings:', err);
@@ -88,6 +106,14 @@ const MyTicketsPage = () => {
   
   // Get ticket status
   const getTicketStatus = (ticket, eventStartDate) => {
+    if (!ticket) {
+      return {
+        label: 'Unknown',
+        colorClass: 'bg-gray-100 text-gray-800',
+        icon: <AlertCircle className="w-4 h-4 mr-1" />
+      };
+    }
+
     if (ticket.checkedIn) {
       return {
         label: 'Checked In',
@@ -130,6 +156,14 @@ const MyTicketsPage = () => {
   
   // Get booking status
   const getBookingStatus = (booking) => {
+    if (!booking) {
+      return {
+        label: 'Unknown',
+        colorClass: 'bg-gray-100 text-gray-800',
+        icon: <AlertCircle className="w-4 h-4 mr-1" />
+      };
+    }
+
     if (booking.status === 'cancelled') {
       return {
         label: 'Cancelled',
@@ -162,13 +196,14 @@ const MyTicketsPage = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(booking => {
-        // Get event details
+        // Get event details - handle different possible structures
         const event = booking.event || {};
         
         return (
           (event.name && event.name.toLowerCase().includes(query)) ||
           (event.location?.name && event.location.name.toLowerCase().includes(query)) ||
-          (booking.reference && booking.reference.toLowerCase().includes(query))
+          (booking.reference && booking.reference.toLowerCase().includes(query)) ||
+          (booking.bookingNumber && booking.bookingNumber.toLowerCase().includes(query))
         );
       });
     }
@@ -177,13 +212,15 @@ const MyTicketsPage = () => {
     switch (filter) {
       case 'upcoming':
         return filtered.filter(booking => {
-          const eventDate = new Date(booking.event?.startDateTime);
+          const event = booking.event || booking.eventId || {};
+          const eventDate = new Date(event.startDateTime);
           return !isNaN(eventDate) && eventDate >= now;
         });
         
       case 'past':
         return filtered.filter(booking => {
-          const eventDate = new Date(booking.event?.startDateTime);
+          const event = booking.event || booking.eventId || {};
+          const eventDate = new Date(event.startDateTime);
           return !isNaN(eventDate) && eventDate < now;
         });
         
@@ -201,6 +238,7 @@ const MyTicketsPage = () => {
   // Download ticket
   const handleDownloadTicket = async (ticketId) => {
     try {
+      console.log('Downloading ticket:', ticketId);
       const blob = await eventService.downloadTicketPdf(ticketId);
       
       // Create a URL for the blob
@@ -380,11 +418,15 @@ const MyTicketsPage = () => {
         ) : (
           <div className="space-y-6">
             {filteredBookings().map(booking => {
-              const event = booking.event || {};
+              // Handle different event object structures
+              const event = booking.event || booking.eventId || {};
               const bookingStatus = getBookingStatus(booking);
               const eventDate = new Date(event.startDateTime);
               const isPastEvent = eventDate < now;
+              
+              // Handle different ticket structures
               const tickets = booking.tickets || [];
+              const ticketCount = booking.ticketCount || tickets.length || 0;
               
               return (
                 <div 
@@ -398,7 +440,7 @@ const MyTicketsPage = () => {
                         {event.name || "Event"}
                       </h3>
                       <div className="text-sm text-gray-600">
-                        Booking Reference: {booking.reference || (booking.id || booking._id)}
+                        Booking Reference: {booking.reference || booking.bookingNumber || (booking.id || booking._id)}
                       </div>
                     </div>
                     
@@ -442,58 +484,103 @@ const MyTicketsPage = () => {
                     </div>
                   </div>
                   
-                  {/* Tickets */}
+                  {/* Tickets Display */}
                   <div className="px-6 py-4">
-                    <h4 className="font-medium text-gray-900 mb-3">Your Tickets ({tickets.length})</h4>
+                    <h4 className="font-medium text-gray-900 mb-3">Your Tickets ({ticketCount})</h4>
                     
-                    <div className="space-y-4">
-                      {tickets.map(ticket => {
-                        const ticketStatus = getTicketStatus(ticket, event.startDateTime);
-                        const isValid = ticketStatus.label === 'Valid';
-                        
-                        return (
-                          <div 
-                            key={ticket.id || ticket._id} 
-                            className="border border-gray-200 rounded-lg p-4"
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                              <div>
-                                <div className="flex items-center">
-                                  <h5 className="font-medium text-gray-900">
-                                    {ticket.ticketType?.name || "Standard Ticket"}
-                                  </h5>
-                                  <div className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ticketStatus.colorClass}`}>
-                                    {ticketStatus.icon}
-                                    {ticketStatus.label}
+                    {/* Handle group tickets vs individual tickets */}
+                    {booking.groupTicket && tickets.length === 1 ? (
+                      // Group ticket display
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                          <div>
+                            <div className="flex items-center">
+                              <h5 className="font-medium text-gray-900">
+                                Group Ticket ({ticketCount} tickets)
+                              </h5>
+                              <div className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTicketStatus(tickets[0], event.startDateTime).colorClass}`}>
+                                {getTicketStatus(tickets[0], event.startDateTime).icon}
+                                {getTicketStatus(tickets[0], event.startDateTime).label}
+                              </div>
+                            </div>
+                            
+                            <p className="text-sm text-gray-600 mt-1">
+                              {booking.totalAmount > 0 
+                                ? `Paid: ${formatCurrency(booking.totalAmount, booking.currency)}` 
+                                : "Free Tickets"}
+                            </p>
+                          </div>
+                          
+                          <div className="flex flex-wrap mt-3 sm:mt-0 space-x-2">
+                            <button
+                              onClick={() => handleDownloadTicket(tickets[0].id || tickets[0]._id)}
+                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                            >
+                              <Download className="w-3.5 h-3.5 mr-1" />
+                              Download
+                            </button>
+                            
+                            {!isPastEvent && getTicketStatus(tickets[0], event.startDateTime).label === 'Valid' && (
+                              <button
+                                onClick={() => handleTransferTicket(tickets[0].id || tickets[0]._id)}
+                                className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                              >
+                                <Gift className="w-3.5 h-3.5 mr-1" />
+                                Transfer
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // Individual tickets display
+                      <div className="space-y-4">
+                        {tickets.map(ticket => {
+                          const ticketStatus = getTicketStatus(ticket, event.startDateTime);
+                          const isValid = ticketStatus.label === 'Valid';
+                          
+                          return (
+                            <div 
+                              key={ticket.id || ticket._id} 
+                              className="border border-gray-200 rounded-lg p-4"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                                <div>
+                                  <div className="flex items-center">
+                                    <h5 className="font-medium text-gray-900">
+                                      {ticket.ticketType?.name || "Standard Ticket"}
+                                    </h5>
+                                    <div className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ticketStatus.colorClass}`}>
+                                      {ticketStatus.icon}
+                                      {ticketStatus.label}
+                                    </div>
                                   </div>
+                                  
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {ticket.isPaid 
+                                      ? `Paid: ${formatCurrency(ticket.ticketType?.price || 0, booking.currency)}` 
+                                      : "Free Ticket"}
+                                  </p>
+                                  
+                                  {ticket.attendee && (
+                                    <div className="flex items-center text-sm text-gray-600 mt-1">
+                                      <User className="w-4 h-4 mr-1 text-gray-400" />
+                                      {ticket.attendee.firstName} {ticket.attendee.lastName}
+                                    </div>
+                                  )}
                                 </div>
                                 
-                                <p className="text-sm text-gray-600 mt-1">
-                                  {ticket.isPaid 
-                                    ? `Paid: ${formatCurrency(ticket.ticketType?.price || 0, booking.currency)}` 
-                                    : "Free Ticket"}
-                                </p>
-                                
-                                {ticket.attendee && (
-                                  <div className="flex items-center text-sm text-gray-600 mt-1">
-                                    <User className="w-4 h-4 mr-1 text-gray-400" />
-                                    {ticket.attendee.firstName} {ticket.attendee.lastName}
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <div className="flex flex-wrap mt-3 sm:mt-0 space-x-2">
-                                <button
-                                  onClick={() => handleDownloadTicket(ticket.id || ticket._id)}
-                                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
-                                  disabled={!isValid}
-                                >
-                                  <Download className="w-3.5 h-3.5 mr-1" />
-                                  Download
-                                </button>
-                                
-                                {!isPastEvent && isValid && (
-                                  <>
+                                <div className="flex flex-wrap mt-3 sm:mt-0 space-x-2">
+                                  <button
+                                    onClick={() => handleDownloadTicket(ticket.id || ticket._id)}
+                                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                                    disabled={!isValid}
+                                  >
+                                    <Download className="w-3.5 h-3.5 mr-1" />
+                                    Download
+                                  </button>
+                                  
+                                  {!isPastEvent && isValid && (
                                     <button
                                       onClick={() => handleTransferTicket(ticket.id || ticket._id)}
                                       className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
@@ -501,14 +588,14 @@ const MyTicketsPage = () => {
                                       <Gift className="w-3.5 h-3.5 mr-1" />
                                       Transfer
                                     </button>
-                                  </>
-                                )}
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Booking Footer */}
@@ -516,7 +603,7 @@ const MyTicketsPage = () => {
                     <div>
                       <span className="font-medium">Total:</span>{' '}
                       <span className="font-bold">
-                        {formatCurrency(booking.total || 0, booking.currency)}
+                        {formatCurrency(booking.totalAmount || booking.total || 0, booking.currency)}
                       </span>
                     </div>
                     
@@ -532,11 +619,23 @@ const MyTicketsPage = () => {
                       )}
                       
                       <button
-                        onClick={() => window.navigator.share({
-                          title: event.name,
-                          text: `Check out this event: ${event.name}`,
-                          url: window.location.origin + `/events/${event.id || event._id}`
-                        }).catch(err => console.error('Error sharing:', err))}
+                        onClick={() => {
+                          if (navigator.share) {
+                            navigator.share({
+                              title: event.name,
+                              text: `Check out this event: ${event.name}`,
+                              url: window.location.origin + `/events/${event.id || event._id}`
+                            }).catch(err => console.error('Error sharing:', err));
+                          } else {
+                            // Fallback for browsers without native sharing
+                            const url = window.location.origin + `/events/${event.id || event._id}`;
+                            navigator.clipboard.writeText(url).then(() => {
+                              alert('Event link copied to clipboard!');
+                            }).catch(() => {
+                              alert('Unable to share. Please copy the URL manually.');
+                            });
+                          }
+                        }}
                         className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
                       >
                         <Share2 className="w-4 h-4 mr-1" />
