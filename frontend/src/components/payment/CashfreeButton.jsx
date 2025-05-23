@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { load } from 'cashfree-pg';
 import api from '../../services/api';
 
 const CashfreePayment = ({ 
@@ -17,8 +16,8 @@ const CashfreePayment = ({
   useEffect(() => {
     const initializeSDK = async () => {
       try {
-        const cf = await load({
-          mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox'
+        const cf = await window.Cashfree.load({
+          mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox',
         });
         setCashfree(cf);
         console.log('Cashfree SDK initialized');
@@ -26,9 +25,14 @@ const CashfreePayment = ({
         console.error('Failed to initialize Cashfree SDK:', error);
       }
     };
-    
-    initializeSDK();
+  
+    if (window.Cashfree) {
+      initializeSDK();
+    } else {
+      console.error('Cashfree SDK not loaded. Make sure the script tag is in index.html.');
+    }
   }, []);
+  
 
   const handlePayment = async () => {
     if (!cashfree) {
