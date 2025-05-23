@@ -15,7 +15,6 @@
     "@react-google-maps/api": "^2.20.6",
     "@tailwindcss/vite": "^4.0.9",
     "axios": "^1.8.1",
-    "cashfree-pg": "^5.0.8",
     "cashfree-pg-sdk-javascript": "^2.0.8",
     "dotenv": "^16.4.7",
     "html5-qrcode": "^2.3.8",
