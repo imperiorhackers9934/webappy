@@ -17,7 +17,7 @@ const CashfreePayment = ({
     const initializeSDK = async () => {
       try {
         const cf = await window.Cashfree.load({
-          mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox',
+          mode: 'production' 
         });
         setCashfree(cf);
         console.log('Cashfree SDK initialized');
