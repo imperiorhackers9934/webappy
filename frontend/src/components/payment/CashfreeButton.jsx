@@ -13,25 +13,42 @@ const CashfreePayment = ({
   const [processing, setProcessing] = useState(false);
   const [orderId, setOrderId] = useState(null);
 
-  useEffect(() => {
-    const initializeSDK = async () => {
-      try {
-        const cf = await window.Cashfree.load({
-          mode: 'production' 
-        });
-        setCashfree(cf);
-        console.log('Cashfree SDK initialized');
-      } catch (error) {
-        console.error('Failed to initialize Cashfree SDK:', error);
+useEffect(() => {
+  const waitForCashfree = () => new Promise((resolve, reject) => {
+    const maxWait = 10000; // 10 seconds max
+    const intervalTime = 100;
+    let waited = 0;
+
+    const interval = setInterval(() => {
+      if (window.Cashfree) {
+        clearInterval(interval);
+        resolve(window.Cashfree);
+      } else {
+        waited += intervalTime;
+        if (waited >= maxWait) {
+          clearInterval(interval);
+          reject(new Error('Cashfree SDK script did not load in time'));
+        }
       }
-    };
-  
-    if (window.Cashfree) {
-      initializeSDK();
-    } else {
-      console.error('Cashfree SDK not loaded. Make sure the script tag is in index.html.');
+    }, intervalTime);
+  });
+
+  const initializeSDK = async () => {
+    try {
+      const cf = await waitForCashfree();
+      const instance = await cf.load({
+        mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox',
+      });
+      setCashfree(instance);
+      console.log('Cashfree SDK initialized');
+    } catch (error) {
+      console.error(error);
     }
-  }, []);
+  };
+
+  initializeSDK();
+}, []);
+
   
 
   const handlePayment = async () => {
