@@ -32,6 +32,7 @@ import StreakCreationPage from './components/portfolio/StreakCreation';
 import PostsFetcher from './pages/PostFetcher';
 import LinkCall from './pages/LinkCall';
 import LandingPage from './pages/LandingPage';
+import { BhoomiLandingPage } from './pages/BhoomiLandingPage/BhoomiLandingPage';
 // Event Management Pages
 import EventListingPage from './pages/EventsListingPage';
 import EventDetailPage from './pages/EventDetailPage';
@@ -87,7 +88,8 @@ const App = () => {
           <ToastProvider>
         <Routes>
           {/* Public Routes - Accessible without authentication */}
-          <Route path="/landingpage" element={<LandingPage />} />
+          {/*<Route path="/landingpage" element={<LandingPage />} />*/}
+          <Route path="/landingpage" element={<BhoomiLandingPage />} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/signup" element={<AuthPage type="signup" />} />
           <Route path="/phone-login" element={<AuthPage type="phone-login" />} />
