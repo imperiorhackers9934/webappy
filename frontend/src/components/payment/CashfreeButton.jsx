@@ -1,56 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 
-const CashfreePayment = ({ 
-  amount, 
-  bookingId, 
+const CashfreePayment = ({
+  amount,
+  bookingId,
   eventName,
-  onSuccess, 
+  onSuccess,
   onFailure,
-  onCancel 
+  onCancel
 }) => {
   const [cashfree, setCashfree] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [orderId, setOrderId] = useState(null);
+  const [mode, setMode] = useState('sandbox');
 
-useEffect(() => {
-  const waitForCashfree = () => new Promise((resolve, reject) => {
-    const maxWait = 10000;
-    const intervalTime = 100;
-    let waited = 0;
+  useEffect(() => {
+    const waitForCashfree = () =>
+      new Promise((resolve, reject) => {
+        const maxWait = 10000;
+        const intervalTime = 100;
+        let waited = 0;
 
-    const interval = setInterval(() => {
-      if (window.Cashfree) {
-        clearInterval(interval);
-        resolve(window.Cashfree);
-      } else {
-        waited += intervalTime;
-        if (waited >= maxWait) {
-          clearInterval(interval);
-          reject(new Error('Cashfree SDK script did not load in time'));
-        }
-      }
-    }, intervalTime);
-  });
-
-  const initializeSDK = async () => {
-    try {
-      const Cashfree = await waitForCashfree();
-      const instance = new Cashfree({
-        mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'PROD' : 'TEST'
+        const interval = setInterval(() => {
+          if (window.Cashfree) {
+            clearInterval(interval);
+            resolve(window.Cashfree);
+          } else {
+            waited += intervalTime;
+            if (waited >= maxWait) {
+              clearInterval(interval);
+              reject(new Error('Cashfree SDK script did not load in time'));
+            }
+          }
+        }, intervalTime);
       });
-      setCashfree(instance);
-      console.log('Cashfree SDK initialized');
-    } catch (error) {
-      console.error('Failed to initialize Cashfree:', error);
-    }
-  };
 
-  initializeSDK();
-}, []);
+    const initializeSDK = async () => {
+      try {
+        const Cashfree = await waitForCashfree();
+        const currentMode =
+     'production'
+        
+        setMode(currentMode);
 
+        const instance = new Cashfree({
+          mode: currentMode === 'production' ? 'PROD' : 'TEST'
+        });
+        setCashfree(instance);
+        console.log('Cashfree SDK initialized');
+      } catch (error) {
+        console.error('Failed to initialize Cashfree SDK:', error);
+      }
+    };
 
-  
+    initializeSDK();
+  }, []);
 
   const handlePayment = async () => {
     if (!cashfree) {
@@ -60,17 +64,17 @@ useEffect(() => {
 
     try {
       setProcessing(true);
-      
-      // Get user info from localStorage or props
+
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : {};
-      
-      // Initiate payment
+
       const response = await api.post('/api/payments/cashfree/initiate', {
         amount,
         bookingId,
         eventName: eventName || 'Event Booking',
-        customerName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Customer',
+        customerName: user.firstName
+          ? `${user.firstName} ${user.lastName || ''}`.trim()
+          : 'Customer',
         customerEmail: user.email || 'customer@example.com',
         customerPhone: user.phone || '9999999999'
       });
@@ -81,31 +85,31 @@ useEffect(() => {
 
       console.log('Payment initiated:', response.data);
       setOrderId(response.data.orderId);
-      
-      // Store for recovery
+
       localStorage.setItem('pendingOrderId', response.data.orderId);
       localStorage.setItem('pendingBookingId', bookingId);
 
       const checkoutOptions = {
         paymentSessionId: response.data.orderToken,
-        redirectTarget: '_modal'
+        redirectTarget: '_modal',
+        mode: mode // REQUIRED by PG SDK v3
       };
 
       const result = await cashfree.checkout(checkoutOptions);
-      console.log('Checkout completed:', result);
-      
-      // Verify payment after modal closes
+      console.log('Checkout result:', result);
+
       if (result.error) {
         console.error('Payment error:', result.error);
         onFailure(result.error);
       } else {
-        // Add a small delay before verification
+        // Add a small delay before verifying payment
         setTimeout(async () => {
           try {
-            const verifyResponse = await api.post('/api/payments/cashfree/verify', {
-              orderId: response.data.orderId
-            });
-            
+            const verifyResponse = await api.post(
+              '/api/payments/cashfree/verify',
+              { orderId: response.data.orderId }
+            );
+
             if (verifyResponse.data.status === 'PAYMENT_SUCCESS') {
               localStorage.removeItem('pendingOrderId');
               localStorage.removeItem('pendingBookingId');
