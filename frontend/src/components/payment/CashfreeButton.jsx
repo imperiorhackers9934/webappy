@@ -15,7 +15,7 @@ const CashfreePayment = ({
 
 useEffect(() => {
   const waitForCashfree = () => new Promise((resolve, reject) => {
-    const maxWait = 10000; // 10 seconds max
+    const maxWait = 10000;
     const intervalTime = 100;
     let waited = 0;
 
@@ -35,19 +35,20 @@ useEffect(() => {
 
   const initializeSDK = async () => {
     try {
-      const cf = await waitForCashfree();
-      const instance = await cf.load({
-        mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox',
+      const Cashfree = await waitForCashfree();
+      const instance = new Cashfree({
+        mode: process.env.REACT_APP_CASHFREE_ENV === 'PRODUCTION' ? 'PROD' : 'TEST'
       });
       setCashfree(instance);
       console.log('Cashfree SDK initialized');
     } catch (error) {
-      console.error(error);
+      console.error('Failed to initialize Cashfree:', error);
     }
   };
 
   initializeSDK();
 }, []);
+
 
   
 
