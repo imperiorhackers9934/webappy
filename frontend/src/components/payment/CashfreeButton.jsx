@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { load } from '@cashfree/cashfree-js';
+import { load } from 'cashfree-pg';
 import api from '../../services/api';
 
 const CashfreePayment = ({ 
