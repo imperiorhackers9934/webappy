@@ -39,6 +39,7 @@ const CustomFormSubmissionsPage = () => {
         // First fetch event details using the API service
         const eventResponse = await api.get(`/api/events/${eventId}`);
         const eventData = eventResponse.data;
+        console.log(eventData);
         setEvent(eventData);
         
         // Check if the user is the creator or a host
