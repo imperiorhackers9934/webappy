@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import customEventService from '../services/customeventService';
+import api from '../services/api'; // Import your API service
 import Navbar from '../components/common/Navbar';
-import Footer from '../components/common/Footer'; // Changed from footer/Footer
+import Footer from '../components/common/Footer';
 
 const CustomFormSubmissionsPage = () => {
   const { eventId } = useParams();
@@ -35,18 +36,9 @@ const CustomFormSubmissionsPage = () => {
         setLoading(true);
         setError(null);
         
-        // First fetch event details to check permissions
-        const eventResponse = await fetch(`/api/events/${eventId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!eventResponse.ok) {
-          throw new Error('Failed to fetch event details');
-        }
-        
-        const eventData = await eventResponse.json();
+        // First fetch event details using the API service
+        const eventResponse = await api.get(`/api/events/${eventId}`);
+        const eventData = eventResponse.data;
         setEvent(eventData);
         
         // Check if the user is the creator or a host
@@ -66,6 +58,7 @@ const CustomFormSubmissionsPage = () => {
           const formResponse = await customEventService.getCustomForm(eventId);
           setForm(formResponse);
         } catch (formError) {
+          console.error('Form fetch error:', formError);
           setError('No registration form found for this event.');
           setLoading(false);
           return;
@@ -75,12 +68,35 @@ const CustomFormSubmissionsPage = () => {
         await fetchSubmissions();
       } catch (error) {
         console.error('Error fetching event or form:', error);
-        setError('Failed to load event data. Please try again.');
+        
+        // Better error handling
+        if (error.response) {
+          // Server responded with error status
+          const status = error.response.status;
+          const message = error.response.data?.error || error.response.data?.message || 'Unknown error';
+          
+          if (status === 404) {
+            setError('Event not found');
+          } else if (status === 403) {
+            setError('You do not have permission to view this event');
+          } else {
+            setError(`Error loading event: ${message}`);
+          }
+        } else if (error.request) {
+          // Network error
+          setError('Network error. Please check your connection and try again.');
+        } else {
+          // Other error
+          setError('Failed to load event data. Please try again.');
+        }
+        
         setLoading(false);
       }
     };
     
-    fetchEventAndForm();
+    if (eventId && user && token) {
+      fetchEventAndForm();
+    }
   }, [eventId, token, user.id]);
   
   const fetchSubmissions = async () => {
@@ -90,6 +106,9 @@ const CustomFormSubmissionsPage = () => {
       // Build query params
       const params = { page, limit };
       if (status) params.status = status;
+      if (searchQuery) params.search = searchQuery;
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder;
       
       const response = await customEventService.getFormSubmissions(eventId, params);
       
@@ -107,7 +126,7 @@ const CustomFormSubmissionsPage = () => {
     if (event && form) {
       fetchSubmissions();
     }
-  }, [page, limit, status, eventId]);
+  }, [page, limit, status, sortBy, sortOrder, eventId]);
   
   const handleStatusChange = (newStatus) => {
     setStatus(newStatus);
@@ -127,8 +146,7 @@ const CustomFormSubmissionsPage = () => {
   
   const handleSearch = (e) => {
     e.preventDefault();
-    // Implement search logic - this would typically be handled by the API
-    // For now, we'll just filter the submissions client-side
+    setPage(1); // Reset to first page when searching
     fetchSubmissions();
   };
   
@@ -162,11 +180,17 @@ const CustomFormSubmissionsPage = () => {
         setSelectedSubmission({ ...selectedSubmission, status: newStatus });
       }
       
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+      
       setLoading(false);
     } catch (error) {
       console.error('Error updating submission status:', error);
       setError('Failed to update submission status. Please try again.');
       setLoading(false);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => setError(null), 5000);
     }
   };
   
@@ -703,8 +727,7 @@ const CustomFormSubmissionsPage = () => {
                   disabled={page <= 1}
                   className={`px-3 py-1 rounded ${
                     page <= 1
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
                   Previous
