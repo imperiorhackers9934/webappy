@@ -43,7 +43,7 @@ const CustomFormSubmissionsPage = () => {
         setEvent(eventData);
         
         // Check if the user is the creator or a host
-        const isCreator = eventData.createdBy && eventData.createdBy === user.id;
+        const isCreator = eventData.createdBy && eventData.createdBy._id === user.id;
         const isHost = eventData.attendees && eventData.attendees.some(
           a => a.user === user.id && a.role === 'host'
         );
