@@ -651,6 +651,10 @@ const fetchNearbyUsers = async (latitude, longitude, distance) => {
                            
                             My Events
                           </Link>
+                          <Link to="/tickets" className="text-white bg-orange-500 hover:bg-orange-600 rounded-md px-2 py-1 text-xs flex items-center">
+                           
+                            My Tickets
+                          </Link>
                           <Link to="/events" className="text-orange-500 hover:text-orange-600 text-xs md:text-sm">View All</Link>
                         </div>
                       </div>
