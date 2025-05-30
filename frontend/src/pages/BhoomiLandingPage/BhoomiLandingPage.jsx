@@ -1154,7 +1154,7 @@ export const BhoomiLandingPage = () => {
 
                 {/* CTA Button */}
                 <div className="flex justify-center mb-10 md:mb-20">
-                  <Button className="h-12 cursor-pointer md:h-16 lg:h-[67px] px-6 md:px-8 lg:w-[293px] bg-green-600 hover:bg-green-800 text-black text-lg md:text-2xl lg:text-[31px] tracking-tight leading-tight rounded-xl md:rounded-[18px] border border-[#9abe80] font-medium hover:bg-softgreen/90 transition-colors">
+                  <Button className="h-12 cursor-pointer md:h-16 lg:h-[67px] px-6 md:px-8 lg:w-[293px] bg-green-600 hover:bg-green-800 text-black text-lg md:text-2xl lg:text-[31px] tracking-tight leading-tight rounded-xl md:rounded-[18px] border border-[#9abe80] font-medium hover:bg-softgreen/90 transition-colors" onClick={() => window.location.href = "./login"}>
                     Get Started Now
                   </Button>
                 </div>
