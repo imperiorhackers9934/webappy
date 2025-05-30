@@ -957,6 +957,7 @@ verifyPayment: async (verificationData) => {
  * @param {string} paymentMethod - Payment method
  * @returns {Promise<Object>} - Payment status
  */
+// In frontend/src/services/ticketService.js
 checkPaymentStatus: async (orderId, paymentMethod = 'cashfree_sdk') => {
   try {
     console.log(`Checking payment status for order: ${orderId}, method: ${paymentMethod}`);
@@ -967,25 +968,20 @@ checkPaymentStatus: async (orderId, paymentMethod = 'cashfree_sdk') => {
     
     // Choose appropriate endpoint based on payment method
     let endpoint;
-    if (paymentMethod === 'upi' || paymentMethod === 'cashfree_sdk' || paymentMethod === 'embedded') {
+    if (paymentMethod === 'upi') {
       endpoint = `/api/payments/upi/status/${orderId}`;
+    } else if (paymentMethod === 'cashfree_sdk' || paymentMethod === 'cashfree' || paymentMethod === 'embedded') {
+      // Use the Cashfree verify endpoint (POST) instead of a status endpoint
+      const response = await api.post('/api/payments/cashfree/verify', { orderId });
+      return response.data;
     } else if (paymentMethod === 'phonepe') {
       endpoint = `/api/payments/phonepe/status/${orderId}`;
     } else {
       endpoint = `/api/payments/status/${orderId}`;
     }
     
-    // Make request to status endpoint
+    // For non-Cashfree methods, use GET request
     const response = await api.get(endpoint);
-    console.log('Payment status response:', response.data);
-    
-    // Clear localStorage items on successful payment
-    if (response.data.success && (response.data.status === 'PAYMENT_SUCCESS' || response.data.status === 'completed')) {
-      localStorage.removeItem('pendingOrderId');
-      localStorage.removeItem('pendingBookingId');
-      localStorage.removeItem('cashfreeOrderToken');
-    }
-    
     return response.data;
   } catch (error) {
     console.error(`Error checking payment status for order ${orderId}:`, error);

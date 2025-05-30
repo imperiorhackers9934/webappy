@@ -1,6 +1,6 @@
 // src/services/eventService.js
 import api from './api';
-
+import ticketService from "./ticketService"
 /**
  * Event Service - Handles all API requests related to events
  */
@@ -33,7 +33,34 @@ const eventService = {
       };
     }
   },
-
+getUserBookings: async (filters = {}) => {
+  try {
+    console.log('EventService: Getting user bookings with filters:', filters);
+    
+    // Import ticketService to use its getUserBookings method
+  
+    
+    // Call the ticketService method
+    const response = await ticketService.getUserBookings(filters);
+    
+    console.log('EventService: User bookings response:', response);
+    
+    // Return the response in a consistent format
+    return {
+      success: true,
+      data: response || []
+    };
+  } catch (error) {
+    console.error('EventService: Error fetching user bookings:', error);
+    
+    // Return empty array on error to prevent UI crashes
+    return {
+      success: false,
+      data: [],
+      error: error.message
+    };
+  }
+},
   // Get a specific event by ID
   getEvent: async (eventId) => {
     try {
@@ -101,6 +128,20 @@ const eventService = {
       };
     }
   },
+  downloadTicketPdf: async (ticketId) => {
+  try {
+    console.log('EventService: Downloading ticket PDF:', ticketId);
+   
+    // Call the ticketService method
+    const response = await ticketService.downloadTicketPdf(ticketId);
+    
+    console.log('EventService: Download ticket PDF response received');
+    return response;
+  } catch (error) {
+    console.error('EventService: Error downloading ticket PDF:', error);
+    throw error;
+  }
+},
   // Create a new event
   createEvent: async (eventData) => {
     try {
