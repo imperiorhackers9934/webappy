@@ -7,7 +7,7 @@ const QRCertificateGenerator = () => {
     recipientName: '',
     courseName: '',
     completionDate: '',
-    issuerName: 'Your Organization',
+    issuerName: '',
     certificateId: '',
     description: ''
   });
@@ -61,8 +61,8 @@ const QRCertificateGenerator = () => {
 
   // Generate certificate and QR code data
   const generateCertificate = () => {
-    if (!formData.recipientName || !formData.courseName) {
-      alert('Please fill in recipient name and course name');
+    if (!formData.recipientName) {
+      alert('Please fill in recipient name');
       return;
     }
 
@@ -117,11 +117,11 @@ const QRCertificateGenerator = () => {
   const getTextContent = (elementId) => {
     switch(elementId) {
       case 'recipient': return formData.recipientName || 'John Doe';
-      case 'course': return formData.courseName || 'Sample Course';
-      case 'date': return formData.completionDate || new Date().toISOString().split('T')[0];
-      case 'issuer': return formData.issuerName;
-      case 'certId': return formData.certificateId || 'CERT-SAMPLE123';
-      default: return 'Sample Text';
+      case 'course': return formData.courseName || '';
+      case 'date': return formData.completionDate || '';
+      case 'issuer': return formData.issuerName || '';
+      case 'certId': return formData.certificateId || '';
+      default: return '';
     }
   };
 
@@ -303,7 +303,7 @@ const QRCertificateGenerator = () => {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Course/Achievement Name *
+                      Course/Achievement Name
                     </label>
                     <input
                       type="text"
@@ -311,7 +311,7 @@ const QRCertificateGenerator = () => {
                       value={formData.courseName}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
-                      placeholder="e.g., React Development Bootcamp"
+                      placeholder="e.g., React Development Bootcamp (Optional)"
                     />
                   </div>
 
@@ -338,7 +338,7 @@ const QRCertificateGenerator = () => {
                       value={formData.issuerName}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
-                      placeholder="Your organization name"
+                      placeholder="Your organization name (Optional)"
                     />
                   </div>
 
