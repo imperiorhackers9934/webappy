@@ -58,6 +58,7 @@ import PaymentResponsePage from './pages/PaymentResponsePage';
 import EditEventForm from './pages/EditEventPage';
 import EditFormPage from './pages/EditFormPage';
 import CouponManagementPage from './pages/CouponManagementPage';
+import QRCertificateGenerator from "./pages/CertificateCreation.jsx"
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -204,7 +205,11 @@ const App = () => {
               <PostsFetcher/>
             </ProtectedRoute>
           } />
-          
+           <Route path='/certificate' element={
+            <ProtectedRoute>
+              <QRCertificateGenerator/>
+            </ProtectedRoute>
+          } />
           {/* Chat Routes */}
           <Route path="/chat" element={
             <ProtectedRoute>
