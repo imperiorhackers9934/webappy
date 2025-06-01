@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Download, QrCode, Eye, RefreshCw, Search, Check, X, User, Calendar, Building, Hash } from 'lucide-react';
-import QRCodeReact from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const QRCodeGenerator = () => {
   const [formData, setFormData] = useState({
@@ -338,7 +338,7 @@ const QRCodeGenerator = () => {
                 {generatedQR ? (
                   <div className="text-center">
                     <div ref={qrRef} className="inline-block bg-white p-6 rounded-lg shadow-lg border-2 border-gray-200 mb-6">
-                      <QRCodeReact
+                      <QRCodeCanvas
                         value={qrData}
                         size={200}
                         bgColor="#ffffff"
