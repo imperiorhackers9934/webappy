@@ -188,14 +188,14 @@ const Login = () => {
           </button>
           
           {/* Divider */}
-          <div className="flex items-center my-6">
+          {/* <div className="flex items-center my-6">
             <hr className="flex-grow border-t border-gray-200" />
             <span className="px-4 text-gray-500 text-sm font-medium bg-white">or continue with</span>
             <hr className="flex-grow border-t border-gray-200" />
-          </div>
+          </div> */}
           
           {/* Social Login Buttons */}
-          <div className="space-y-3">
+          {/* <div className="space-y-3">
             <button
               type="button"
               onClick={handleGoogleLogin}
@@ -228,7 +228,7 @@ const Login = () => {
               </svg>
               Continue with LinkedIn
             </button>
-          </div>
+          </div> */}
         </form>
         
         {/* Footer Links */}

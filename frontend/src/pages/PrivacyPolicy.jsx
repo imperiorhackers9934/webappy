@@ -93,7 +93,7 @@ const PrivacyPolicy = memo(() => {
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         {/* Header */}
         <header className="mb-8 sm:mb-12">
-          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 sm:p-8 lg:p-10 rounded-2xl shadow-2xl backdrop-blur-sm border border-green-200/20 transform hover:scale-[1.02] transition-all duration-300 hover:shadow-3xl">
+          <div className="bg-gradient-to-r from-green-500 to-green-400 text-white p-6 sm:p-8 lg:p-10 rounded-2xl shadow-2xl backdrop-blur-sm border border-green-200/20 transform hover:scale-[1.02] transition-all duration-300 hover:shadow-3xl">
             <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
               <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-green-100" />
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Privacy Policy</h1>

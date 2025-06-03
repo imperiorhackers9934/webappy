@@ -301,14 +301,14 @@ const EventCreationPage = ({ user, onLogout }) => {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Event Title <span className="text-red-500">*</span>
+                Event Title <span className="text-green-500">*</span>
               </label>
               <input
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 placeholder="e.g., Tech Conference 2025"
                 required
               />
@@ -323,24 +323,24 @@ const EventCreationPage = ({ user, onLogout }) => {
                 value={formData.description}
                 onChange={handleInputChange}
                 rows={5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 placeholder="Describe your event, what attendees can expect, etc."
               ></textarea>
-              <p className="mt-1 text-sm text-orange-500">
+              <p className="mt-1 text-sm text-green-500">
                 Tip: A good description helps attendees understand what to expect.
               </p>
             </div>
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category <span className="text-red-500">*</span>
+                Category <span className="text-green-500">*</span>
               </label>
               <div className="relative">
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
                   required
                 >
                   <option value="">Select a category</option>
@@ -363,17 +363,17 @@ const EventCreationPage = ({ user, onLogout }) => {
                 Tags
               </label>
               <div className="relative">
-                <Tag className="w-5 h-5 text-orange-500 absolute left-3 top-2.5" />
+                <Tag className="w-5 h-5 text-green-500 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   name="tags"
                   value={formData.tags}
                   onChange={handleInputChange}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   placeholder="e.g., conference, technology, networking (comma separated)"
                 />
               </div>
-              <p className="mt-1 text-sm text-orange-500">
+              <p className="mt-1 text-sm text-green-500">
                 Enter tags separated by commas to help people discover your event.
               </p>
             </div>
@@ -388,14 +388,14 @@ const EventCreationPage = ({ user, onLogout }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Date <span className="text-red-500">*</span>
+                  Start Date <span className="text-green-500">*</span>
                 </label>
                 <input
                   type="date"
                   name="startDate"
                   value={formData.startDate}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   required
                 />
               </div>
@@ -409,7 +409,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   name="startTime"
                   value={formData.startTime}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
             </div>
@@ -425,7 +425,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   value={formData.endDate}
                   onChange={handleInputChange}
                   min={formData.startDate}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
               
@@ -438,7 +438,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   name="endTime"
                   value={formData.endTime}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
             </div>
@@ -458,7 +458,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   name="isOnline"
                   checked={formData.isOnline}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                 />
                 <label htmlFor="isOnline" className="ml-2 block text-sm text-gray-700">
                   This is an online event
@@ -476,7 +476,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   name="virtualMeetingLink"
                   value={formData.virtualMeetingLink}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   placeholder="e.g., https://zoom.us/j/123456789"
                 />
                 <p className="mt-1 text-sm text-gray-500">
@@ -487,14 +487,14 @@ const EventCreationPage = ({ user, onLogout }) => {
               <div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Venue Name <span className="text-red-500">*</span>
+                    Venue Name <span className="text-green-500">*</span>
                   </label>
                   <input
                     type="text"
                     name="location"
                     value={formData.location}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     placeholder="e.g., Tech Center"
                     required={!formData.isOnline}
                   />
@@ -502,7 +502,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                 
                 <button
                   type="button"
-                  className="text-sm text-orange-600 hover:text-orange-800 font-medium mb-4"
+                  className="text-sm text-green-600 hover:text-green-800 font-medium mb-4"
                   onClick={() => setShowLocationDetails(!showLocationDetails)}
                 >
                   {showLocationDetails ? 'Hide' : 'Add'} location details
@@ -519,7 +519,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                         name="address"
                         value={formData.locationDetails.address}
                         onChange={handleLocationDetailChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         placeholder="e.g., 123 Main St"
                       />
                     </div>
@@ -534,7 +534,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                           name="city"
                           value={formData.locationDetails.city}
                           onChange={handleLocationDetailChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                       </div>
                       
@@ -547,7 +547,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                           name="state"
                           value={formData.locationDetails.state}
                           onChange={handleLocationDetailChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                       </div>
                     </div>
@@ -562,7 +562,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                           name="postalCode"
                           value={formData.locationDetails.postalCode}
                           onChange={handleLocationDetailChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                       </div>
                       
@@ -575,7 +575,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                           name="country"
                           value={formData.locationDetails.country}
                           onChange={handleLocationDetailChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
                       </div>
                     </div>
@@ -617,7 +617,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   <Image className="w-12 h-12 text-gray-400 mb-3" />
                   <p className="text-sm text-gray-500 mb-2">Upload an image to attract attendees</p>
                   <p className="text-xs text-gray-400 mb-4">Recommended size: 1200×600px (JPEG or PNG, max 5MB)</p>
-                  <label className="cursor-pointer px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                  <label className="cursor-pointer px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                     <input
                       type="file"
                       className="sr-only"
@@ -643,7 +643,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   value={formData.maxAttendees}
                   onChange={handleInputChange}
                   min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   placeholder="Leave blank for unlimited"
                 />
               </div>
@@ -655,7 +655,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   name="isPrivate"
                   checked={formData.isPrivate}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                 />
                 <label htmlFor="isPrivate" className="ml-2 block text-sm text-gray-700">
                   Private event (only visible to invited users)
@@ -669,7 +669,7 @@ const EventCreationPage = ({ user, onLogout }) => {
                   name="requireApproval"
                   checked={formData.requireApproval}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                 />
                 <label htmlFor="requireApproval" className="ml-2 block text-sm text-gray-700">
                   Require approval for registrations
@@ -691,12 +691,12 @@ const EventCreationPage = ({ user, onLogout }) => {
               onChange={handleCustomFieldsChange}
             />
             
-            <div className="mt-6 border border-orange-100 bg-orange-50 rounded-lg p-4">
-              <h4 className="font-medium text-orange-800 mb-3">Example Custom Fields</h4>
+            <div className="mt-6 border border-green-100 bg-green-50 rounded-lg p-4">
+              <h4 className="font-medium text-green-800 mb-3">Example Custom Fields</h4>
               
               <div className="flex items-start mb-3">
-                <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-1">
-                  <Info className="h-4 w-4 text-orange-600" />
+                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-1">
+                  <Info className="h-4 w-4 text-green-600" />
                 </div>
                 <div className="ml-3">
                   <h4 className="font-medium text-gray-800">Dietary Restrictions</h4>
@@ -705,8 +705,8 @@ const EventCreationPage = ({ user, onLogout }) => {
               </div>
               
               <div className="flex items-start">
-                <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-1">
-                  <Users className="h-4 w-4 text-orange-600" />
+                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-1">
+                  <Users className="h-4 w-4 text-green-600" />
                 </div>
                 <div className="ml-3">
                   <h4 className="font-medium text-gray-800">Company or Organization</h4>
@@ -733,22 +733,22 @@ const EventCreationPage = ({ user, onLogout }) => {
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-4 py-12">
             <div className="text-center bg-white rounded-lg shadow-md p-8">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-100 rounded-full mb-6">
-                <CheckCircle className="w-10 h-10 text-orange-600" />
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
+                <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
-              <h1 className="text-3xl font-bold text-orange-900 mb-4">Event Created Successfully!</h1>
+              <h1 className="text-3xl font-bold text-green-900 mb-4">Event Created Successfully!</h1>
               <p className="text-lg text-gray-700 mb-8">
                 Your event has been created and is now visible to attendees.
               </p>
               <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
                 <button 
-                  className="px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700"
+                  className="px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
                   onClick={() => navigate(`/events/${createdEventResponse?.data?._id || createdEventResponse?.data?.id || 'new'}`)}
       >
         View Event
       </button>
       <button 
-        className="px-6 py-2 border border-orange-300 text-base font-medium rounded-md shadow-sm text-orange-700 bg-white hover:bg-orange-50"
+        className="px-6 py-2 border border-green-300 text-base font-medium rounded-md shadow-sm text-green-700 bg-white hover:bg-green-50"
         onClick={() => navigate('/events/new')}
       >
         Create Another Event
@@ -773,7 +773,7 @@ return (
 {/* Header */}
 <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
 <div className="px-16 py-4 flex items-center justify-between">
-  <Link to="/events" className="text-orange-500 hover:text-orange-600 flex items-center">
+  <Link to="/events" className="text-green-500 hover:text-green-600 flex items-center">
     <ArrowLeft className="w-5 h-5 mr-1" />
     <span>Back to Events</span>
   </Link>
@@ -784,7 +784,7 @@ return (
     type="button"
     onClick={handleSubmit}
     disabled={submitting}
-    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
     >
       {submitting ? 'Creating...' : 'Create Event'}
     </button>
@@ -803,9 +803,9 @@ return (
           <div 
             className={`flex items-center justify-center w-8 h-8 rounded-full ${
               activeStep === step.id 
-                ? 'bg-orange-500 text-white' 
+                ? 'bg-green-500 text-white' 
                 : activeStep > step.id 
-                  ? 'bg-orange-100 text-orange-500 border border-orange-500' 
+                  ? 'bg-green-100 text-green-500 border border-green-500' 
                   : 'bg-gray-100 text-gray-400'
             }`}
           >
@@ -822,14 +822,14 @@ return (
             activeStep === step.id 
               ? 'text-gray-900' 
               : activeStep > step.id 
-                ? 'text-orange-500' 
+                ? 'text-green-500' 
                 : 'text-gray-400'
           }`}>
             {step.name}
           </span>
           
           {index < formSteps.length - 1 && (
-            <div className={`h-0.5 flex-1 mx-3 ${activeStep > step.id ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
+            <div className={`h-0.5 flex-1 mx-3 ${activeStep > step.id ? 'bg-green-500' : 'bg-gray-200'}`}></div>
           )}
         </div>
       ))}
@@ -841,9 +841,9 @@ return (
 <div className="max-w-4xl mx-auto px-4 py-6">
   {/* Error message */}
   {error && (
-    <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
+    <div className="mb-4 bg-red-50 border-l-4 border-green-500 p-4 rounded-md">
       <div className="flex">
-        <AlertCircle className="h-5 w-5 text-red-500" />
+        <AlertCircle className="h-5 w-5 text-green-500" />
         <div className="ml-3">
           <p className="text-sm text-red-700">{error}</p>
         </div>
@@ -861,7 +861,7 @@ return (
         type="button"
         onClick={prevStep}
         disabled={activeStep === 1}
-        className={`px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
+        className={`px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ${
           activeStep === 1 ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
@@ -872,7 +872,7 @@ return (
         <button
           type="button"
           onClick={nextStep}
-          className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+          className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
           Next Step
         </button>
@@ -880,7 +880,7 @@ return (
         <button
           type="submit"
           disabled={submitting}
-          className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
+          className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ${
             submitting ? 'opacity-75 cursor-not-allowed' : ''
           }`}
         >

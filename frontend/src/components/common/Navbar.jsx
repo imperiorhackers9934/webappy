@@ -220,16 +220,16 @@ const Sidebar = ({ user, onLogout }) => {
   return (
     <>
       {/* Main Horizontal Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-orange-200 shadow-sm">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-green-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Left Section - Logo */}
             <div className="flex items-center">
               <Link to="/dashboard" className="flex items-center space-x-3 group">
-                <div className="h-9 w-9 bg-gradient-to-r from-orange-500 to-orange-400 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-200">
+                <div className="h-9 w-9 bg-gradient-to-r from-green-500 to-green-400 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-200">
                   <img src={img || "/placeholder.svg"} alt="" className="h-7 w-7 rounded-lg" />
                 </div>
-                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-orange-400 hidden sm:block">
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-green-400 hidden sm:block">
                   Meetkats
                 </span>
               </Link>
@@ -243,9 +243,9 @@ const Sidebar = ({ user, onLogout }) => {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className="flex items-center space-x-2 px-4 py-2 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200 group"
+                    className="flex items-center space-x-2 px-4 py-2 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200 group"
                   >
-                    <span className=" w-7 group-hover:scale-110 transition-transform duration-200">{item.icon}</span>
+                    <span className="md:hidden w-7 group-hover:scale-110 transition-transform duration-200">{item.icon}</span>
                     <span className="text-sm font-medium">{item.name}</span>
                   </Link>
                 ))}
@@ -257,7 +257,7 @@ const Sidebar = ({ user, onLogout }) => {
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <svg
-                        className={`h-4 w-4 transition-colors duration-200 ${searchFocused ? "text-orange-500" : "text-orange-400"}`}
+                        className={`h-4 w-4 transition-colors duration-200 ${searchFocused ? "text-green-500" : "text-green-400"}`}
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 20 20"
                         fill="currentColor"
@@ -273,7 +273,7 @@ const Sidebar = ({ user, onLogout }) => {
                       type="search"
                       name="search"
                       id="search"
-                      className="w-80 bg-orange-50 border border-orange-100 rounded-full py-2.5 pl-10 pr-4 text-sm placeholder-orange-300 focus:outline-none focus:bg-white focus:border-orange-300 focus:ring-2 focus:ring-orange-200 transition-all duration-200"
+                      className="w-80 bg-green-50 border border-green-100 rounded-full py-2.5 pl-10 pr-4 text-sm placeholder-green-300 focus:outline-none focus:bg-white focus:border-green-300 focus:ring-2 focus:ring-green-200 transition-all duration-200"
                       placeholder="Search people, posts, companies..."
                       onFocus={() => setSearchFocused(true)}
                       onBlur={() => setSearchFocused(false)}
@@ -289,7 +289,7 @@ const Sidebar = ({ user, onLogout }) => {
               <div ref={messagesRef} className="relative hidden lg:block">
                 <button
                   onClick={toggleMessages}
-                  className="p-2.5 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200 relative"
+                  className="p-2.5 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200 relative"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -309,12 +309,12 @@ const Sidebar = ({ user, onLogout }) => {
 
                 {messages && (
                   <div className="absolute right-0 top-full mt-2 w-96 rounded-2xl shadow-xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden z-50">
-                    <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-orange-400">
+                    <div className="px-6 py-4 bg-gradient-to-r from-green-500 to-green-400">
                       <div className="flex justify-between items-center">
                         <h3 className="text-sm font-semibold text-white">Messages</h3>
                         <Link
                           to="/chat"
-                          className="text-xs font-medium text-white hover:text-orange-100 transition-colors"
+                          className="text-xs font-medium text-white hover:text-green-100 transition-colors"
                         >
                           View all
                         </Link>
@@ -348,7 +348,7 @@ const Sidebar = ({ user, onLogout }) => {
               <div ref={notificationsRef} className="relative hidden lg:block">
                 <button
                   onClick={toggleNotifications}
-                  className="p-2.5 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200 relative"
+                  className="p-2.5 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200 relative"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -365,7 +365,7 @@ const Sidebar = ({ user, onLogout }) => {
                     />
                   </svg>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium animate-pulse">
+                    <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium animate-pulse">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
@@ -373,12 +373,12 @@ const Sidebar = ({ user, onLogout }) => {
 
                 {notifications && (
                   <div className="absolute right-0 top-full mt-2 w-96 rounded-2xl shadow-xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden z-50">
-                    <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-orange-400">
+                    <div className="px-6 py-4 bg-gradient-to-r from-green-500 to-green-400">
                       <div className="flex justify-between items-center">
                         <h3 className="text-sm font-semibold text-white">Notifications</h3>
                         <Link
                           to="/notifications"
-                          className="text-xs font-medium text-white hover:text-orange-100 transition-colors"
+                          className="text-xs font-medium text-white hover:text-green-100 transition-colors"
                         >
                           View all
                         </Link>
@@ -387,14 +387,14 @@ const Sidebar = ({ user, onLogout }) => {
                     <div className="max-h-80 overflow-y-auto">
                       {loading ? (
                         <div className="px-6 py-8 text-center">
-                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent mb-3"></div>
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-green-500 border-t-transparent mb-3"></div>
                           <p className="text-sm text-gray-500">Loading notifications...</p>
                         </div>
                       ) : notificationItems.length > 0 ? (
                         notificationItems.map((notification) => (
                           <div
                             key={notification.id}
-                            className={`px-6 py-4 hover:bg-orange-50 border-b border-orange-50 cursor-pointer transition-colors ${notification.read ? "bg-white" : "bg-orange-25"}`}
+                            className={`px-6 py-4 hover:bg-green-50 border-b border-green-50 cursor-pointer transition-colors ${notification.read ? "bg-white" : "bg-green-25"}`}
                             onClick={() => !notification.read && handleMarkAsRead(notification.id)}
                           >
                             <div className="flex items-start space-x-3">
@@ -406,8 +406,8 @@ const Sidebar = ({ user, onLogout }) => {
                                     alt={`${notification.sender.firstName} ${notification.sender.lastName}`}
                                   />
                                 ) : (
-                                  <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                                    <span className="text-sm font-semibold text-orange-500">
+                                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                    <span className="text-sm font-semibold text-green-500">
                                       {notification.sender?.firstName?.charAt(0) || "U"}
                                       {notification.sender?.lastName?.charAt(0) || "U"}
                                     </span>
@@ -450,17 +450,17 @@ const Sidebar = ({ user, onLogout }) => {
               <div ref={profileRef} className="relative">
                 <button
                   onClick={toggleProfileMenu}
-                  className="flex items-center space-x-3 p-1.5 rounded-xl hover:bg-orange-50 transition-all duration-200 group"
+                  className="flex items-center space-x-3 p-1.5 rounded-xl hover:bg-green-50 transition-all duration-200 group"
                 >
                   <div className="flex-shrink-0">
                     {user?.profilePicture ? (
                       <img
-                        className="h-9 w-9 rounded-xl border-2 border-orange-200 group-hover:border-orange-300 transition-colors"
+                        className="h-9 w-9 rounded-xl border-2 border-green-200 group-hover:border-green-300 transition-colors"
                         src={user.profilePicture || "/placeholder.svg"}
                         alt=""
                       />
                     ) : (
-                      <div className="h-9 w-9 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 flex items-center justify-center border-2 border-orange-200 group-hover:border-orange-300 transition-colors">
+                      <div className="h-9 w-9 rounded-xl bg-gradient-to-r from-green-500 to-green-400 flex items-center justify-center border-2 border-green-200 group-hover:border-green-300 transition-colors">
                         <span className="text-sm font-semibold text-white">
                           {user?.firstName?.charAt(0)}
                           {user?.lastName?.charAt(0)}
@@ -469,13 +469,13 @@ const Sidebar = ({ user, onLogout }) => {
                     )}
                   </div>
                   <div className="hidden lg:block text-left">
-                    <p className="text-sm font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
+                    <p className="text-sm font-medium text-gray-900 group-hover:text-green-600 transition-colors">
                       {user?.firstName} {user?.lastName}
                     </p>
                   </div>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 text-gray-400 group-hover:text-orange-500 transition-colors hidden lg:block"
+                    className="h-4 w-4 text-gray-400 group-hover:text-green-500 transition-colors hidden lg:block"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -486,7 +486,7 @@ const Sidebar = ({ user, onLogout }) => {
 
                 {profileMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl shadow-xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden z-50">
-                    <div className="px-6 py-5 bg-gradient-to-r from-orange-500 to-orange-400 text-white">
+                    <div className="px-6 py-5 bg-gradient-to-r from-green-500 to-green-400 text-white">
                       <div className="flex items-center space-x-4">
                         {user?.profilePicture ? (
                           <img
@@ -506,7 +506,7 @@ const Sidebar = ({ user, onLogout }) => {
                           <p className="text-lg font-bold truncate">
                             {user?.firstName} {user?.lastName}
                           </p>
-                          <p className="text-sm text-orange-100 truncate">{user?.headline || "Update your headline"}</p>
+                          <p className="text-sm text-green-100 truncate">{user?.headline || "Update your headline"}</p>
                         </div>
                       </div>
                       <Link
@@ -520,7 +520,7 @@ const Sidebar = ({ user, onLogout }) => {
                     <div className="py-2">
                       <Link
                         to="/settings"
-                        className="flex items-center px-6 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                        className="flex items-center px-6 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -546,7 +546,7 @@ const Sidebar = ({ user, onLogout }) => {
                       </Link>
                       <Link
                         to="/activity"
-                        className="flex items-center px-6 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                        className="flex items-center px-6 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -567,7 +567,7 @@ const Sidebar = ({ user, onLogout }) => {
                       <div className="border-t border-gray-100 my-2"></div>
                       <button
                         onClick={onLogout}
-                        className="flex items-center w-full px-6 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                        className="flex items-center w-full px-6 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -593,7 +593,7 @@ const Sidebar = ({ user, onLogout }) => {
               {/* Mobile Menu Button */}
               <button
                 onClick={toggleMobileMenu}
-                className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200"
+                className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200"
               >
                 {!mobileMenuOpen ? (
                   <svg
@@ -622,12 +622,12 @@ const Sidebar = ({ user, onLogout }) => {
         </div>
 
         {/* Mobile Search Bar */}
-        <div className="lg:hidden border-t border-orange-100 px-4 py-3">
+        <div className="lg:hidden border-t border-green-100 px-4 py-3">
           <form onSubmit={handleSearch} className="w-full">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg
-                  className="h-4 w-4 text-orange-400"
+                  className="h-4 w-4 text-green-400"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -643,7 +643,7 @@ const Sidebar = ({ user, onLogout }) => {
                 type="search"
                 name="search"
                 id="mobile-search"
-                className="w-full bg-orange-50 border border-orange-100 rounded-full py-2.5 pl-10 pr-4 text-sm placeholder-orange-300 focus:outline-none focus:bg-white focus:border-orange-300 focus:ring-2 focus:ring-orange-200"
+                className="w-full bg-green-50 border border-green-100 rounded-full py-2.5 pl-10 pr-4 text-sm placeholder-green-300 focus:outline-none focus:bg-white focus:border-green-300 focus:ring-2 focus:ring-green-200"
                 placeholder="Search..."
               />
             </div>
@@ -663,7 +663,7 @@ const Sidebar = ({ user, onLogout }) => {
       >
         <div className="h-full flex flex-col">
           {/* Mobile Menu Header */}
-          <div className="flex items-center justify-between p-6 border-b border-orange-100 bg-gradient-to-r from-orange-500 to-orange-400">
+          <div className="flex items-center justify-between p-6 border-b border-green-100 bg-gradient-to-r from-green-500 to-green-400">
             <div className="flex items-center space-x-3">
               <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center">
                 <img src={img || "/placeholder.svg"} alt="" className="h-8 w-8 rounded-lg" />
@@ -693,7 +693,7 @@ const Sidebar = ({ user, onLogout }) => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200"
+                  className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200"
                   onClick={toggleMobileMenu}
                 >
                   {item.icon}
@@ -703,7 +703,7 @@ const Sidebar = ({ user, onLogout }) => {
 
               <Link
                 to="/chat"
-                className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200"
+                className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200"
                 onClick={toggleMobileMenu}
               >
                 <svg
@@ -725,7 +725,7 @@ const Sidebar = ({ user, onLogout }) => {
 
               <Link
                 to="/notifications"
-                className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-50 transition-all duration-200"
+                className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-50 transition-all duration-200"
                 onClick={toggleMobileMenu}
               >
                 <div className="relative">
@@ -744,7 +744,7 @@ const Sidebar = ({ user, onLogout }) => {
                     />
                   </svg>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
@@ -755,17 +755,17 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
 
           {/* Mobile Profile Section */}
-          <div className="p-6 border-t border-orange-100 bg-orange-50">
+          <div className="p-6 border-t border-green-100 bg-green-50">
             <div className="flex items-center space-x-4 mb-4">
               <div className="flex-shrink-0">
                 {user?.profilePicture ? (
                   <img
-                    className="h-12 w-12 rounded-xl border-2 border-orange-200"
+                    className="h-12 w-12 rounded-xl border-2 border-green-200"
                     src={user.profilePicture || "/placeholder.svg"}
                     alt=""
                   />
                 ) : (
-                  <div className="h-12 w-12 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 flex items-center justify-center">
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-r from-green-500 to-green-400 flex items-center justify-center">
                     <span className="text-sm font-semibold text-white">
                       {user?.firstName?.charAt(0)}
                       {user?.lastName?.charAt(0)}
@@ -784,7 +784,7 @@ const Sidebar = ({ user, onLogout }) => {
             <div className="space-y-2">
               <Link
                 to="/profile"
-                className="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-100 transition-all duration-200 text-sm"
+                className="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-100 transition-all duration-200 text-sm"
                 onClick={toggleMobileMenu}
               >
                 <svg
@@ -805,7 +805,7 @@ const Sidebar = ({ user, onLogout }) => {
               </Link>
               <Link
                 to="/settings"
-                className="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-100 transition-all duration-200 text-sm"
+                className="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-100 transition-all duration-200 text-sm"
                 onClick={toggleMobileMenu}
               >
                 <svg
@@ -835,7 +835,7 @@ const Sidebar = ({ user, onLogout }) => {
                   onLogout()
                   toggleMobileMenu()
                 }}
-                className="flex items-center space-x-3 w-full px-4 py-2.5 rounded-xl text-gray-600 hover:text-orange-500 hover:bg-orange-100 transition-all duration-200 text-sm"
+                className="flex items-center space-x-3 w-full px-4 py-2.5 rounded-xl text-gray-600 hover:text-green-500 hover:bg-green-100 transition-all duration-200 text-sm"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

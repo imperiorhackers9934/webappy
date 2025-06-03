@@ -1,8 +1,8 @@
 import { FooterBlock } from "./sections/FooterBlock";
 import React from 'react';
-import { useState } from 'react';
+import { useState,useCallback } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../components/ui/accordion";
-
+import { useAuth } from '../../context/AuthContext';
 import { Separator } from "../../components/ui/separator";
 import { LinkIcon, SearchIcon, Menu, X, CheckIcon, XIcon } from 'lucide-react';
 import { Card, CardContent } from "../../components/ui/card";
@@ -256,6 +256,15 @@ export const BhoomiLandingPage = () => {
   };
   //Hero Section Essentials
   const [hovered, setHovered] = useState(null);
+  const { login, socialLogin } = useAuth();
+  const handleGoogleLogin = useCallback(() => {
+      socialLogin('google');
+    }, [socialLogin]);
+  
+    const handleLinkedInLogin = useCallback(() => {
+      socialLogin('linkedin');
+    }, [socialLogin]);
+    
   const buttons = [
     {
       id: "google",
@@ -264,6 +273,7 @@ export const BhoomiLandingPage = () => {
       bgColor: "bg-white",
       textColor: "text-gray-700",
       hoverBg: "hover:bg-gray-50",
+      onClick: handleGoogleLogin,
     },
     {
       id: "apple",
@@ -272,6 +282,7 @@ export const BhoomiLandingPage = () => {
       bgColor: "bg-black",
       textColor: "text-white",
       hoverBg: "hover:bg-gray-900",
+      onClick: handleLinkedInLogin,
     },
     {
       id: "email",
@@ -280,6 +291,9 @@ export const BhoomiLandingPage = () => {
       bgColor: "bg-white",
       textColor: "text-gray-700",
       hoverBg: "hover:bg-gray-50",
+      onClick: () => {
+        window.location.href = "/login";
+      },
     },
   ];
   //Feature Section Essentials
@@ -477,7 +491,7 @@ export const BhoomiLandingPage = () => {
                     }`}
                   onMouseEnter={() => setHovered(button.id)}
                   onMouseLeave={() => setHovered(null)}
-                  onClick={()=>{window.location.href=`/login`}}
+                  onClick={button.onClick ? button.onClick : undefined}
                 >
                   <div
                     className={`${button.id === "google" ? "bg-transparent" : ""

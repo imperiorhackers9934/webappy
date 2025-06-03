@@ -187,7 +187,7 @@ const Signup = () => {
             </button>
           </div>
           
-          <div className="flex items-center my-4">
+          {/* <div className="flex items-center my-4">
             <hr className="flex-grow border-t border-gray-300" />
             <span className="px-3 text-gray-500 text-sm">OR</span>
             <hr className="flex-grow border-t border-gray-300" />
@@ -225,7 +225,7 @@ const Signup = () => {
               </svg>
               Sign up with Phone
             </button>
-          </div>
+          </div> */}
         </form>
         
         <div className="mt-6 text-center">
