@@ -17,6 +17,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@react-google-maps/api": "^2.20.6",
     "@tailwindcss/vite": "^4.1.7",
+    "add-to-calendar-button-react": "^2.9.1",
     "axios": "^1.8.1",
     "cashfree-pg-sdk-javascript": "^2.0.8",
     "class-variance-authority": "^0.7.1",

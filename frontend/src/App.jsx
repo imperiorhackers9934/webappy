@@ -35,7 +35,8 @@ import LandingPage from './pages/LandingPage';
 import { BhoomiLandingPage } from './pages/BhoomiLandingPage/BhoomiLandingPage';
 // Event Management Pages
 import EventListingPage from './pages/EventsListingPage';
-import EventDetailPage from './pages/EventDetailPage';
+// import EventDetailPage from './pages/EventDetailPage';
+import {EventDetailPage} from './pages/EventDetailPage/EventDetailPage';
 import EventCreationPage from './pages/EventCreationPage';
 import TicketPurchasePage from './pages/TicketPurchasePage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
